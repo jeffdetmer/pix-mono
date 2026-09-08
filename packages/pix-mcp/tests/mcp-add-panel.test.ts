@@ -4,6 +4,11 @@ import { resolveAddTargetPath } from "../src/config.ts";
 import { type AddPanelCallbacks, McpAddPanel } from "../src/mcp-add-panel.ts";
 
 const ENTER = "\r";
+const DOWN = "\x1b[B";
+
+function stripAnsi(input: string): string {
+	return input.replace(/\x1b\[[0-9;]*m/g, "");
+}
 
 function panel() {
 	const tui = { requestRender: mock(() => {}), terminal: { rows: 40 } };
@@ -25,10 +30,40 @@ function panel() {
 }
 
 function openRemoteUrlField(p: McpAddPanel): void {
-	p.handleInput("\x1b[B");
-	p.handleInput("\x1b[B");
+	p.handleInput(DOWN);
 	p.handleInput(ENTER);
 	p.handleInput("\t");
+}
+
+function editPanel() {
+	const tui = { requestRender: mock(() => {}), terminal: { rows: 40 } };
+	const callbacks: AddPanelCallbacks = {
+		resolveTargetPath: () => "/tmp/ignored.json",
+		previewEntry: () => ({
+			path: "/project/.mcp.json",
+			existed: true,
+			changed: true,
+			beforeText: "{}",
+			afterText: "{}",
+			diffText: "",
+		}),
+		writeEntry: () => "/project/.mcp.json",
+		isNameTaken: () => true,
+		testConnect: async () => "connected",
+	};
+	return new McpAddPanel(
+		{
+			cwd: "/project",
+			callbacks,
+			edit: {
+				name: "github",
+				targetPath: "/project/.mcp.json",
+				entry: { url: "https://api.githubcopilot.com/mcp", bearerTokenEnv: "GITHUB_TOKEN" },
+			},
+		},
+		tui,
+		() => {},
+	);
 }
 
 describe("MCP add target", () => {
@@ -39,6 +74,46 @@ describe("MCP add target", () => {
 		expect(resolveAddTargetPath("project", "/project", "/ignored/mcp.json")).toBe(
 			join("/project", ".mcp.json"),
 		);
+	});
+});
+
+describe("MCP add transport choices", () => {
+	it("offers only MCP stdio and URL transports", () => {
+		const output = stripAnsi(panel().render(120).join("\n"));
+
+		expect(output).toContain("stdio / CLI");
+		expect(output).toContain("URL / HTTP");
+		expect(output).not.toContain("npx package");
+		expect(output).not.toContain("SSE transport");
+	});
+
+	it("shows concrete examples for complex fields", () => {
+		const p = panel();
+		p.handleInput(ENTER);
+		let output = stripAnsi(p.render(120).join("\n"));
+		expect(output).toContain('Args: ["-y","@scope/server"] — JSON array');
+		expect(output).toContain('Env: {"API_KEY":"$API_KEY"} — JSON object');
+
+		p.handleInput("\x1b");
+		p.handleInput(DOWN);
+		p.handleInput(ENTER);
+		output = stripAnsi(p.render(120).join("\n"));
+		expect(output).toContain('Headers: {"X-API-Key":"$API_KEY"} — JSON object');
+		expect(output).toContain("Token env: GITHUB_TOKEN — env var name");
+		p.dispose();
+	});
+});
+
+describe("MCP edit form", () => {
+	it("opens prefilled and previews against original config path", () => {
+		const p = editPanel();
+		expect(p.getStep()).toBe("form");
+		expect(p.getSelectedType()).toBe("http");
+		expect(p.getFieldValue("name")).toBe("github");
+		expect(p.getFieldValue("url")).toBe("https://api.githubcopilot.com/mcp");
+		expect(p.getFieldValue("bearerTokenEnv")).toBe("GITHUB_TOKEN");
+		expect(stripAnsi(p.render(120).join("\n"))).toContain("Edit MCP server");
+		p.dispose();
 	});
 });
 

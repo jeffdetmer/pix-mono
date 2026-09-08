@@ -397,6 +397,15 @@ class McpPanel {
 		});
 	}
 
+	private requestEdit(serverName: string): void {
+		this.cleanup();
+		this.done({
+			cancelled: false,
+			changes: new Map<string, true | string[] | false>(),
+			wantsEdit: serverName,
+		});
+	}
+
 	private requestDelete(serverName: string): void {
 		this.cleanup();
 		this.done({
@@ -552,6 +561,20 @@ class McpPanel {
 		if (matchesKey(data, "ctrl+a")) {
 			const item = this.visibleItems[this.cursorIndex];
 			if (item) this.authenticateSelectedServer(item);
+			return;
+		}
+
+		if (matchesKey(data, "ctrl+e")) {
+			const item = this.visibleItems[this.cursorIndex];
+			if (!item || item.type === "add") return;
+			const server = this.servers[item.serverIndex];
+			if (!server) return;
+			if (server.source === "import") {
+				this.importNotice = `${sanitizeDisplayText(server.name)} is imported (read-only) — edit its source config instead.`;
+				this.tui.requestRender();
+				return;
+			}
+			this.requestEdit(server.name);
 			return;
 		}
 
@@ -902,7 +925,7 @@ class McpPanel {
 			guide("?", "desc search"),
 			guide("ctrl+a", "auth"),
 			guide("ctrl+r", "reconnect"),
-			guide("ctrl+d", "delete"),
+			guide("ctrl+e/d", "edit/delete"),
 			guide("ctrl+s", "save"),
 			guide("esc", "clear/close"),
 			guide("ctrl+c", "quit"),

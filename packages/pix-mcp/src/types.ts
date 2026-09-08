@@ -429,6 +429,8 @@ export interface McpPanelResult {
 	cancelled: boolean;
 	addedServer?: AddPanelResultForPanel;
 	wantsAdd?: boolean;
+	/** Server the user asked to edit; form opens after this panel closes. */
+	wantsEdit?: string;
 	/** Server the user asked to delete; confirmation + write happen after close. */
 	wantsDelete?: string;
 }

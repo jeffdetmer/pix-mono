@@ -422,6 +422,7 @@ async function openMcpAddOverlay(
 	state: McpExtensionState,
 	ctx: ExtensionContext,
 	configOverridePath: string | undefined,
+	edit?: import("./mcp-add-panel.ts").EditPanelOptions,
 ): Promise<import("./mcp-add-panel.ts").AddPanelResult> {
 	const { createMcpAddPanel } = await import("./mcp-add-panel.ts");
 	return new Promise<import("./mcp-add-panel.ts").AddPanelResult>((resolve) => {
@@ -430,13 +431,17 @@ async function openMcpAddOverlay(
 				return createMcpAddPanel(
 					{
 						cwd: ctx.cwd,
+						edit,
 						callbacks: {
 							resolveTargetPath: (scope) =>
 								resolveAddTargetPath(scope, ctx.cwd, configOverridePath),
 							previewEntry: previewAddServerEntry,
 							writeEntry: writeAddServerEntry,
 							isNameTaken: (name) => isServerNameTaken(name, configOverridePath, ctx.cwd),
-							testConnect: async (serverName) => {
+							testConnect: async (serverName, entry) => {
+								state.config.mcpServers[serverName] = entry;
+								state.failureTracker.delete(serverName);
+								await state.manager.close(serverName);
 								const ok = await lazyConnect(state, serverName);
 								if (ok) return "connected";
 								const conn = state.manager.getConnection(serverName);
@@ -480,6 +485,7 @@ export async function openMcpPanel(
 	const { createMcpPanel } = await import("./mcp-panel.ts");
 	let configChanged = false;
 	let wantsAdd = false;
+	let wantsEdit: string | undefined;
 	let wantsDelete: string | undefined;
 	let addedServer: import("./mcp-add-panel.ts").AddPanelResult | undefined;
 
@@ -495,6 +501,12 @@ export async function openMcpPanel(
 					(result: McpPanelResult) => {
 						if (result.wantsAdd) {
 							wantsAdd = true;
+							done(undefined);
+							resolve();
+							return;
+						}
+						if (result.wantsEdit) {
+							wantsEdit = result.wantsEdit;
 							done(undefined);
 							resolve();
 							return;
@@ -543,6 +555,31 @@ export async function openMcpPanel(
 			return { configChanged: true };
 		}
 		// cancelled add → return to panel
+		return openMcpPanel(state, pi, ctx, configOverridePath);
+	}
+
+	if (wantsEdit) {
+		const prov = provenanceMap.get(wantsEdit);
+		const entry = config.mcpServers[wantsEdit];
+		if (!prov || prov.kind === "import" || !entry) {
+			ctx.ui.notify(
+				`${wantsEdit} is not owned by an editable config — edit its source instead.`,
+				"warning",
+			);
+			return openMcpPanel(state, pi, ctx, configOverridePath);
+		}
+		const editResult = await openMcpAddOverlay(state, ctx, configOverridePath, {
+			name: wantsEdit,
+			targetPath: prov.path,
+			entry,
+		});
+		if (!editResult.cancelled && editResult.configChanged) {
+			ctx.ui.notify(
+				`Updated ${editResult.serverName} in ${editResult.targetPath}. Pi will reload.`,
+				"info",
+			);
+			return { configChanged: true };
+		}
 		return openMcpPanel(state, pi, ctx, configOverridePath);
 	}
 

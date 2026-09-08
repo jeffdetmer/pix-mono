@@ -8,6 +8,7 @@ import type { McpConfig, McpPanelCallbacks } from "../src/types.ts";
 
 const CTRL_P = "\x10";
 const CTRL_N = "\x0e";
+const CTRL_E = "\x05";
 const UP = "\x1b[A";
 const DOWN = "\x1b[B";
 const ENTER = "\r";
@@ -126,6 +127,46 @@ describe("mcp-panel custom keybindings", () => {
 		panel.handleInput(ENTER);
 		await Promise.resolve();
 		expect(callbacks.authenticate).toHaveBeenLastCalledWith("alpha");
+		panel.dispose();
+	});
+
+	it("requests editing selected owned server with ctrl+e", () => {
+		const done = mock<(result: { wantsEdit?: string }) => void>();
+		const panel = createMcpPanel(
+			createTwoServerConfig(),
+			null,
+			new Map([
+				["alpha", { path: "/tmp/mcp.json", kind: "user" as const }],
+				["beta", { path: "/tmp/mcp.json", kind: "user" as const }],
+			]),
+			createAuthCallbacks(),
+			{ requestRender: () => {} },
+			done as never,
+		);
+
+		panel.handleInput(DOWN);
+		panel.handleInput(CTRL_E);
+		expect(done).toHaveBeenCalledWith(
+			expect.objectContaining({ wantsEdit: "alpha", cancelled: false }),
+		);
+		panel.dispose();
+	});
+
+	it("keeps imported servers read-only on ctrl+e", () => {
+		const done = mock(() => {});
+		const panel = createMcpPanel(
+			createTwoServerConfig(),
+			null,
+			new Map([["alpha", { path: "/tmp/mcp.json", kind: "import" as const }]]),
+			createAuthCallbacks(),
+			{ requestRender: () => {} },
+			done,
+		);
+
+		panel.handleInput(DOWN);
+		panel.handleInput(CTRL_E);
+		expect(done).not.toHaveBeenCalled();
+		expect(panel.render(120).join("\n")).toContain("imported (read-only)");
 		panel.dispose();
 	});
 

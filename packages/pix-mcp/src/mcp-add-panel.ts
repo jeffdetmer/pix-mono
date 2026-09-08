@@ -130,14 +130,13 @@ interface TypeItem {
 const TYPE_ITEMS: TypeItem[] = [
 	{
 		id: "stdio",
-		label: "Local command (stdio)",
-		description: "Run a local executable — command + args",
+		label: "stdio / CLI",
+		description: "Run local command and communicate over stdin/stdout",
 	},
-	{ id: "npx", label: "npx package", description: "Quick preset — npx -y <package>" },
 	{
 		id: "http",
-		label: "Remote URL",
-		description: "Auto-detects Streamable HTTP or SSE",
+		label: "URL / HTTP",
+		description: "Connect by URL; Streamable HTTP with legacy SSE fallback",
 	},
 ];
 
@@ -145,38 +144,139 @@ interface FieldDef {
 	key: string;
 	label: string;
 	placeholder: string;
+	hint?: string;
+	secret?: boolean;
 }
 
 function fieldsForType(type: AddServerType): FieldDef[] {
-	const common: FieldDef[] = [{ key: "name", label: "Name", placeholder: "my-server" }];
+	const common: FieldDef[] = [
+		{ key: "name", label: "Name", placeholder: "my-server", hint: "letters, digits, . _ -" },
+	];
 	if (type === "stdio") {
 		return [
 			...common,
-			{ key: "command", label: "Command", placeholder: "/usr/local/bin/my-mcp" },
-			{ key: "args", label: "Args (space-separated)", placeholder: "--stdio --verbose" },
-			{ key: "cwd", label: "Cwd (optional)", placeholder: "/path/to/workdir" },
+			{
+				key: "command",
+				label: "Command",
+				placeholder: "npx",
+				hint: "executable name or absolute path",
+			},
+			{
+				key: "args",
+				label: "Args",
+				placeholder: '["-y","@scope/server"]',
+				hint: 'JSON array, e.g. ["-y","@scope/server"]',
+			},
+			{
+				key: "env",
+				label: "Env",
+				placeholder: '{"API_KEY":"$API_KEY"}',
+				hint: 'JSON object, e.g. {"API_KEY":"$API_KEY"}',
+			},
+			{
+				key: "cwd",
+				label: "Cwd",
+				placeholder: "/path/to/workdir",
+				hint: "optional working directory",
+			},
 		];
 	}
-	if (type === "npx") {
-		return [
-			...common,
-			{ key: "pkg", label: "Package", placeholder: "@scope/mcp-server@latest" },
-			{ key: "args", label: "Extra args (optional)", placeholder: "--port 3000" },
-			{ key: "cwd", label: "Cwd (optional)", placeholder: "" },
-		];
-	}
-	// ponytail: one remote option; connection already probes Streamable HTTP then falls back to SSE.
+	// ponytail: one URL option; connection probes Streamable HTTP then legacy SSE.
 	return [
 		...common,
-		{ key: "url", label: "URL", placeholder: "https://example.com/mcp" },
-		{ key: "bearerToken", label: "Bearer token (optional)", placeholder: "sk-..." },
+		{
+			key: "url",
+			label: "URL",
+			placeholder: "https://example.com/mcp",
+			hint: "http(s) MCP endpoint",
+		},
+		{
+			key: "headers",
+			label: "Headers",
+			placeholder: '{"X-API-Key":"$API_KEY"}',
+			hint: 'JSON object, e.g. {"X-API-Key":"$API_KEY"}',
+		},
+		{
+			key: "bearerTokenEnv",
+			label: "Token env",
+			placeholder: "GITHUB_TOKEN",
+			hint: "env var name, e.g. GITHUB_TOKEN",
+		},
+		{
+			key: "bearerToken",
+			label: "Bearer token",
+			placeholder: "optional literal token",
+			hint: "prefer Token env; saved as plaintext",
+			secret: true,
+		},
 	];
 }
 
-function parseArgs(value: string): string[] {
+function parseOptionalJson<T>(
+	value: string,
+	label: string,
+	expected: "array" | "object",
+): T | undefined {
 	const trimmed = value.trim();
-	if (!trimmed) return [];
-	return trimmed.split(/\s+/).filter(Boolean);
+	if (!trimmed) return undefined;
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(trimmed);
+	} catch {
+		throw new Error(`${label} must be valid JSON.`);
+	}
+	if (
+		expected === "array"
+			? !Array.isArray(parsed) || parsed.some((item) => typeof item !== "string")
+			: !parsed || Array.isArray(parsed) || typeof parsed !== "object"
+	) {
+		throw new Error(`${label} must be a JSON ${expected} of strings.`);
+	}
+	if (
+		expected === "object" &&
+		Object.values(parsed as Record<string, unknown>).some((item) => typeof item !== "string")
+	) {
+		throw new Error(`${label} values must be strings.`);
+	}
+	return parsed as T;
+}
+
+function inferType(entry: ServerEntry): AddServerType {
+	return entry.url ? "http" : "stdio";
+}
+
+function stepLabel(step: Step, type: AddServerType, editing: boolean): string {
+	if (editing) {
+		if (step === "form")
+			return `1/2 — ${TYPE_ITEMS.find((item) => item.id === type)?.label ?? type}`;
+		if (step === "preview") return "2/2 — Preview";
+		return "Writing…";
+	}
+	if (step === "pickType") return "1/4 — Choose transport";
+	if (step === "form") return `2/4 — ${TYPE_ITEMS.find((item) => item.id === type)?.label ?? type}`;
+	if (step === "pickScope") return "3/4 — Choose scope";
+	if (step === "preview") return "4/4 — Preview";
+	return "Writing…";
+}
+
+function displayFieldValue(field: FieldDef, value: string, mutedPlaceholder: string): string {
+	if (!value) return mutedPlaceholder;
+	return field.secret ? "•".repeat(Math.min(value.length, 24)) : sanitizeDisplayText(value);
+}
+
+function fieldsFromEntry(name: string, entry: ServerEntry): Record<string, string> {
+	return {
+		name,
+		command: entry.command ?? "",
+		args: entry.args?.length ? JSON.stringify(entry.args) : "",
+		env: entry.env && Object.keys(entry.env).length ? JSON.stringify(entry.env) : "",
+		cwd: entry.cwd ?? "",
+		url: entry.url ?? "",
+		headers:
+			entry.headers && Object.keys(entry.headers).length ? JSON.stringify(entry.headers) : "",
+		bearerTokenEnv: entry.bearerTokenEnv ?? "",
+		bearerToken: entry.bearerToken ?? "",
+	};
 }
 
 export interface AddPanelCallbacks {
@@ -184,7 +284,10 @@ export interface AddPanelCallbacks {
 	previewEntry: (targetPath: string, name: string, entry: ServerEntry) => ConfigWritePreview;
 	writeEntry: (targetPath: string, name: string, entry: ServerEntry) => string;
 	isNameTaken: (name: string) => boolean;
-	testConnect: (serverName: string) => Promise<"connected" | "needs-auth" | "failed">;
+	testConnect: (
+		serverName: string,
+		entry: ServerEntry,
+	) => Promise<"connected" | "needs-auth" | "failed">;
 }
 
 export interface AddPanelResult {
@@ -193,6 +296,12 @@ export interface AddPanelResult {
 	serverName?: string;
 	targetPath?: string;
 	connectStatus?: "connected" | "needs-auth" | "failed";
+}
+
+export interface EditPanelOptions {
+	name: string;
+	targetPath: string;
+	entry: ServerEntry;
 }
 
 export class McpAddPanel {
@@ -219,7 +328,7 @@ export class McpAddPanel {
 	private static readonly INACTIVITY_MS = 60_000;
 
 	constructor(
-		private options: { cwd: string; callbacks: AddPanelCallbacks },
+		private options: { cwd: string; callbacks: AddPanelCallbacks; edit?: EditPanelOptions },
 		tui: { requestRender(): void; terminal?: { rows?: number } },
 		private done: (result: AddPanelResult) => void,
 		theme: McpAddPopupTheme = FALLBACK_POPUP_THEME,
@@ -229,7 +338,14 @@ export class McpAddPanel {
 		this.popupTheme = theme;
 		this.t = createTheme(theme);
 		this.keys = createPanelKeys(keybindings);
-		for (const f of this.fieldDefs) this.fieldValues[f.key] = "";
+		if (options.edit) {
+			this.step = "form";
+			this.selectedType = inferType(options.edit.entry);
+			this.fieldDefs = fieldsForType(this.selectedType);
+			this.fieldValues = fieldsFromEntry(options.edit.name, options.edit.entry);
+		} else {
+			for (const f of this.fieldDefs) this.fieldValues[f.key] = "";
+		}
 		this.resetInactivityTimeout();
 	}
 
@@ -265,35 +381,41 @@ export class McpAddPanel {
 		this.fieldValues[key] = value;
 	}
 
+	private currentFieldIsReadOnly(): boolean {
+		// ponytail: renaming needs atomic delete+add; keep edit scope to entry fields for now.
+		return Boolean(this.options.edit && this.fieldDefs[this.fieldCursor]?.key === "name");
+	}
+
 	private buildEntryFromFields(): { name: string; entry: ServerEntry } | { error: string } {
 		const name = (this.fieldValues.name ?? "").trim();
 		if (!name) return { error: "Server name is required." };
 		if (!/^[A-Za-z0-9._-]+$/.test(name))
 			return { error: "Name may use letters, digits, dot, dash, underscore only." };
-		if (this.options.callbacks.isNameTaken(name))
+		if (this.options.callbacks.isNameTaken(name) && name !== this.options.edit?.name)
 			return { error: `Server "${name}" already exists.` };
 
 		const type = this.selectedType;
 		if (type === "stdio") {
 			const command = (this.fieldValues.command ?? "").trim();
 			if (!command) return { error: "Command is required for stdio type." };
-			const entry: ServerEntry = {
-				command,
-				args: parseArgs(this.fieldValues.args ?? ""),
-				cwd: (this.fieldValues.cwd ?? "").trim() || undefined,
-			};
-			return { name, entry };
-		}
-		if (type === "npx") {
-			const pkg = (this.fieldValues.pkg ?? "").trim();
-			if (!pkg) return { error: "Package name is required for npx type." };
-			const extra = parseArgs(this.fieldValues.args ?? "");
-			const entry: ServerEntry = {
-				command: "npx",
-				args: ["-y", pkg, ...extra],
-				cwd: (this.fieldValues.cwd ?? "").trim() || undefined,
-			};
-			return { name, entry };
+			try {
+				const args = parseOptionalJson<string[]>(this.fieldValues.args ?? "", "Args", "array");
+				const env = parseOptionalJson<Record<string, string>>(
+					this.fieldValues.env ?? "",
+					"Env",
+					"object",
+				);
+				const entry: ServerEntry = {
+					...this.options.edit?.entry,
+					command,
+					args: args ?? [],
+					env,
+					cwd: (this.fieldValues.cwd ?? "").trim() || undefined,
+				};
+				return { name, entry };
+			} catch (error) {
+				return { error: error instanceof Error ? error.message : String(error) };
+			}
 		}
 		const url = (this.fieldValues.url ?? "").trim();
 		if (!url) return { error: "URL is required for remote servers." };
@@ -303,13 +425,23 @@ export class McpAddPanel {
 		} catch {
 			return { error: "URL must be http(s)://…" };
 		}
-		const entry: ServerEntry = { url };
-		const token = (this.fieldValues.bearerToken ?? "").trim();
-		if (token) entry.bearerToken = token;
+		const entry: ServerEntry = { ...this.options.edit?.entry, url };
+		try {
+			entry.headers = parseOptionalJson<Record<string, string>>(
+				this.fieldValues.headers ?? "",
+				"Headers",
+				"object",
+			);
+		} catch (error) {
+			return { error: error instanceof Error ? error.message : String(error) };
+		}
+		entry.bearerTokenEnv = (this.fieldValues.bearerTokenEnv ?? "").trim() || undefined;
+		entry.bearerToken = (this.fieldValues.bearerToken ?? "").trim() || undefined;
 		return { name, entry };
 	}
 
 	private appendToCurrentField(text: string): void {
+		if (this.currentFieldIsReadOnly()) return;
 		const key = this.fieldDefs[this.fieldCursor]?.key;
 		if (!key) return;
 		const clean = text.replace(/\r\n|[\r\n]/g, "").replace(/\t/g, "    ");
@@ -341,6 +473,23 @@ export class McpAddPanel {
 		return true;
 	}
 
+	private handleEscape(data: string): boolean {
+		if (!matchesKey(data, "escape")) return false;
+		if (this.step === "pickType" || (this.step === "form" && this.options.edit)) {
+			this.cleanup();
+			this.done({ cancelled: true, configChanged: false });
+			return true;
+		}
+		if (this.step === "form") {
+			this.step = "pickType";
+		} else if (this.step === "pickScope" || this.step === "preview") {
+			this.step = this.options.edit ? "form" : this.step === "preview" ? "pickScope" : "form";
+		}
+		this.error = null;
+		this.tui.requestRender();
+		return true;
+	}
+
 	handleInput(data: string): void {
 		this.resetInactivityTimeout();
 		if (this.busy && this.step !== "connecting") return;
@@ -368,32 +517,7 @@ export class McpAddPanel {
 			return;
 		}
 
-		if (matchesKey(data, "escape")) {
-			if (this.step === "pickType") {
-				this.cleanup();
-				this.done({ cancelled: true, configChanged: false });
-				return;
-			}
-			if (this.step === "form") {
-				this.step = "pickType";
-				this.error = null;
-				this.tui.requestRender();
-				return;
-			}
-			if (this.step === "pickScope") {
-				this.step = "form";
-				this.error = null;
-				this.tui.requestRender();
-				return;
-			}
-			if (this.step === "preview") {
-				this.step = "pickScope";
-				this.error = null;
-				this.tui.requestRender();
-				return;
-			}
-			return;
-		}
+		if (this.handleEscape(data)) return;
 
 		if (this.step === "pickType") {
 			if (this.keys.selectUp(data)) {
@@ -440,12 +564,28 @@ export class McpAddPanel {
 					return;
 				}
 				this.error = null;
-				this.step = "pickScope";
-				this.scopeCursor = this.scope === "project" ? 0 : 1;
+				if (this.options.edit) {
+					try {
+						this.preview = this.options.callbacks.previewEntry(
+							this.options.edit.targetPath,
+							built.name,
+							built.entry,
+						);
+					} catch (error) {
+						this.error = error instanceof Error ? error.message : String(error);
+						this.tui.requestRender();
+						return;
+					}
+					this.step = "preview";
+				} else {
+					this.step = "pickScope";
+					this.scopeCursor = this.scope === "project" ? 0 : 1;
+				}
 				this.tui.requestRender();
 				return;
 			}
 			if (matchesKey(data, "backspace")) {
+				if (this.currentFieldIsReadOnly()) return;
 				const key = this.fieldDefs[this.fieldCursor]?.key;
 				if (key) {
 					const cur = this.fieldValues[key] ?? "";
@@ -456,6 +596,7 @@ export class McpAddPanel {
 				return;
 			}
 			if (matchesKey(data, "ctrl+u")) {
+				if (this.currentFieldIsReadOnly()) return;
 				const key = this.fieldDefs[this.fieldCursor]?.key;
 				if (key) {
 					this.fieldValues[key] = "";
@@ -465,6 +606,7 @@ export class McpAddPanel {
 			}
 			const ch = printableChar(data);
 			if (ch !== undefined) {
+				if (this.currentFieldIsReadOnly()) return;
 				const key = this.fieldDefs[this.fieldCursor]?.key;
 				if (key) {
 					this.fieldValues[key] = (this.fieldValues[key] ?? "") + ch;
@@ -521,7 +663,8 @@ export class McpAddPanel {
 					this.tui.requestRender();
 					return;
 				}
-				const targetPath = this.options.callbacks.resolveTargetPath(this.scope);
+				const targetPath =
+					this.options.edit?.targetPath ?? this.options.callbacks.resolveTargetPath(this.scope);
 				this.busy = true;
 				this.step = "connecting";
 				this.connectStatus = "Writing...";
@@ -538,7 +681,7 @@ export class McpAddPanel {
 				this.connectStatus = "Testing connection...";
 				this.tui.requestRender();
 				this.options.callbacks
-					.testConnect(built.name)
+					.testConnect(built.name, built.entry)
 					.then((status) => {
 						this.cleanup();
 						this.done({
@@ -577,19 +720,9 @@ export class McpAddPanel {
 		const row = (content: string) => sanitizeRowContent(content);
 		const emptyRow = () => "";
 
-		const title = "Add MCP server";
-		const stepLabel =
-			this.step === "pickType"
-				? "1/4 — Choose type"
-				: this.step === "form"
-					? `2/4 — ${TYPE_ITEMS.find((x) => x.id === this.selectedType)?.label ?? this.selectedType}`
-					: this.step === "pickScope"
-						? "3/4 — Choose scope"
-						: this.step === "preview"
-							? "4/4 — Preview"
-							: "Writing…";
+		const title = this.options.edit ? "Edit MCP server" : "Add MCP server";
 		header.push(fg(t.title, `${icon("mcp")}  ${title}`));
-		header.push(fg(t.hint, stepLabel));
+		header.push(fg(t.hint, stepLabel(this.step, this.selectedType, !!this.options.edit)));
 		header.push(emptyRow());
 
 		if (this.step === "pickType") {
@@ -609,11 +742,14 @@ export class McpAddPanel {
 				const value = this.fieldValues[field.key] ?? "";
 				const cursor = isFocused ? fg(t.selected, "│") : "";
 				const label = isFocused ? bold(fg(t.selected, field.label)) : field.label;
-				const displayValue = value
-					? sanitizeDisplayText(value)
-					: fg(t.muted, italic(field.placeholder));
+				const displayValue = displayFieldValue(
+					field,
+					value,
+					fg(t.muted, italic(field.placeholder)),
+				);
 				const marker = isFocused ? fg(t.selected, "▶") : " ";
-				body.push(row(`${marker} ${label}: ${displayValue}${cursor}`));
+				const hint = field.hint ? fg(t.muted, ` — ${field.hint}`) : "";
+				body.push(row(`${marker} ${label}: ${displayValue}${cursor}${hint}`));
 			}
 			body.push(emptyRow());
 			body.push(
@@ -736,7 +872,7 @@ export class McpAddPanel {
 }
 
 export function createMcpAddPanel(
-	options: { cwd: string; callbacks: AddPanelCallbacks },
+	options: { cwd: string; callbacks: AddPanelCallbacks; edit?: EditPanelOptions },
 	tui: { requestRender(): void; terminal?: { rows?: number } },
 	done: (result: AddPanelResult) => void,
 	theme: McpAddPopupTheme = FALLBACK_POPUP_THEME,

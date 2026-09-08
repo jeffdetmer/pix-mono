@@ -64,7 +64,7 @@ describe("mcp-panel rendering", () => {
 			{ theme },
 		);
 
-		const lines = panel.render(82);
+		const lines = panel.render(100);
 
 		expect(lines[0]).toContain("<bg:customMessageBg>");
 		expect(lines[0]).toContain("<fg:accent>╭");
