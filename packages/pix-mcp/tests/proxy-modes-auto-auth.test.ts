@@ -98,6 +98,45 @@ describe("proxy auto auth", () => {
 		});
 	});
 
+	it("restarts an existing connection when explicitly connecting", async () => {
+		const { executeConnect } = await import("../src/proxy-modes.ts");
+		const events: string[] = [];
+		let current: any = { status: "connected", tools: [], resources: [] };
+		const fresh = {
+			status: "connected",
+			tools: [{ name: "search", description: "Search" }],
+			resources: [],
+		};
+		const manager = {
+			close: mock(async () => {
+				events.push("close");
+				current = undefined;
+			}),
+			connect: mock(async () => {
+				events.push("connect");
+				current = fresh;
+				return fresh;
+			}),
+			getConnection: mock(() => current),
+		};
+		const state = {
+			config: {
+				settings: { toolPrefix: "server" },
+				mcpServers: { demo: { command: "demo" } },
+			},
+			manager,
+			toolMetadata: new Map(),
+			failureTracker: new Map(),
+		} as any;
+
+		const result = await executeConnect(state, "demo");
+
+		expect(events).toEqual(["close", "connect"]);
+		expect(result.content[0]?.type === "text" ? result.content[0].text : "").toContain(
+			"demo: 1 tools",
+		);
+	});
+
 	it("auto-authenticates and retries executeConnect once", async () => {
 		const { executeConnect } = await import("../src/proxy-modes.ts");
 

@@ -718,6 +718,8 @@ export async function executeConnect(
 		if (state.ui) {
 			state.ui.setStatus("mcp", `MCP: connecting to ${serverName}...`);
 		}
+		// Explicit connect is recovery: replace stale transport/server state instead of reusing it.
+		await state.manager.close(serverName);
 		let connection = await state.manager.connect(serverName, definition, signal);
 		if (connection.status === "needs-auth") {
 			const autoAuth = await attemptAutoAuth(state, serverName);
@@ -1247,6 +1249,7 @@ async function performClientCall(
 		requestOptions,
 	);
 	const result = await abortable(resultPromise, signal);
+	// SAFETY: SDK callTool result is the same protocol payload expected by UI session bridge.
 	uiSession?.sendToolResult(
 		result as unknown as import("@modelcontextprotocol/client").CallToolResult,
 	);
@@ -1261,6 +1264,7 @@ async function performClientCall(
 			: "📺 Interactive UI is now open in your browser. I'll respond to your prompts and intents as you interact with it."
 		: undefined;
 	const suffix = uiMessage ? `\n\n${uiMessage}` : undefined;
+	// SAFETY: MCP call results are object payloads; SDK's inferred union omits a string index signature.
 	return buildToolSuccessResult(
 		serverName,
 		toolMeta,

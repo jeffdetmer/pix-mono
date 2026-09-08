@@ -110,6 +110,7 @@ describe("AbortSignal propagation", () => {
 		const state = {
 			config: { mcpServers: { demo: { command: "node", args: ["server.js"] } } },
 			manager: {
+				close: mock(async () => {}),
 				connect: mock(async (_name: string, _definition: any, signal?: AbortSignal) => {
 					controller.abort(new Error("user cancelled"));
 					signal?.throwIfAborted();
