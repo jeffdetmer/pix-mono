@@ -76,6 +76,16 @@ export class McpServerManager {
 	private elicitationConfig: ServerElicitationConfig | undefined;
 	private acceptedUrlElicitations = new Map<string, Set<string>>();
 	private defaultRequestTimeoutMs: number | undefined;
+	private metadataChangedCallback: ((serverName: string) => void) | undefined;
+	private connectingClients = new Map<string, Client>();
+	private pendingListChanges = new Map<
+		Client,
+		Partial<{ tools: McpTool[]; resources: McpResource[] }>
+	>();
+
+	setMetadataChangedCallback(callback: ((serverName: string) => void) | undefined): void {
+		this.metadataChangedCallback = callback;
+	}
 
 	/** Default cwd for stdio servers without an explicit config `cwd`. */
 	constructor(private readonly defaultCwd?: string) {}
@@ -137,9 +147,11 @@ export class McpServerManager {
 		try {
 			const connection = await promise;
 			this.connections.set(name, connection);
+			this.applyPendingListChanges(name, connection);
 			return connection;
 		} finally {
 			this.connectPromises.delete(name);
+			this.connectingClients.delete(name);
 		}
 	}
 
@@ -150,6 +162,7 @@ export class McpServerManager {
 	): Promise<ServerConnection> {
 		throwIfAborted(signal);
 		const client = this.createClient(name);
+		this.connectingClients.set(name, client);
 
 		let transport: Transport;
 
@@ -181,28 +194,28 @@ export class McpServerManager {
 		}
 
 		const requestOptions = this.buildRequestOptions(definition, signal);
+		const connection: ServerConnection = {
+			client,
+			transport,
+			definition,
+			tools: [],
+			resources: [],
+			lastUsedAt: Date.now(),
+			inFlight: 0,
+			status: "connected",
+		};
+		this.attachAdapterNotificationHandlers(name, client);
 
 		try {
 			await client.connect(transport, requestOptions);
-			this.attachAdapterNotificationHandlers(name, client);
-
-			// Discover tools and resources
-			const [tools, resources] = await Promise.all([
+			[connection.tools, connection.resources] = await Promise.all([
 				this.fetchAllTools(client, requestOptions),
 				this.fetchAllResources(client, requestOptions),
 			]);
-
-			return {
-				client,
-				transport,
-				definition,
-				tools,
-				resources,
-				lastUsedAt: Date.now(),
-				inFlight: 0,
-				status: "connected",
-			};
+			if (connection.status === "closed") throw new Error(`Server ${name} closed during discovery`);
+			return connection;
 		} catch (error) {
+			connection.status = "closed";
 			// Check for a terminal 401 (UnauthorizedError or SdkHttpError) - server requires OAuth
 			if (isUnauthorizedHttpError(error) && supportsOAuth(definition)) {
 				// Clean up both client and transport before reporting needs-auth.
@@ -251,6 +264,16 @@ export class McpServerManager {
 			// to the plain 2025 handshake otherwise. Use it when available.
 			{
 				...(Object.keys(capabilities).length > 0 ? { capabilities } : {}),
+				listChanged: {
+					tools: {
+						onChanged: (error, tools) =>
+							this.handleListChanged(serverName, client, "tools", error, tools),
+					},
+					resources: {
+						onChanged: (error, resources) =>
+							this.handleListChanged(serverName, client, "resources", error, resources),
+					},
+				},
 				versionNegotiation: { mode: "auto" },
 			},
 		);
@@ -395,39 +418,62 @@ export class McpServerManager {
 	}
 
 	private async fetchAllTools(client: Client, requestOptions?: RequestOptions): Promise<McpTool[]> {
-		const allTools: McpTool[] = [];
-		let cursor: string | undefined;
-
-		do {
-			const result = await client.listTools(cursor ? { cursor } : undefined, requestOptions);
-			allTools.push(...(result.tools ?? []));
-			cursor = result.nextCursor;
-		} while (cursor);
-
-		return allTools;
+		return (await client.listTools(undefined, requestOptions)).tools ?? [];
 	}
 
 	private async fetchAllResources(
 		client: Client,
 		requestOptions?: RequestOptions,
 	): Promise<McpResource[]> {
+		return (await client.listResources(undefined, requestOptions)).resources ?? [];
+	}
+
+	private handleListChanged(
+		serverName: string,
+		client: Client,
+		kind: "tools" | "resources",
+		error: Error | null,
+		items: McpTool[] | McpResource[] | null,
+	): void {
+		if (error) {
+			logger.error(
+				`MCP: Failed to refresh ${kind} for ${serverName}; keeping previous list: ${error.message}`,
+			);
+			return;
+		}
+		if (!items) return;
+
+		const connection = this.connections.get(serverName);
+		if (connection?.client === client && connection.status === "connected") {
+			if (kind === "tools") connection.tools = items as McpTool[];
+			else connection.resources = items as McpResource[];
+			this.notifyMetadataChanged(serverName);
+			return;
+		}
+		if (this.connectingClients.get(serverName) !== client) return;
+
+		const pending = this.pendingListChanges.get(client) ?? {};
+		if (kind === "tools") pending.tools = items as McpTool[];
+		else pending.resources = items as McpResource[];
+		this.pendingListChanges.set(client, pending);
+	}
+
+	private applyPendingListChanges(serverName: string, connection: ServerConnection): void {
+		const pending = this.pendingListChanges.get(connection.client);
+		this.pendingListChanges.delete(connection.client);
+		if (!pending) return;
+		if (pending.tools) connection.tools = pending.tools;
+		if (pending.resources) connection.resources = pending.resources;
+		this.notifyMetadataChanged(serverName);
+	}
+
+	private notifyMetadataChanged(serverName: string): void {
 		try {
-			const allResources: McpResource[] = [];
-			let cursor: string | undefined;
-
-			do {
-				const result = await client.listResources(cursor ? { cursor } : undefined, requestOptions);
-				allResources.push(...(result.resources ?? []));
-				cursor = result.nextCursor;
-			} while (cursor);
-
-			return allResources;
-		} catch {
-			if (requestOptions?.signal?.aborted) {
-				throwIfAborted(requestOptions.signal);
-			}
-			// Server may not support resources
-			return [];
+			this.metadataChangedCallback?.(serverName);
+		} catch (error) {
+			logger.error(
+				`MCP: Failed to update metadata for ${serverName}: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 	}
 
@@ -478,6 +524,7 @@ export class McpServerManager {
 		// delete() would then remove, orphaning the new server process.
 		connection.status = "closed";
 		this.connections.delete(name);
+		this.pendingListChanges.delete(connection.client);
 		this.acceptedUrlElicitations.delete(name);
 		await connection.client.close().catch(() => {});
 		await connection.transport.close().catch(() => {});

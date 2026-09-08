@@ -118,16 +118,26 @@ function createState() {
 
 function createPi() {
 	const handlers = new Map<string, (...args: any[]) => unknown>();
+	const tools = new Map<string, any>();
+	let activeTools: string[] = [];
 	return {
 		handlers,
+		tools,
 		api: {
-			registerTool: mock(),
+			registerTool: mock((tool: any) => {
+				tools.set(tool.name, tool);
+				if (!activeTools.includes(tool.name)) activeTools.push(tool.name);
+			}),
 			registerFlag: mock(),
 			registerCommand: mock(),
 			on: mock((event: string, handler: (...args: any[]) => unknown) => {
 				handlers.set(event, handler);
 			}),
-			getAllTools: mock(() => []),
+			getAllTools: mock(() => [...tools.values()]),
+			getActiveTools: mock(() => [...activeTools]),
+			setActiveTools: mock((names: string[]) => {
+				activeTools = names.filter((name) => tools.has(name));
+			}),
 		} as any,
 	};
 }
@@ -143,6 +153,7 @@ describe("mcpAdapter session lifecycle", () => {
 			}
 		}
 
+		mocks.initializeMcp.mockResolvedValue(createState());
 		mocks.initializeOAuth.mockResolvedValue(undefined);
 		mocks.shutdownOAuth.mockResolvedValue(undefined);
 		mocks.loadMcpConfig.mockReturnValue({ mcpServers: {} });
@@ -172,6 +183,53 @@ describe("mcpAdapter session lifecycle", () => {
 		}
 	});
 
+	it("registers newly discovered direct tools after init and refreshes their definitions", async () => {
+		const state = createState();
+		state.config = {
+			mcpServers: { demo: { directTools: true } },
+			settings: { toolPrefix: "none" },
+		};
+		const cache = { version: 1, servers: { demo: { tools: [] } } };
+		const spec = {
+			serverName: "demo",
+			originalName: "search",
+			prefixedName: "search",
+			description: "Search demo",
+			inputSchema: { type: "object", properties: { query: { type: "string" } } },
+		};
+		mocks.initializeMcp.mockImplementation(async () => {
+			mocks.loadMetadataCache.mockReturnValue(cache);
+			mocks.resolveDirectTools.mockReturnValue([spec]);
+			return state;
+		});
+		const { default: mcpAdapter } = await import("../src/index.ts");
+		const { api, handlers, tools } = createPi();
+		mcpAdapter(api);
+		await handlers.get("session_start")?.({}, {});
+		await Promise.resolve();
+
+		expect(tools.get("search")?.description).toBe("Search demo");
+		expect(api.getActiveTools()).toContain("search");
+		expect(mocks.resolveDirectTools).toHaveBeenLastCalledWith(
+			state.config,
+			cache,
+			"none",
+			undefined,
+		);
+		expect(state.onToolMetadataChanged).toBeTypeOf("function");
+
+		mocks.resolveDirectTools.mockReturnValue([
+			{
+				...spec,
+				description: "Search updated",
+				inputSchema: { type: "object", properties: { limit: { type: "number" } } },
+			},
+		]);
+		state.onToolMetadataChanged();
+		expect(tools.get("search")?.description).toBe("Search updated");
+		expect(tools.get("search")?.parameters.properties).toEqual({ limit: { type: "number" } });
+	});
+
 	it("keeps the proxy tool when direct tools are still missing from cache", async () => {
 		mocks.loadMcpConfig.mockReturnValue({
 			mcpServers: {
@@ -190,8 +248,10 @@ describe("mcpAdapter session lifecycle", () => {
 		mocks.getMissingConfiguredDirectToolServers.mockReturnValue(["demo"]);
 
 		const { default: mcpAdapter } = await import("../src/index.ts");
-		const { api } = createPi();
+		const { api, handlers } = createPi();
 		mcpAdapter(api);
+		await handlers.get("session_start")?.({}, {});
+		await Promise.resolve();
 
 		expect(api.registerTool).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -232,8 +292,10 @@ describe("mcpAdapter session lifecycle", () => {
 		]);
 
 		const { default: mcpAdapter } = await import("../src/index.ts");
-		const { api } = createPi();
+		const { api, handlers } = createPi();
 		mcpAdapter(api);
+		await handlers.get("session_start")?.({}, {});
+		await Promise.resolve();
 
 		expect(mocks.normalizeDirectToolInputSchema).toHaveBeenCalledWith(schema);
 		const directTool = api.registerTool.mock.calls.find(
@@ -271,8 +333,10 @@ describe("mcpAdapter session lifecycle", () => {
 		]);
 
 		const { default: mcpAdapter } = await import("../src/index.ts");
-		const { api } = createPi();
+		const { api, handlers } = createPi();
 		mcpAdapter(api);
+		await handlers.get("session_start")?.({}, {});
+		await Promise.resolve();
 
 		expect(api.registerTool).toHaveBeenCalledWith(
 			expect.objectContaining({

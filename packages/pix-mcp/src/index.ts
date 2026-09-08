@@ -42,6 +42,7 @@ import {
 	renderMcpProxyToolCall,
 	renderMcpToolResult,
 } from "./tool-result-renderer.ts";
+import type { DirectToolSpec } from "./types.ts";
 import { getConfigPathFromArgv, normalizeDirectToolInputSchema, truncateAtWord } from "./utils.ts";
 
 export default function mcpAdapter(pi: ExtensionAPI) {
@@ -110,21 +111,81 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 		directSpecs.length === 0 ||
 		missingConfiguredDirectToolServers.length > 0;
 
-	for (const spec of directSpecs) {
-		(pi.registerTool as (tool: unknown) => unknown)({
-			name: spec.prefixedName,
-			label: `MCP: ${spec.originalName}`,
-			description: spec.description || "(no description)",
-			promptSnippet: truncateAtWord(spec.description, 100) || `MCP tool from ${spec.serverName}`,
-			parameters: Type.Unsafe(normalizeDirectToolInputSchema(spec.inputSchema) as never),
-			execute: createDirectToolExecutor(
+	const registeredDirectNames = new Set<string>();
+	let liveDirectSpecs = new Map<string, DirectToolSpec>();
+
+	function syncDirectTools(specs: DirectToolSpec[]) {
+		const active = new Set(pi.getActiveTools());
+		const otherNames = new Set(
+			pi
+				.getAllTools()
+				.filter((tool) => !registeredDirectNames.has(tool.name))
+				.map((tool) => tool.name),
+		);
+		const next = new Map<string, DirectToolSpec>();
+		const generation = lifecycleGeneration;
+		for (const spec of specs) {
+			const name = spec.prefixedName;
+			if (otherNames.has(name)) {
+				console.warn(`MCP: skipping direct tool "${name}" (collides with another extension)`);
+				continue;
+			}
+			const previous = liveDirectSpecs.get(name);
+			if (previous && JSON.stringify(previous) === JSON.stringify(spec)) {
+				next.set(name, previous);
+				continue;
+			}
+			next.set(name, spec);
+			const execute = createDirectToolExecutor(
 				() => state,
-				() => initPromise,
+				() => null,
 				spec,
-			),
-			renderCall: createMcpDirectToolCallRenderer(spec.prefixedName),
-			renderResult: createMcpDirectToolResultRenderer(spec.prefixedName),
-		});
+			);
+			(pi.registerTool as (tool: unknown) => unknown)({
+				name,
+				label: `MCP: ${spec.originalName}`,
+				description: spec.description || "(no description)",
+				promptSnippet: truncateAtWord(spec.description, 100) || `MCP tool from ${spec.serverName}`,
+				parameters: Type.Unsafe(normalizeDirectToolInputSchema(spec.inputSchema) as never),
+				async execute(...args: Parameters<typeof execute>) {
+					if (generation !== lifecycleGeneration)
+						throw new Error(`MCP tool "${name}" belongs to a stale session`);
+					if (initPromise) await initPromise;
+					if (generation !== lifecycleGeneration || !state || liveDirectSpecs.get(name) !== spec) {
+						throw new Error(
+							`MCP tool "${name}" is no longer available; rediscover tools before retrying`,
+						);
+					}
+					return execute(...args);
+				},
+				renderCall: createMcpDirectToolCallRenderer(name),
+				renderResult: createMcpDirectToolResultRenderer(name),
+			});
+			if (!registeredDirectNames.has(name)) active.add(name);
+			registeredDirectNames.add(name);
+		}
+		liveDirectSpecs = next;
+		// ponytail: Pi has no unregisterTool; deactivate tombstones and reject stale executors.
+		// Remove registrations too when the host adds an unregister API.
+		pi.setActiveTools(
+			[...active].filter((name) => !registeredDirectNames.has(name) || next.has(name)),
+		);
+	}
+
+	function refreshDirectTools(currentState: McpExtensionState) {
+		syncDirectTools(
+			envRaw === "__none__"
+				? []
+				: resolveDirectTools(
+						currentState.config,
+						loadMetadataCache(),
+						currentState.config.settings?.toolPrefix ?? "server",
+						envRaw
+							?.split(",")
+							.map((s) => s.trim())
+							.filter(Boolean),
+					),
+		);
 	}
 
 	const getPiTools = (): ToolInfo[] => pi.getAllTools();
@@ -137,8 +198,12 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		const generation = ++lifecycleGeneration;
 		const previousState = state;
+		if (previousState) previousState.onToolMetadataChanged = undefined;
 		state = null;
 		initPromise = null;
+		liveDirectSpecs.clear();
+		// Tool inventory APIs are unavailable during factory loading.
+		syncDirectTools(directSpecs);
 
 		try {
 			await Promise.all([shutdownState(previousState, "session_restart"), shutdownOAuth()]);
@@ -154,6 +219,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 			console.error("MCP OAuth initialization failed:", err);
 		});
 
+		if (generation !== lifecycleGeneration) return;
 		const promise = initializeMcp(pi, ctx);
 		initPromise = promise;
 
@@ -169,6 +235,11 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 				}
 
 				state = nextState;
+				nextState.onToolMetadataChanged = () => {
+					if (generation !== lifecycleGeneration || state !== nextState) return;
+					refreshDirectTools(nextState);
+				};
+				nextState.onToolMetadataChanged();
 				updateStatusBar(nextState);
 				initPromise = null;
 			})
@@ -187,8 +258,10 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 	pi.on("session_shutdown", async () => {
 		++lifecycleGeneration;
 		const currentState = state;
+		if (currentState) currentState.onToolMetadataChanged = undefined;
 		state = null;
 		initPromise = null;
+		liveDirectSpecs.clear();
 
 		try {
 			await Promise.all([shutdownState(currentState, "session_shutdown"), shutdownOAuth()]);

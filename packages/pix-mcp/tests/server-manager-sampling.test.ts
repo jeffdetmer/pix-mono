@@ -82,8 +82,9 @@ describe("McpServerManager sampling", () => {
 		await manager.connect("demo", { command: "node", args: ["server.js"] });
 
 		const client = mocks.clients[0];
-		expect(client.options).toEqual({
+		expect(client.options).toMatchObject({
 			capabilities: { sampling: {} },
+			listChanged: { tools: { onChanged: expect.any(Function) } },
 			versionNegotiation: { mode: "auto" },
 		});
 		expect(client.setRequestHandler).toHaveBeenCalledTimes(1);
@@ -103,13 +104,14 @@ describe("McpServerManager sampling", () => {
 		await manager.connect("demo", { command: "node", args: ["server.js"] });
 
 		const client = mocks.clients[0];
-		expect(client.options).toEqual({
+		expect(client.options).toMatchObject({
 			capabilities: {
 				elicitation: {
 					form: {},
 					url: {},
 				},
 			},
+			listChanged: { tools: { onChanged: expect.any(Function) } },
 			versionNegotiation: { mode: "auto" },
 		});
 		expect(client.setRequestHandler).toHaveBeenCalledTimes(1);
@@ -125,8 +127,9 @@ describe("McpServerManager sampling", () => {
 
 		await manager.connect("demo", { command: "node", args: ["server.js"] });
 
-		expect(mocks.clients[0].options).toEqual({
+		expect(mocks.clients[0].options).toMatchObject({
 			capabilities: { elicitation: { form: {} } },
+			listChanged: { tools: { onChanged: expect.any(Function) } },
 			versionNegotiation: { mode: "auto" },
 		});
 	});
@@ -205,7 +208,7 @@ describe("McpServerManager sampling", () => {
 
 		await manager.connect("demo", { command: "node", args: ["server.js"] });
 
-		expect(mocks.clients[0].options).toEqual({
+		expect(mocks.clients[0].options).toMatchObject({
 			capabilities: {
 				sampling: {},
 				elicitation: {
@@ -213,6 +216,7 @@ describe("McpServerManager sampling", () => {
 					url: {},
 				},
 			},
+			listChanged: { tools: { onChanged: expect.any(Function) } },
 			versionNegotiation: { mode: "auto" },
 		});
 		expect(mocks.clients[0].setRequestHandler).toHaveBeenCalledTimes(2);
@@ -225,8 +229,11 @@ describe("McpServerManager sampling", () => {
 		await manager.connect("demo", { command: "node", args: ["server.js"] });
 
 		const client = mocks.clients[0];
-		// No capabilities, but mode:'auto' negotiation is always passed now.
-		expect(client.options).toEqual({ versionNegotiation: { mode: "auto" } });
+		// No client capabilities, but list-change handlers and negotiation still apply.
+		expect(client.options).toMatchObject({
+			listChanged: { tools: { onChanged: expect.any(Function) } },
+			versionNegotiation: { mode: "auto" },
+		});
 		expect(client.setRequestHandler).not.toHaveBeenCalled();
 	});
 

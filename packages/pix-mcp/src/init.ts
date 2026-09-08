@@ -75,6 +75,7 @@ export async function initializeMcp(
 		completedUiSessions: [],
 		openBrowser: (url: string) => openUrl(pi, url, process.env.BROWSER),
 		ui,
+		// SAFETY: McpExtensionState narrows Pi's accepted custom-message payload.
 		sendMessage: (message, options) =>
 			pi.sendMessage(message as unknown as Parameters<typeof pi.sendMessage>[0], options),
 	};
@@ -83,6 +84,13 @@ export async function initializeMcp(
 	if (serverEntries.length === 0) {
 		return state;
 	}
+
+	manager.setMetadataChangedCallback((serverName) => {
+		updateServerMetadata(state, serverName);
+		updateMetadataCache(state, serverName);
+		updateStatusBar(state);
+		state.onToolMetadataChanged?.();
+	});
 
 	const idleSetting =
 		typeof config.settings?.idleTimeout === "number" ? config.settings.idleTimeout : 10;
@@ -226,6 +234,7 @@ export async function initializeMcp(
 	lifecycle.setReconnectCallback((serverName) => {
 		updateServerMetadata(state, serverName);
 		updateMetadataCache(state, serverName);
+		state.onToolMetadataChanged?.();
 		state.failureTracker.delete(serverName);
 		updateStatusBar(state);
 	});
@@ -268,21 +277,9 @@ export function updateMetadataCache(state: McpExtensionState, serverName: string
 	if (!definition) return;
 
 	const configHash = computeServerHash(definition);
-	const existing = loadMetadataCache();
-	const existingEntry = existing?.servers?.[serverName];
-
 	const tools = serializeTools(connection.tools);
-	let resources =
+	const resources =
 		definition.exposeResources === false ? [] : serializeResources(connection.resources);
-
-	if (
-		definition.exposeResources !== false &&
-		resources.length === 0 &&
-		existingEntry?.resources?.length &&
-		existingEntry.configHash === configHash
-	) {
-		resources = existingEntry.resources;
-	}
 
 	const entry: ServerCacheEntry = {
 		configHash,
@@ -353,6 +350,7 @@ export async function lazyConnect(
 		state.failureTracker.delete(serverName);
 		updateServerMetadata(state, serverName);
 		updateMetadataCache(state, serverName);
+		state.onToolMetadataChanged?.();
 		updateStatusBar(state);
 		return true;
 	} catch (error) {
