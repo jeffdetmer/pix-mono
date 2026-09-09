@@ -144,6 +144,13 @@ function sanitizeRowContent(content: string): string {
 		}
 
 		const code = content.charCodeAt(i);
+		// Preserve newlines: tool rows embed them as hang-indent wrap points that
+		// frameModal splits on. Everything else non-printable collapses to a space.
+		if (code === 0x0a) {
+			result += "\n";
+			pendingSpace = false;
+			continue;
+		}
 		if (code <= 0x1f || code === 0x7f || (code >= 0x80 && code <= 0x9f)) {
 			pendingSpace = true;
 			continue;
@@ -156,6 +163,37 @@ function sanitizeRowContent(content: string): string {
 		result += content[i];
 	}
 	return result;
+}
+
+// Word-wrap plain (ANSI-free) text with a hanging indent: the first line fits
+// `firstW` cells, every following line fits `restW`. Long words hard-break.
+function wrapHanging(text: string, firstW: number, restW: number): string[] {
+	const words = text.split(/\s+/).filter(Boolean);
+	if (words.length === 0) return [""];
+	const lines: string[] = [];
+	let cur = "";
+	const width = () => (lines.length === 0 ? firstW : restW);
+	for (let word of words) {
+		while (word.length > width() - (cur ? cur.length + 1 : 0) && word.length > width()) {
+			// Word alone exceeds the line: hard-break it.
+			if (cur) {
+				lines.push(cur);
+				cur = "";
+			}
+			const take = width();
+			lines.push(word.slice(0, take));
+			word = word.slice(take);
+		}
+		const next = cur ? `${cur} ${word}` : word;
+		if (next.length > width()) {
+			lines.push(cur);
+			cur = word;
+		} else {
+			cur = next;
+		}
+	}
+	if (cur) lines.push(cur);
+	return lines;
 }
 
 function estimateTokens(tool: CachedTool): number {
@@ -873,7 +911,7 @@ class McpPanel {
 				if (item.type === "server") {
 					body.push(row(this.renderServerRow(server, isCursor)));
 				} else if (item.toolIndex !== undefined) {
-					body.push(row(this.renderToolRow(server.tools[item.toolIndex], isCursor)));
+					body.push(row(this.renderToolRow(server.tools[item.toolIndex], isCursor, innerW)));
 				}
 			}
 
@@ -1036,7 +1074,7 @@ class McpPanel {
 		return `${marker} ${label}`;
 	}
 
-	private renderToolRow(tool: ToolState, isCursor: boolean): string {
+	private renderToolRow(tool: ToolState, isCursor: boolean, innerW: number): string {
 		const t = this.t;
 		const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
 
@@ -1048,8 +1086,22 @@ class McpPanel {
 		const description = sanitizeDisplayText(tool.description);
 		const nameStr = isCursor ? bold(fg(t.selected, toolName)) : toolName;
 
-		const descStr = description ? fg(t.description, `— ${description}`) : "";
-		return `  ${cursor} ${toggleIcon} ${nameStr} ${descStr}`;
+		// Prefix `  ▸ ● ` is 6 visible cells; wrap the description with a matching
+		// hanging indent so continuation lines stay under the tool name instead of
+		// resetting to column 0 (frameModal's ANSI wrap has no hang-indent).
+		const prefix = `  ${cursor} ${toggleIcon} `;
+		const indentW = 6;
+		const head = `${prefix}${nameStr} `;
+		if (!description) return head.trimEnd();
+		const descPlain = `— ${description}`;
+		const firstW = Math.max(1, innerW - (indentW + visibleWidth(toolName) + 1));
+		const restW = Math.max(1, innerW - indentW);
+		const chunks = wrapHanging(descPlain, firstW, restW);
+		const indent = " ".repeat(indentW);
+		const lines = chunks.map((c, i) =>
+			i === 0 ? `${head}${fg(t.description, c)}` : `${indent}${fg(t.description, c)}`,
+		);
+		return lines.join("\n");
 	}
 
 	invalidate(): void {}
