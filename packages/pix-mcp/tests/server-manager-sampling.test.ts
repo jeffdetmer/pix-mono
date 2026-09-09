@@ -309,4 +309,28 @@ describe("McpServerManager sampling", () => {
 		manager.setDefaultRequestTimeoutMs(0);
 		expect(manager.getRequestOptions("missing")).toBeUndefined();
 	});
+
+	it("scales a server's timeout linearly by requestTimeoutFactor", async () => {
+		const { McpServerManager } = await import("../src/server-manager.ts");
+		const manager = new McpServerManager();
+		manager.setDefaultRequestTimeoutMs(2500);
+
+		await manager.connect("slow", {
+			command: "node",
+			args: ["server.js"],
+			requestTimeoutFactor: 3,
+		});
+
+		// config.timeout*3 for the slow server; other servers stay on the base.
+		expect(manager.getRequestOptions("slow")).toEqual({ timeout: 7500 });
+		expect(manager.getRequestOptions("missing")).toEqual({ timeout: 2500 });
+
+		// Junk factor (<= 0 / non-finite) falls back to 1× — never below base.
+		await manager.connect("bad", {
+			command: "node",
+			args: ["server.js"],
+			requestTimeoutFactor: 0,
+		});
+		expect(manager.getRequestOptions("bad")).toEqual({ timeout: 2500 });
+	});
 });

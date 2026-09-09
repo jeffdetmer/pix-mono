@@ -108,10 +108,14 @@ export class McpServerManager {
 	}
 
 	private buildRequestOptions(
-		_definition?: ServerDefinition,
+		definition?: ServerDefinition,
 		signal?: AbortSignal,
 	): RequestOptions | undefined {
-		const timeout = this.defaultRequestTimeoutMs;
+		const base = this.defaultRequestTimeoutMs;
+		// Per-server linear scale: a slow server sets requestTimeoutFactor (e.g. 3)
+		// to get 3× the base connect/call timeout without touching the global.
+		const factor = normalizeTimeoutFactor(definition?.requestTimeoutFactor);
+		const timeout = base !== undefined ? Math.round(base * factor) : undefined;
 
 		if (!signal && timeout === undefined) {
 			return undefined;
@@ -601,4 +605,11 @@ function normalizeRequestTimeoutMs(timeoutMs: number | undefined): number | unde
 	return typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0
 		? timeoutMs
 		: undefined;
+}
+
+// Multiplier applied to the base timeout for one server. Defaults to 1; a
+// non-finite or non-positive value falls back to 1 so config typos never
+// shorten the timeout below the base.
+function normalizeTimeoutFactor(factor: number | undefined): number {
+	return typeof factor === "number" && Number.isFinite(factor) && factor > 0 ? factor : 1;
 }

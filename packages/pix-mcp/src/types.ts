@@ -318,6 +318,7 @@ export interface ServerEntry {
 	oauth?: OAuthConfig | false;
 	lifecycle?: "keep-alive" | "lazy" | "eager";
 	idleTimeout?: number; // minutes, overrides global setting
+	requestTimeoutFactor?: number; // multiply base timeout for this server (e.g. 3 → config.timeout*3)
 	// Resource handling
 	exposeResources?: boolean;
 	// Direct tool registration

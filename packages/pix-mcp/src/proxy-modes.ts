@@ -811,10 +811,12 @@ function serverBackoffResult(serverName: string, failedAgo: number): ProxyToolRe
 		content: [
 			{
 				type: "text" as const,
-				text: `Server "${serverName}" not available (last failed ${failedAgo}s ago)`,
+				// Backoff auto-clears after 60s, but connect is the recovery path and
+				// bypasses it — surface that so a slow server isn't a dead end.
+				text: `Server "${serverName}" not available (last failed ${failedAgo}s ago). Retry now with mcp({ connect: "${serverName}" }) — it forces a fresh connect and ignores the backoff. If it keeps timing out, raise this server's requestTimeoutFactor in config.`,
 			},
 		],
-		details: { mode: "call", error: "server_backoff", server: serverName },
+		details: { mode: "call", error: "server_backoff", server: serverName, failedAgo },
 	};
 }
 
