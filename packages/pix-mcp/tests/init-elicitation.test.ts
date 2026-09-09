@@ -83,6 +83,23 @@ describe("initializeMcp elicitation config", () => {
 		});
 	});
 
+	it("wires requestTimeoutMs override, else falls back to the shared I/O timeout", async () => {
+		const { initializeMcp } = await import("../src/init.ts");
+
+		mocks.loadMcpConfig.mockReturnValue({
+			mcpServers: {},
+			settings: { requestTimeoutMs: 1500 },
+		});
+		await initializeMcp(extensionApi(), context());
+		expect(mocks.managers[0].setDefaultRequestTimeoutMs).toHaveBeenCalledWith(1500);
+
+		mocks.loadMcpConfig.mockReturnValue({ mcpServers: {}, settings: {} });
+		await initializeMcp(extensionApi(), context());
+		const fallback = mocks.managers[1].setDefaultRequestTimeoutMs.mock.calls[0][0];
+		expect(typeof fallback).toBe("number");
+		expect(fallback).toBeGreaterThan(0);
+	});
+
 	it("does not enable elicitation without UI or when disabled", async () => {
 		const { initializeMcp } = await import("../src/init.ts");
 

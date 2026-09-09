@@ -39,7 +39,10 @@ export async function initializeMcp(
 	const config = loadMcpConfig(configPath, ctx.cwd);
 
 	const manager = new McpServerManager(ctx.cwd);
-	manager.setDefaultRequestTimeoutMs(ioTimeoutMs());
+	// requestTimeoutMs overrides the shared Pix I/O timeout when set; both bound
+	// the SDK's initialize handshake and every tool/resource call so a silent
+	// server can't hang the connect or a callTool forever.
+	manager.setDefaultRequestTimeoutMs(config.settings?.requestTimeoutMs ?? ioTimeoutMs());
 	const samplingAutoApprove = config.settings?.samplingAutoApprove === true;
 	if (config.settings?.sampling !== false && (ctx.hasUI || samplingAutoApprove)) {
 		manager.setSamplingConfig({
