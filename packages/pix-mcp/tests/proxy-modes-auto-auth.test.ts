@@ -485,7 +485,7 @@ describe("proxy auto auth", () => {
 		});
 
 		const manager = new McpServerManager();
-		manager.setDefaultRequestTimeoutMs(5000);
+		manager.setDefaultRequestTimeoutMs(1000);
 		const state = {
 			config: {
 				settings: { toolPrefix: "server" },
@@ -507,21 +507,22 @@ describe("proxy auto auth", () => {
 		expect(mocks.clients).toHaveLength(1);
 		const client = mocks.clients[0];
 		expect(client.connect).toHaveBeenCalledTimes(1);
-		expect(client.connect).toHaveBeenCalledWith(mocks.transports[0], { timeout: 5000 });
+		// Base 1000 × 3 (REQUEST_TIMEOUT_FACTOR) = 3000 on every request.
+		expect(client.connect).toHaveBeenCalledWith(mocks.transports[0], { timeout: 3000 });
 		expect(client.listTools).toHaveBeenCalledTimes(1);
-		expect(client.listTools).toHaveBeenCalledWith(undefined, { timeout: 5000 });
+		expect(client.listTools).toHaveBeenCalledWith(undefined, { timeout: 3000 });
 		expect(client.listResources).toHaveBeenCalledTimes(1);
-		expect(client.listResources).toHaveBeenCalledWith(undefined, { timeout: 5000 });
+		expect(client.listResources).toHaveBeenCalledWith(undefined, { timeout: 3000 });
 		// SDK v2 callTool(params, requestOptions) — no result-schema arg.
 		expect(client.callTool).toHaveBeenNthCalledWith(
 			1,
 			{ name: "search", arguments: { q: "one" }, _meta: undefined },
-			{ timeout: 5000 },
+			{ timeout: 3000 },
 		);
 		expect(client.callTool).toHaveBeenNthCalledWith(
 			2,
 			{ name: "search", arguments: { q: "two" }, _meta: undefined },
-			{ timeout: 5000 },
+			{ timeout: 3000 },
 		);
 		expect(first.content[0]?.type === "text" ? first.content[0].text : "").toContain("ok");
 		expect(second.content[0]?.type === "text" ? second.content[0].text : "").toContain("ok");

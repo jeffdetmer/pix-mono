@@ -52,6 +52,11 @@ import {
 } from "./types.ts";
 import { interpolateEnvRecord, resolveBearerToken, resolveConfigPath } from "./utils.ts";
 
+// OAuth connects wait on a human browser round-trip (login, consent, redirect),
+// which routinely runs far past the base request timeout. Scale connect/call
+// timeouts 3× to cover it. Estimated, not config-exposed.
+const REQUEST_TIMEOUT_FACTOR = 3;
+
 interface ServerConnection {
 	client: Client;
 	transport: Transport;
@@ -108,14 +113,13 @@ export class McpServerManager {
 	}
 
 	private buildRequestOptions(
-		definition?: ServerDefinition,
+		_definition?: ServerDefinition,
 		signal?: AbortSignal,
 	): RequestOptions | undefined {
 		const base = this.defaultRequestTimeoutMs;
-		// Per-server linear scale: a slow server sets requestTimeoutFactor (e.g. 3)
-		// to get 3× the base connect/call timeout without touching the global.
-		const factor = normalizeTimeoutFactor(definition?.requestTimeoutFactor);
-		const timeout = base !== undefined ? Math.round(base * factor) : undefined;
+		// Slow servers routinely need more than the base wait, so scale the
+		// connect/call timeout 3× across the board. Not config-exposed on purpose.
+		const timeout = base !== undefined ? base * REQUEST_TIMEOUT_FACTOR : undefined;
 
 		if (!signal && timeout === undefined) {
 			return undefined;
@@ -605,11 +609,4 @@ function normalizeRequestTimeoutMs(timeoutMs: number | undefined): number | unde
 	return typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0
 		? timeoutMs
 		: undefined;
-}
-
-// Multiplier applied to the base timeout for one server. Defaults to 1; a
-// non-finite or non-positive value falls back to 1 so config typos never
-// shorten the timeout below the base.
-function normalizeTimeoutFactor(factor: number | undefined): number {
-	return typeof factor === "number" && Number.isFinite(factor) && factor > 0 ? factor : 1;
 }

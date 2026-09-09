@@ -173,16 +173,17 @@ describe("McpServerManager HTTP bearer auth", () => {
 		const { McpServerManager } = await import("../src/server-manager.ts");
 
 		const manager = new McpServerManager();
-		manager.setDefaultRequestTimeoutMs(5000);
+		manager.setDefaultRequestTimeoutMs(1000);
 		await manager.connect("remote", {
 			url: "https://example.test/mcp",
 		});
 
+		// Base 1000 × 3 (REQUEST_TIMEOUT_FACTOR) = 3000.
 		expect(mocks.clients[1].connect).toHaveBeenCalledWith(mocks.httpTransports[0], {
-			timeout: 5000,
+			timeout: 3000,
 		});
 		expect(mocks.clients[0].connect).toHaveBeenCalledWith(mocks.httpTransports[1], {
-			timeout: 5000,
+			timeout: 3000,
 		});
 	});
 });
