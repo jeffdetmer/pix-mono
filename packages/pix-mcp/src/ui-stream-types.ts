@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const UI_STREAM_HOST_CONTEXT_KEY = "pi-mcp-adapter/stream";
 export const UI_STREAM_REQUEST_META_KEY = "pi-mcp-adapter/stream-token";
-export const UI_STREAM_RESULT_PATCH_METHOD = "notifications/pi-mcp-adapter/ui-result-patch";
 export const SERVER_STREAM_RESULT_PATCH_METHOD = "notifications/pi-mcp-adapter/result-patch";
 export const UI_STREAM_STRUCTURED_CONTENT_KEY = "pi-mcp-adapter/stream";
 
@@ -55,13 +54,6 @@ export const uiStreamCallToolResultSchema = z
 		_meta: looseRecordSchema.optional(),
 	})
 	.passthrough();
-export type UiStreamCallToolResult = z.infer<typeof uiStreamCallToolResultSchema>;
-
-export const uiStreamResultPatchNotificationSchema = z.object({
-	method: z.literal(UI_STREAM_RESULT_PATCH_METHOD),
-	params: uiStreamCallToolResultSchema,
-});
-export type UiStreamResultPatchNotification = z.infer<typeof uiStreamResultPatchNotificationSchema>;
 
 export const serverStreamResultPatchNotificationSchema = z.object({
 	method: z.literal(SERVER_STREAM_RESULT_PATCH_METHOD),
