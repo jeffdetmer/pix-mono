@@ -10,6 +10,7 @@ function stripAnsi(input: string): string {
 function createCallbacks(): McpPanelCallbacks {
 	return {
 		reconnect: async () => true,
+		disconnect: async () => {},
 		canAuthenticate: () => false,
 		authenticate: async () => ({ ok: false }),
 		getConnectionStatus: () => "idle",

@@ -664,6 +664,28 @@ class McpPanel {
 			return;
 		}
 
+		if (matchesKey(data, "ctrl+x")) {
+			const item = this.visibleItems[this.cursorIndex];
+			if (!item || item.type === "add") return;
+			const server = this.servers[item.serverIndex];
+			if (!server) return;
+			if (server.connectionStatus !== "connected") return;
+			this.callbacks
+				.disconnect(server.name)
+				.then(() => {
+					server.connectionStatus = this.callbacks.getConnectionStatus(server.name);
+					this.tui.requestRender();
+				})
+				.catch((error) => {
+					const message = sanitizeDisplayText(
+						error instanceof Error ? error.message : String(error),
+					);
+					this.authNotice = `Disconnect failed for ${sanitizeDisplayText(server.name)}: ${message}`;
+					this.tui.requestRender();
+				});
+			return;
+		}
+
 		if (printableChar(data) === "?") {
 			this.descSearchActive = true;
 			this.descQuery = "";
@@ -963,6 +985,7 @@ class McpPanel {
 			guide("?", "desc search"),
 			guide("ctrl+a", "auth"),
 			guide("ctrl+r", "reconnect"),
+			guide("ctrl+x", "disconnect"),
 			guide("ctrl+e", "edit"),
 			guide("ctrl+d", "delete"),
 			guide("ctrl+s", "save"),

@@ -9,6 +9,7 @@ import type { McpConfig, McpPanelCallbacks } from "../src/types.ts";
 const CTRL_P = "\x10";
 const CTRL_N = "\x0e";
 const CTRL_E = "\x05";
+const CTRL_X = "\x18";
 const UP = "\x1b[A";
 const DOWN = "\x1b[B";
 const ENTER = "\r";
@@ -32,6 +33,7 @@ function createTwoServerConfig(): McpConfig {
 function createAuthCallbacks(): McpPanelCallbacks {
 	return {
 		reconnect: async () => true,
+		disconnect: async () => {},
 		canAuthenticate: () => true,
 		authenticate: mock(async () => ({ ok: true })),
 		getConnectionStatus: () => "needs-auth",
@@ -149,6 +151,34 @@ describe("mcp-panel custom keybindings", () => {
 		expect(done).toHaveBeenCalledWith(
 			expect.objectContaining({ wantsEdit: "alpha", cancelled: false }),
 		);
+		panel.dispose();
+	});
+
+	it("disconnects the selected connected server with ctrl+x", () => {
+		const disconnect = mock(async (_name: string) => {});
+		const callbacks: McpPanelCallbacks = {
+			reconnect: async () => true,
+			disconnect,
+			canAuthenticate: () => false,
+			authenticate: mock(async () => ({ ok: true })),
+			getConnectionStatus: () => "connected",
+			refreshCacheAfterReconnect: () => null,
+		};
+		const panel = createMcpPanel(
+			createTwoServerConfig(),
+			null,
+			new Map([
+				["alpha", { path: "/tmp/mcp.json", kind: "user" as const }],
+				["beta", { path: "/tmp/mcp.json", kind: "user" as const }],
+			]),
+			callbacks,
+			{ requestRender: () => {} },
+			mock(() => {}) as never,
+		);
+
+		panel.handleInput(DOWN);
+		panel.handleInput(CTRL_X);
+		expect(disconnect).toHaveBeenCalledWith("alpha");
 		panel.dispose();
 	});
 

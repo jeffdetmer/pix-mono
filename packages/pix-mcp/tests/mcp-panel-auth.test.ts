@@ -25,6 +25,7 @@ function createCallbacks(status: "connected" | "idle" | "failed" | "needs-auth" 
 	let currentStatus = status;
 	const callbacks: McpPanelCallbacks = {
 		reconnect: async () => true,
+		disconnect: async () => {},
 		canAuthenticate: (serverName) => serverName === "github",
 		authenticate: mock(async () => {
 			currentStatus = "connected";

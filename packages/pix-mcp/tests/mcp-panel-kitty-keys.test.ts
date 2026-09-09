@@ -44,6 +44,7 @@ function createCache(config: McpConfig): MetadataCache {
 function createCallbacks(): McpPanelCallbacks {
 	return {
 		reconnect: async () => true,
+		disconnect: async () => {},
 		canAuthenticate: () => false,
 		authenticate: mock(async () => ({ ok: true })),
 		getConnectionStatus: () => "connected",

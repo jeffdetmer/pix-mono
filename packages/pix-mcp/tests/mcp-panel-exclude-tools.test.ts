@@ -42,6 +42,7 @@ describe("mcp-panel excludeTools", () => {
 			new Map(),
 			{
 				reconnect: async () => true,
+				disconnect: async () => {},
 				canAuthenticate: () => false,
 				authenticate: async () => ({ ok: false }),
 				getConnectionStatus: () => "idle",

@@ -387,6 +387,13 @@ function buildMcpPanelCallbacks(
 ): McpPanelCallbacks {
 	return {
 		reconnect: (serverName: string) => lazyConnect(state, serverName),
+		disconnect: async (serverName: string) => {
+			// Close the live connection and free its client/transport; clears any
+			// failure backoff so a later reconnect starts clean. Config untouched.
+			await state.manager.close(serverName);
+			state.failureTracker.delete(serverName);
+			updateStatusBar(state);
+		},
 		canAuthenticate: (serverName: string) => {
 			const definition = config.mcpServers[serverName];
 			return definition ? supportsOAuth(definition) : false;
