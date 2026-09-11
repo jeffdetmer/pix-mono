@@ -42,6 +42,31 @@ open source is for. The theme system (`pix-themes`) and config file
 (`~/.pi/agent/pix.json`) already provide customization hooks for users who
 want to tweak their own setup without changing upstream.
 
+## Forks: keep attribution, send fixes upstream
+
+Forking is encouraged. The MIT license grants you the right to use, modify,
+publish, and even sell copies — with **one** condition: keep the copyright
+notice and license text intact (see `LICENSE`). This is not optional and not
+a formality.
+
+**Do not strip attribution.** Removing the `Copyright (c) 2026 xynogen` line,
+deleting or rewriting `LICENSE`, re-scoping the packages to erase their origin,
+or otherwise passing this work off as wholly your own is a license violation —
+not a style choice. A fork that does this is operating outside the grant that
+let it exist.
+
+**If it helps everyone, send it back here.** The license does not *require* you
+to upstream, but the point of open source is shared benefit. When you fix a
+real bug or add a capability that isn't specific to your setup, open a PR or an
+issue against `main` instead of hoarding it in a private fork. General
+improvements belong upstream where every user gets them; keeping a genuine fix
+to yourself while stripping the attribution that made it possible is the
+opposite of what this license is for.
+
+Personal, opinionated, or setup-specific divergence — colors, layout, private
+integrations — is exactly what a fork is *for*; keep those. But a
+broadly-useful fix behind a de-attributed fork helps no one but its author.
+
 ### Third-party product placement
 
 Pix does not grant third-party products promotional placement merely because
