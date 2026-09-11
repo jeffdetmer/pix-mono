@@ -35,6 +35,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { padIcon } from "@xynogen/pix-pretty/utils";
 
@@ -363,6 +364,28 @@ function buildCheckLines(theme: Theme, checks: CheckResult[]): string[] {
 	return lines;
 }
 
+/** Clamp one banner line to `width`, preserving ANSI. Empty lines pass through. */
+function fitLine(line: string, width: number): string {
+	if (!line) return line;
+	return truncateToWidth(line, Math.max(0, width), "…");
+}
+
+/**
+ * Full banner, every line clamped to `width`. A logo line wider than the
+ * terminal would otherwise make Pi's TUI throw, so this is the safe entry point
+ * the widget render uses.
+ */
+export function renderWelcome(
+	theme: Theme,
+	model: string,
+	cwd: string,
+	checks: CheckResult[],
+	width: number,
+): string[] {
+	const lines = [...buildLogoLines(theme, model, cwd), ...buildCheckLines(theme, checks), ""];
+	return lines.map((line) => fitLine(line, width));
+}
+
 // ─── Extension ────────────────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
@@ -407,12 +430,12 @@ export default function (pi: ExtensionAPI) {
 				requestRender = () => tui.requestRender();
 
 				return {
-					render: () => {
+					render: (width: number) => {
 						// SAFETY: Host theme implements the smaller local foreground-only Theme contract.
 						const t = theme as unknown as Theme;
-						// Re-read modelId each render so /model changes show live
-						const logoLines = buildLogoLines(t, modelId, cwd);
-						return [...logoLines, ...buildCheckLines(t, CHECKS), ""];
+						// Re-read modelId each render so /model changes show live.
+						// Clamp to width so an over-wide logo line never crashes Pi's TUI.
+						return renderWelcome(t, modelId, cwd, CHECKS, width);
 					},
 					dispose() {
 						requestRender = null;

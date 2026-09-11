@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import {
 	type CheckResult,
 	countSkillsInDirs,
@@ -9,6 +10,7 @@ import {
 	LOGO_ROWS,
 	PI_IGNORE_RULES,
 	renderCheck,
+	renderWelcome,
 	shortCwd,
 	statusIcon,
 	summariseSkills,
@@ -20,6 +22,18 @@ const theme: Theme = {
 	fg: (_color, text) => text,
 	bold: (text) => text,
 };
+
+describe("renderWelcome", () => {
+	const checks: CheckResult[] = [{ label: "PI", status: "ok", detail: "1.0.0" }];
+	it("clamps every line to the given width so a wide logo can't crash the TUI", () => {
+		const lines = renderWelcome(theme, "some-model", "/very/long/path", checks, 10);
+		for (const line of lines) expect(visibleWidth(line)).toBeLessThanOrEqual(10);
+	});
+	it("passes empty lines through untouched", () => {
+		const lines = renderWelcome(theme, "m", "/p", checks, 40);
+		expect(lines.some((l) => l === "")).toBe(true);
+	});
+});
 
 describe("shortCwd", () => {
 	it("replaces home prefix with ~", () => {
