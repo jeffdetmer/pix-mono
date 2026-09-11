@@ -146,12 +146,20 @@ interface FieldDef {
 	placeholder: string;
 	hint?: string;
 	secret?: boolean;
+	toggle?: boolean;
 }
 
 function fieldsForType(type: AddServerType): FieldDef[] {
 	const common: FieldDef[] = [
 		{ key: "name", label: "Name", placeholder: "my-server", hint: "letters, digits, . _ -" },
 	];
+	const directTools: FieldDef = {
+		key: "directTools",
+		label: "Direct tools",
+		placeholder: "off",
+		hint: "register this server's tools as native tools (space toggles)",
+		toggle: true,
+	};
 	if (type === "stdio") {
 		return [
 			...common,
@@ -179,6 +187,7 @@ function fieldsForType(type: AddServerType): FieldDef[] {
 				placeholder: "/path/to/workdir",
 				hint: "optional working directory",
 			},
+			directTools,
 		];
 	}
 	// ponytail: one URL option; connection probes Streamable HTTP then legacy SSE.
@@ -209,6 +218,7 @@ function fieldsForType(type: AddServerType): FieldDef[] {
 			hint: "prefer Token env; saved as plaintext",
 			secret: true,
 		},
+		directTools,
 	];
 }
 
@@ -241,6 +251,19 @@ function parseOptionalJson<T>(
 	return parsed as T;
 }
 
+// ponytail: the /mcp panel toggle is binary (all tools on, or off/unset).
+// A per-tool allow-list (directTools: string[]) stays a config-file-only advanced
+// case; editing such a server via the panel collapses it to the on state.
+function parseDirectTools(value: string): boolean | undefined {
+	return value === "true" ? true : undefined;
+}
+
+function serializeDirectTools(directTools: boolean | string[] | undefined): string {
+	return directTools === true || (Array.isArray(directTools) && directTools.length > 0)
+		? "true"
+		: "";
+}
+
 function inferType(entry: ServerEntry): AddServerType {
 	return entry.url ? "http" : "stdio";
 }
@@ -260,6 +283,7 @@ function stepLabel(step: Step, type: AddServerType, editing: boolean): string {
 }
 
 function displayFieldValue(field: FieldDef, value: string, mutedPlaceholder: string): string {
+	if (field.toggle) return value === "true" ? "[x] on" : "[ ] off";
 	if (!value) return mutedPlaceholder;
 	return field.secret ? "•".repeat(Math.min(value.length, 24)) : sanitizeDisplayText(value);
 }
@@ -271,6 +295,7 @@ function fieldsFromEntry(name: string, entry: ServerEntry): Record<string, strin
 		args: entry.args?.length ? JSON.stringify(entry.args) : "",
 		env: entry.env && Object.keys(entry.env).length ? JSON.stringify(entry.env) : "",
 		cwd: entry.cwd ?? "",
+		directTools: serializeDirectTools(entry.directTools),
 		url: entry.url ?? "",
 		headers:
 			entry.headers && Object.keys(entry.headers).length ? JSON.stringify(entry.headers) : "",
@@ -405,12 +430,14 @@ export class McpAddPanel {
 					"Env",
 					"object",
 				);
+				const directTools = parseDirectTools(this.fieldValues.directTools ?? "");
 				const entry: ServerEntry = {
 					...this.options.edit?.entry,
 					command,
 					args: args ?? [],
 					env,
 					cwd: (this.fieldValues.cwd ?? "").trim() || undefined,
+					directTools,
 				};
 				return { name, entry };
 			} catch (error) {
@@ -437,6 +464,7 @@ export class McpAddPanel {
 		}
 		entry.bearerTokenEnv = (this.fieldValues.bearerTokenEnv ?? "").trim() || undefined;
 		entry.bearerToken = (this.fieldValues.bearerToken ?? "").trim() || undefined;
+		entry.directTools = parseDirectTools(this.fieldValues.directTools ?? "");
 		return { name, entry };
 	}
 
@@ -488,6 +516,90 @@ export class McpAddPanel {
 		this.error = null;
 		this.tui.requestRender();
 		return true;
+	}
+
+	private handleFormInput(data: string): void {
+		// Field navigation
+		if (matchesKey(data, "tab") || this.keys.selectDown(data)) {
+			this.fieldCursor = (this.fieldCursor + 1) % this.fieldDefs.length;
+			this.tui.requestRender();
+			return;
+		}
+		if (matchesKey(data, "shift+tab") || this.keys.selectUp(data)) {
+			this.fieldCursor = (this.fieldCursor - 1 + this.fieldDefs.length) % this.fieldDefs.length;
+			this.tui.requestRender();
+			return;
+		}
+		const focused = this.fieldDefs[this.fieldCursor];
+		if (
+			focused?.toggle &&
+			(data === " " || matchesKey(data, "left") || matchesKey(data, "right"))
+		) {
+			this.fieldValues[focused.key] =
+				(this.fieldValues[focused.key] ?? "") === "true" ? "" : "true";
+			this.error = null;
+			this.tui.requestRender();
+			return;
+		}
+		if (this.keys.selectConfirm(data)) {
+			const built = this.buildEntryFromFields();
+			if ("error" in built) {
+				this.error = built.error;
+				this.tui.requestRender();
+				return;
+			}
+			this.error = null;
+			if (this.options.edit) {
+				try {
+					this.preview = this.options.callbacks.previewEntry(
+						this.options.edit.targetPath,
+						built.name,
+						built.entry,
+					);
+				} catch (error) {
+					this.error = error instanceof Error ? error.message : String(error);
+					this.tui.requestRender();
+					return;
+				}
+				this.step = "preview";
+			} else {
+				this.step = "pickScope";
+				this.scopeCursor = this.scope === "project" ? 0 : 1;
+			}
+			this.tui.requestRender();
+			return;
+		}
+		if (matchesKey(data, "backspace")) {
+			if (this.currentFieldIsReadOnly() || focused?.toggle) return;
+			const key = focused?.key;
+			if (key) {
+				const cur = this.fieldValues[key] ?? "";
+				this.fieldValues[key] = cur.slice(0, -1);
+				this.error = null;
+				this.tui.requestRender();
+			}
+			return;
+		}
+		if (matchesKey(data, "ctrl+u")) {
+			if (this.currentFieldIsReadOnly() || focused?.toggle) return;
+			const key = focused?.key;
+			if (key) {
+				this.fieldValues[key] = "";
+				this.tui.requestRender();
+			}
+			return;
+		}
+		const ch = printableChar(data);
+		if (ch !== undefined) {
+			if (this.currentFieldIsReadOnly() || focused?.toggle) return;
+			const key = focused?.key;
+			if (key) {
+				this.fieldValues[key] = (this.fieldValues[key] ?? "") + ch;
+				this.error = null;
+				this.tui.requestRender();
+			}
+			return;
+		}
 	}
 
 	handleInput(data: string): void {
@@ -545,76 +657,7 @@ export class McpAddPanel {
 		}
 
 		if (this.step === "form") {
-			// Field navigation
-			if (matchesKey(data, "tab") || this.keys.selectDown(data)) {
-				this.fieldCursor = (this.fieldCursor + 1) % this.fieldDefs.length;
-				this.tui.requestRender();
-				return;
-			}
-			if (matchesKey(data, "shift+tab") || this.keys.selectUp(data)) {
-				this.fieldCursor = (this.fieldCursor - 1 + this.fieldDefs.length) % this.fieldDefs.length;
-				this.tui.requestRender();
-				return;
-			}
-			if (this.keys.selectConfirm(data)) {
-				const built = this.buildEntryFromFields();
-				if ("error" in built) {
-					this.error = built.error;
-					this.tui.requestRender();
-					return;
-				}
-				this.error = null;
-				if (this.options.edit) {
-					try {
-						this.preview = this.options.callbacks.previewEntry(
-							this.options.edit.targetPath,
-							built.name,
-							built.entry,
-						);
-					} catch (error) {
-						this.error = error instanceof Error ? error.message : String(error);
-						this.tui.requestRender();
-						return;
-					}
-					this.step = "preview";
-				} else {
-					this.step = "pickScope";
-					this.scopeCursor = this.scope === "project" ? 0 : 1;
-				}
-				this.tui.requestRender();
-				return;
-			}
-			if (matchesKey(data, "backspace")) {
-				if (this.currentFieldIsReadOnly()) return;
-				const key = this.fieldDefs[this.fieldCursor]?.key;
-				if (key) {
-					const cur = this.fieldValues[key] ?? "";
-					this.fieldValues[key] = cur.slice(0, -1);
-					this.error = null;
-					this.tui.requestRender();
-				}
-				return;
-			}
-			if (matchesKey(data, "ctrl+u")) {
-				if (this.currentFieldIsReadOnly()) return;
-				const key = this.fieldDefs[this.fieldCursor]?.key;
-				if (key) {
-					this.fieldValues[key] = "";
-					this.tui.requestRender();
-				}
-				return;
-			}
-			const ch = printableChar(data);
-			if (ch !== undefined) {
-				if (this.currentFieldIsReadOnly()) return;
-				const key = this.fieldDefs[this.fieldCursor]?.key;
-				if (key) {
-					this.fieldValues[key] = (this.fieldValues[key] ?? "") + ch;
-					this.error = null;
-					this.tui.requestRender();
-				}
-				return;
-			}
+			this.handleFormInput(data);
 			return;
 		}
 
@@ -756,7 +799,9 @@ export class McpAddPanel {
 				row(
 					fg(
 						t.hint,
-						italic("tab: next field · type to edit · backspace · enter: continue · esc: back"),
+						italic(
+							"tab: next field · type to edit · space: toggle · backspace · enter: continue · esc: back",
+						),
 					),
 				),
 			);

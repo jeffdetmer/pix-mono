@@ -77,6 +77,100 @@ describe("MCP add target", () => {
 	});
 });
 
+describe("MCP direct-tools opt-in toggle", () => {
+	const SPACE = " ";
+
+	function captureEntry(toggleValue: string) {
+		let captured: unknown;
+		const tui = { requestRender: mock(() => {}), terminal: { rows: 40 } };
+		const callbacks: AddPanelCallbacks = {
+			resolveTargetPath: () => "/tmp/mcp.json",
+			previewEntry: (_p, _n, entry) => {
+				captured = entry;
+				return {
+					path: "/tmp/mcp.json",
+					existed: false,
+					changed: true,
+					beforeText: "",
+					afterText: "{}",
+					diffText: "",
+				};
+			},
+			writeEntry: () => "/tmp/mcp.json",
+			isNameTaken: () => false,
+			testConnect: async () => "connected",
+		};
+		const p = new McpAddPanel({ cwd: "/tmp", callbacks }, tui, () => {});
+		p.handleInput(ENTER); // pickType -> form (stdio)
+		p.setFieldValue("name", "srv");
+		p.setFieldValue("command", "npx");
+		p.setFieldValue("directTools", toggleValue); // "true" | "" as the toggle would leave it
+		p.handleInput(ENTER); // form -> pickScope
+		p.handleInput(ENTER); // pickScope -> preview (fires previewEntry)
+		p.dispose();
+		return captured as { directTools?: unknown };
+	}
+
+	it("opts in to all tools when the toggle is on", () => {
+		expect(captureEntry("true").directTools).toBe(true);
+	});
+
+	it("leaves directTools undefined when the toggle is off", () => {
+		expect(captureEntry("").directTools).toBeUndefined();
+	});
+
+	it("flips with space, ignores typing, and renders on/off", () => {
+		const p = panel();
+		p.handleInput(ENTER); // stdio form; directTools is the last field
+		for (let i = 0; i < 8; i++) {
+			if (stripAnsi(p.render(120).join("\n")).includes("\u25b6 Direct tools")) break;
+			p.handleInput("\t");
+		}
+		expect(stripAnsi(p.render(120).join("\n"))).toContain("Direct tools: [ ] off");
+		p.handleInput(SPACE);
+		expect(p.getFieldValue("directTools")).toBe("true");
+		expect(stripAnsi(p.render(120).join("\n"))).toContain("Direct tools: [x] on");
+		p.handleInput("x"); // typing ignored on a toggle
+		expect(p.getFieldValue("directTools")).toBe("true");
+		p.handleInput(SPACE); // back off
+		expect(p.getFieldValue("directTools")).toBe("");
+		p.dispose();
+	});
+
+	it("collapses a config-only array allow-list to on in the edit form", () => {
+		const tui = { requestRender: mock(() => {}), terminal: { rows: 40 } };
+		const callbacks: AddPanelCallbacks = {
+			resolveTargetPath: () => "/tmp/x.json",
+			previewEntry: () => ({
+				path: "/tmp/x.json",
+				existed: true,
+				changed: true,
+				beforeText: "{}",
+				afterText: "{}",
+				diffText: "",
+			}),
+			writeEntry: () => "/tmp/x.json",
+			isNameTaken: () => true,
+			testConnect: async () => "connected",
+		};
+		const p = new McpAddPanel(
+			{
+				cwd: "/tmp",
+				callbacks,
+				edit: {
+					name: "srv",
+					targetPath: "/tmp/x.json",
+					entry: { command: "npx", directTools: ["a"] },
+				},
+			},
+			tui,
+			() => {},
+		);
+		expect(p.getFieldValue("directTools")).toBe("true");
+		p.dispose();
+	});
+});
+
 describe("MCP add transport choices", () => {
 	it("offers only MCP stdio and URL transports", () => {
 		const output = stripAnsi(panel().render(120).join("\n"));
