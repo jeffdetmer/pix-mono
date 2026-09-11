@@ -145,6 +145,7 @@ as `/skill:<name>` slash commands.
 | `audit` | Security audit, integrity check, and secret/vulnerability scan |
 | `bootstrap` | Project and tool scaffolding from authoritative docs |
 | `brainstorm` | Design exploration and spec refinement before implementation |
+| `cicd` | Set up a two-stage CI/CD release pipeline (validate on push/PR, publish on tag) across GitHub/Forgejo/GitLab |
 | `clone` | Clone any git repo into `/tmp/clones` for read-only exploration |
 | `command-runner` | Inspect workspace health using pre-populated git context (status + diff) |
 | `commit` | Split, write, and maintain Conventional-Commit-style commits |
