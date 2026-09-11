@@ -62,42 +62,13 @@ Product promise: **No hidden intent. No silent routing. No blind automation.**
 
 ## Repo Structure
 
+Per-package catalog (names, descriptions, bundled vs standalone, dependency tree) lives in [`.github/README.md`](.github/README.md) — do not duplicate it here. What matters for agent work:
+
+- **Bundled by `pix-core`** (Pi built-in replacements + UI/UX + behaviour): tool suite (`pix-bash/read/write/edit/find/grep/ls/ask/todo`), UI (`pix-welcome/footer/models/update/commands/nudge/diagnostics/display/prompts/skills`), behaviour (`pix-optimizer/gate/subagent`).
+- **Shared layers** (see Package Independence): `pix-runtime`, `pix-data`, `pix-pretty`, `pix-core`.
+- **Standalone, opt-in, NOT bundled:** `pix-9router`, `pix-sudo`, `pix-ssh`, `pix-toolbox`, `pix-graph`, `pix-hunk`, `pix-mcp`.
+
 ```
-packages/
-  # ── Aggregator ─────────────────────────────────────────────────────
-  pix-core/        # Meta-package — bundles + activates the core distro
-  # ── Shared layers ──────────────────────────────────────────────────
-  pix-data/        # Model data (modelgrep + BenchLM, cached at ~/.cache/pi)
-  pix-runtime/     # pix.json config runtime (sections, atomic writes, /pix command), once() guard, collapse policy
-  pix-pretty/      # Rendering lib (highlight, diff, icons, fff, widget-format, modal-frame) + FFF slash commands
-  pix-themes/      # Theme pack — 7 dark themes
-  # ── UI / UX (bundled by pix-core) ─────────────────────────────────
-  pix-welcome/     # ASCII π banner + startup health checks
-  pix-footer/      # Status bar — mode, git, model, tokens, cost, TPS
-  pix-models/      # /models — model picker (score, context, cost)
-  pix-update/      # /update — self-update Pi + extensions
-  pix-commands/    # /clear cache + /btw isolated concurrent side questions
-  pix-nudge/       # Tools + capability nudge
-  pix-diagnostics/ # Compact session-files widget
-  pix-display/     # Paste chip rendering + leaked <think> cleanup
-  pix-prompts/     # System-prompt injection (AGENT.md + repo directive scan)
-  pix-skills/      # Skill loader (read_skills tool + bundled skills)
-  # ── Behaviour (bundled by pix-core) ────────────────────────────────
-  pix-optimizer/   # Caveman + RTK + TOON + ponytail (/optimizer)
-  pix-gate/        # Permission gate for dangerous commands
-  pix-subagent/    # Sub-agent spawning (agent / agent_control)
-  # ── Tool suite (bundled by pix-core — Pi built-in replacements) ───
-  pix-bash/  pix-read/  pix-write/  pix-edit/
-  pix-find/  pix-grep/  pix-ls/    pix-ask/
-  pix-todo/        # Durable execution checklist (survives context compaction)
-  # ── Standalone (opt-in, NOT bundled) ───────────────────────────────
-  pix-9router/     # 9Router LLM provider + fetch/search/transcribe (needs API key)
-  pix-sudo/        # sudo_run with PAM password prompt
-  pix-ssh/         # ssh_run — remote command over SSH (key/password auth + remote sudo)
-  pix-toolbox/     # Gated tool toggle UI (/toolbox)
-  pix-graph/       # Native-TS code knowledge graph — `graph` tool (build/query) + CLI + library, no Python
-  pix-hunk/        # Live Hunk diff-review bridge — external CLI + active session required
-  pix-mcp/         # Token-efficient MCP gateway (external servers; explicit opt-in)
 scripts/
   dev-link.sh      # Symlink packages into Pi for dev
   publish-all.ts   # Publish changed packages to npm (idempotent)
