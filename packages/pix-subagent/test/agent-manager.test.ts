@@ -20,10 +20,12 @@ import type { ResumeResult, RunResult } from "../src/agent-runner.ts";
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Minimal fake session — AgentManager only touches dispose/steer/subscribe/messages. */
-function fakeSession(): AgentSession {
+function fakeSession(steers?: string[]): AgentSession {
 	return {
 		dispose() {},
-		steer: async () => {},
+		steer: async (msg: string) => {
+			steers?.push(msg);
+		},
 		subscribe: () => () => {},
 		messages: [],
 	} as unknown as AgentSession;
@@ -46,13 +48,13 @@ interface DeferredRunAgent {
  * Install a fake runAgent that captures each call into `calls` and returns a
  * deferred promise the test can resolve/reject at will.
  */
-function installFakeRunAgent(): DeferredRunAgent[] {
+function installFakeRunAgent(steers?: string[]): DeferredRunAgent[] {
 	const calls: DeferredRunAgent[] = [];
 
 	__setRunAgentForTests((_ctx, _type, _prompt, options): Promise<RunResult> => {
 		// Capture the onSessionCreated callback and fire it with a fake session
 		// so the manager wires up the session on the record.
-		options.onSessionCreated?.(fakeSession());
+		options.onSessionCreated?.(fakeSession(steers));
 
 		const deferred: DeferredRunAgent = {
 			resolve: () => {},
@@ -225,6 +227,51 @@ describe("AgentManager", () => {
 	});
 
 	// 4. spawn cwd validation
+	// requestStop: graceful stop steers a summarize message, keeps agent running
+	test("requestStop() on running agent → steers summarize, stays running", () => {
+		const steers: string[] = [];
+		const calls = installFakeRunAgent(steers);
+		manager = new AgentManager(undefined, 4);
+
+		const id = manager.spawn(pi, ctx, "general", "task", {
+			description: "run",
+			isBackground: true,
+		});
+
+		expect(manager.requestStop(id)).toBe("steered");
+		// Steered, not killed: the abort signal must NOT be fired.
+		expect(calls[0]!.signal?.aborted).toBe(false);
+		expect(manager.getRecord(id)?.status).toBe("running");
+		expect(steers).toHaveLength(1);
+		expect(steers[0]).toContain("Summarize");
+	});
+
+	// requestStop on a queued agent has nothing to summarize → plain abort
+	test("requestStop() on queued agent → not-running, aborted", async () => {
+		const calls = installFakeRunAgent();
+		manager = new AgentManager(undefined, 1);
+
+		manager.spawn(pi, ctx, "general", "task 1", { description: "first", isBackground: true });
+		const queuedId = manager.spawn(pi, ctx, "general", "task 2", {
+			description: "second",
+			isBackground: true,
+		});
+
+		expect(manager.getRecord(queuedId)?.status).toBe("queued");
+		expect(manager.requestStop(queuedId)).toBe("not-running");
+		expect(manager.getRecord(queuedId)?.status).toBe("stopped");
+
+		calls[0]!.resolve();
+		await new Promise((r) => setTimeout(r, 10));
+		expect(calls.length).toBe(1); // queued one never started
+	});
+
+	test("requestStop() on unknown id → not-running", () => {
+		installFakeRunAgent();
+		manager = new AgentManager(undefined, 4);
+		expect(manager.requestStop("nope")).toBe("not-running");
+	});
+
 	test("spawn with relative cwd throws", () => {
 		installFakeRunAgent();
 		manager = new AgentManager(undefined, 4);

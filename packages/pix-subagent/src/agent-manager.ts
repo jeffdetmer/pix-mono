@@ -6,11 +6,11 @@
  * agents complete.
  */
 
-import { randomUUID } from "node:crypto";
 import { statSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { AgentSession, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { uniqueLfid } from "@xynogen/pix-runtime/lfid";
 import {
 	resumeAgent as _resumeAgentReal,
 	runAgent as _runAgentReal,
@@ -186,7 +186,9 @@ export class AgentManager {
 		// can fix and retry; the RPC layer converts throws into error envelopes.
 		assertValidSpawnCwd(options.cwd);
 
-		const id = randomUUID().slice(0, 17);
+		// LFID (agent-happy-walrus-42): the parent model must type this ID back
+		// for steer/stop/resume, so it must survive re-typing. Unique vs live set.
+		const id = uniqueLfid((candidate: string) => this.agents.has(candidate), { prefix: "agent" });
 		const abortController = new AbortController();
 		const record: AgentRecord = {
 			id,
@@ -461,6 +463,40 @@ export class AgentManager {
 		record.status = "stopped";
 		record.completedAt = Date.now();
 		return true;
+	}
+
+	/**
+	 * Graceful stop: instead of hard-killing mid-task (which throws away every
+	 * partial finding), steer a halt-and-summarize message. The agent wraps up
+	 * on its next tool-call boundary, produces a final summary, and completes
+	 * through the normal path — so the result still fires back to the parent.
+	 * Returns "steered" when the message was injected, "queued" when the session
+	 * isn't ready yet (delivered on session start), or "not-running" otherwise.
+	 * A queued agent has produced nothing to summarize, so it's plain-aborted.
+	 *
+	 * `ponytail:` a halted agent that stalls and never answers runs to its turn
+	 * cap. If a force-timeout is needed, steer with a deadline here and call
+	 * abort() when it lapses.
+	 */
+	requestStop(id: string): "steered" | "queued" | "not-running" {
+		const record = this.agents.get(id);
+		if (!record) return "not-running";
+		if (record.status === "queued") {
+			this.abort(id);
+			return "not-running";
+		}
+		if (record.status !== "running") return "not-running";
+
+		const msg =
+			"Stop now. Do not start any new work. Summarize what you have done and found so far, list anything left unfinished, and give your final answer in this turn.";
+		if (record.session) {
+			record.session.steer(msg).catch(() => {});
+			return "steered";
+		}
+		// Session not created yet — queue the steer so it lands on start.
+		record.pendingSteers ??= [];
+		record.pendingSteers.push(msg);
+		return "queued";
 	}
 
 	/** Dispose a record's session and remove it from the map. */

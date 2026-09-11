@@ -225,8 +225,13 @@ describe("expanded subagent result framing", () => {
 		expectUnframed(renderFramed(tool, result, true));
 
 		tool = createAgentSteerTool({
-			getRecord: () => ({ status: "running", result: "partial" }),
+			getRecord: () => ({
+				status: "running",
+				result: "partial",
+				session: { steer: async () => {} },
+			}),
 			abort: () => true,
+			requestStop: () => "steered" as const,
 		} as never);
 		result = await execute(tool, { agent_id: "abc123", action: "stop" });
 		expectUnframed(renderFramed(tool, result, true));
@@ -268,7 +273,11 @@ describe("subagent utility compact renderers", () => {
 			resultConsumed: false,
 			session: { steer: async () => {} },
 		};
-		const manager = { getRecord: () => record, abort: () => true };
+		const manager = {
+			getRecord: () => record,
+			abort: () => true,
+			requestStop: () => "steered" as const,
+		};
 		const tool = createAgentControlTool(manager as never, new Map(), () => {});
 
 		let result = await execute(tool, { action: "result", agent_id: "abc123" });
@@ -279,7 +288,13 @@ describe("subagent utility compact renderers", () => {
 			message: "focus",
 		});
 		expect(render(tool, result)).toContain(`${OK} agent_control steer abc123 · delivered`);
+		// Default stop is graceful: steer a summarize request, keep the agent alive.
 		result = await execute(tool, { action: "stop", agent_id: "abc123" });
+		expect(render(tool, result)).toContain(
+			`${STOP} agent_control stop abc123 · summarizing progress`,
+		);
+		// force: true hard-kills and surfaces whatever partial output survived.
+		result = await execute(tool, { action: "stop", agent_id: "abc123", force: true });
 		expect(render(tool, result)).toContain(
 			`${STOP} agent_control stop abc123 · partial output saved`,
 		);
@@ -347,13 +362,26 @@ describe("subagent utility compact renderers", () => {
 		expect(render(tool, result)).toContain(`${WARN} agent_control steer abc123 · queued`);
 
 		const stoppedRecord = { status: "running", result: "partial" };
-		tool = createAgentSteerTool({ getRecord: () => stoppedRecord, abort: () => true } as never);
+		tool = createAgentSteerTool({
+			getRecord: () => stoppedRecord,
+			abort: () => true,
+			requestStop: () => "steered" as const,
+		} as never);
 		result = await execute(tool, { agent_id: "abc123", action: "stop" });
 		expect(render(tool, result)).toContain(
-			`${STOP} agent_control stop abc123 · partial output saved`,
+			`${STOP} agent_control stop abc123 · summarizing progress`,
 		);
-		expect(render(tool, result, true)).toContain(
-			(result as { content: { text: string }[] }).content[0]?.text ?? "",
+		expect(render(tool, result, true)).toContain("Stop requested for agent");
+
+		// force:true hard-kills and keeps the old partial-output path.
+		tool = createAgentSteerTool({
+			getRecord: () => stoppedRecord,
+			abort: () => true,
+			requestStop: () => "steered" as const,
+		} as never);
+		result = await execute(tool, { agent_id: "abc123", action: "stop", force: true });
+		expect(render(tool, result)).toContain(
+			`${STOP} agent_control stop abc123 · partial output saved`,
 		);
 	});
 
@@ -369,6 +397,7 @@ describe("subagent utility compact renderers", () => {
 		tool = createAgentSteerTool({
 			getRecord: () => ({ status: "completed", result: "done" }),
 			abort: () => false,
+			requestStop: () => "not-running" as const,
 		} as never);
 		result = await execute(tool, { agent_id: "abc123", action: "stop" });
 		expect(render(tool, result)).toContain(`${WARN} agent_control stop abc123 · already finished`);

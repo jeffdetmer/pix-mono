@@ -285,14 +285,12 @@ function renderAgentUtilityResult(
 
 	const tool = SUBAGENT_TOOL_NAMES.CONTROL;
 	const target = `${details.action} ${details.agentId}`;
-	const meta =
-		details.outcome === "stopped" && text.includes("Partial output saved")
-			? "partial output saved"
-			: details.outcome === "already-finished"
-				? "already finished"
-				: details.outcome === "not-found"
-					? "not found"
-					: details.outcome;
+	let meta: string = details.outcome;
+	if (details.outcome === "stopped") {
+		if (text.includes("Partial output saved")) meta = "partial output saved";
+		else if (text.includes("summarize its progress")) meta = "summarizing progress";
+	} else if (details.outcome === "already-finished") meta = "already finished";
+	else if (details.outcome === "not-found") meta = "not found";
 	if (details.outcome === "stopped") {
 		const row = formatCollapsedToolRow(theme, tool, target, meta);
 		return new Text(
@@ -568,6 +566,12 @@ export function createAgentControlTool(
 			),
 			agent_id: Type.Optional(Type.String({ description: "For result/steer/stop: agent ID." })),
 			message: Type.Optional(Type.String({ description: "For steer: instruction to inject." })),
+			force: Type.Optional(
+				Type.Boolean({
+					description:
+						"For stop: force-kill immediately instead of the default graceful stop (which asks the agent to summarize its progress first, so partial work isn't lost).",
+				}),
+			),
 			query: Type.Optional(Type.String({ description: "For info: optional text filter." })),
 			limit: Type.Optional(
 				Type.Number({ description: "For info: max results (default 20, max 50).", minimum: 1 }),
@@ -624,7 +628,12 @@ export function createAgentControlTool(
 			}
 			return steer.execute(
 				toolCallId,
-				{ agent_id: params.agent_id, action: params.action, message: params.message },
+				{
+					agent_id: params.agent_id,
+					action: params.action,
+					message: params.message,
+					force: params.force,
+				},
 				signal,
 				onUpdate,
 				ctx,
@@ -959,7 +968,9 @@ export function createAgentTool(
 				if (bgRecord) bgRecord.isBackground = true;
 
 				return textResult(
-					`Agent launched (ID: ${bgId}). Its result will be delivered automatically when it finishes — do NOT poll or sleep-wait. Continue with other work or respond to the user.`,
+					`Launched ${bgId}. To steer or stop it while it runs: agent_control action:"steer"/"stop". ` +
+						`Its result is delivered automatically when it finishes — do NOT poll, sleep-wait, or call agent_control just to fetch it. ` +
+						`Stop is gentle by default: the agent summarizes its progress first, so partial work is never lost. Continue with other work or respond to the user.`,
 					{
 						...detailBase,
 						toolUses: 0,
@@ -1229,14 +1240,14 @@ export function createAgentSteerTool(manager: AgentManager) {
 		label: "Steer Agent",
 		renderShell: "self",
 		description:
-			"Redirect or stop a running agent. steer delivers a message after its current tool call; stop aborts it immediately.",
+			"Redirect or stop a running agent. steer delivers a message after its current tool call; stop asks it to summarize its progress and finish (pass force: true to hard-kill immediately instead).",
 		parameters: Type.Object({
 			agent_id: Type.String({ description: "The agent ID to steer or stop." }),
 			action: Type.Optional(
 				Type.Enum(["steer", "stop"] as const, {
 					type: "string",
 					description:
-						'Required choice when provided. Enter exactly "steer" (default) to redirect with a message or "stop" to force-kill immediately.',
+						'Required choice when provided. Enter exactly "steer" (default) to redirect with a message or "stop" to halt it (graceful by default: it summarizes progress first; pass force: true to hard-kill).',
 					default: "steer",
 				}),
 			),
@@ -1244,6 +1255,12 @@ export function createAgentSteerTool(manager: AgentManager) {
 				Type.String({
 					description:
 						"The steering message to inject. Required for action='steer', ignored for action='stop'.",
+				}),
+			),
+			force: Type.Optional(
+				Type.Boolean({
+					description:
+						"For action='stop': force-kill immediately. Default (false) is a graceful stop that asks the agent to summarize its progress first, so partial findings aren't thrown away.",
 				}),
 			),
 		}),
@@ -1281,8 +1298,30 @@ export function createAgentSteerTool(manager: AgentManager) {
 			const record = manager.getRecord(id);
 			if (!record) return textResult(`Agent not found: "${id}".`, details("not-found"));
 
-			// ── stop action: force-abort immediately ──────────────────
+			// ── stop action ───────────────────────────────────────────
 			if (action === "stop") {
+				const force = params.force === true;
+
+				// Graceful stop (default): steer a halt-and-summarize message so the
+				// agent wraps up and its final summary still fires back, instead of
+				// hard-killing mid-task and losing every partial finding.
+				if (!force) {
+					const outcome = manager.requestStop(id);
+					if (outcome === "not-running") {
+						const existing = record.result ?? "";
+						return textResult(
+							`Agent "${id}" is not running (status: ${record.status}).${existing ? `\nPartial output:\n${existing}` : ""}`,
+							details("already-finished"),
+						);
+					}
+					return textResult(
+						`Stop requested for agent "${id}" — it will summarize its progress and finish shortly; the summary is delivered automatically. To force-kill instead, retry with force: true.`,
+						details("stopped"),
+					);
+				}
+
+				// Force-kill: abort immediately, keeping only whatever partial text
+				// already streamed out.
 				const stopped = manager.abort(id);
 				if (!stopped) {
 					// Already finished — return whatever result it produced
@@ -1299,7 +1338,7 @@ export function createAgentSteerTool(manager: AgentManager) {
 
 				const partial = record.result ?? "";
 				const lines = [
-					`Agent "${id}" stopped.`,
+					`Agent "${id}" force-stopped.`,
 					partial
 						? `Partial output saved. Use agent_control(action: "result", agent_id: "${id}") to retrieve it.`
 						: "No output was captured before the agent was stopped.",

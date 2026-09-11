@@ -25,6 +25,14 @@ export {
 } from "./herdr-state.ts";
 export { ioTimeoutMs, ioTimeoutSignal } from "./io.ts";
 export {
+	generateLfid,
+	isLfid,
+	LFID_RE,
+	type LfidOptions,
+	parseLfid,
+	uniqueLfid,
+} from "./lfid.ts";
+export {
 	config,
 	createRuntime,
 	type InitOptions,
