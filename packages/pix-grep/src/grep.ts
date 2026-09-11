@@ -4,6 +4,17 @@ import type {
 	ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import { resolveBaseBackground } from "@xynogen/pix-pretty/ansi";
+import {
+	BATCH_MAX_BYTES,
+	type BatchSection,
+	capSections,
+	formatBatchIndex,
+	formatCallTargets,
+	joinSectionBodies,
+	resolveBatchStrings,
+	sliceBatchTargets,
+	withOptionalStringArray,
+} from "@xynogen/pix-pretty/batch";
 import type { ToolContext } from "@xynogen/pix-pretty/context";
 import { fffFormatGrepText } from "@xynogen/pix-pretty/fff";
 import type {
@@ -36,6 +47,11 @@ import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse"
 
 export const DEFAULT_GREP_LIMIT = 30;
 
+const MATCH_NOUNS = ["match", "matches"] as const;
+
+/** GrepParams plus the optional batch `patterns` array (added to the schema at runtime). */
+type GrepBatchParams = GrepParams & { patterns?: string[] };
+
 export function applyGrepDefaults(params: GrepParams): GrepParams {
 	return params.limit === undefined ? { ...params, limit: DEFAULT_GREP_LIMIT } : params;
 }
@@ -67,114 +83,189 @@ export function registerGrepTool(
 		...origGrep,
 		name: "grep",
 		description:
-			"Search file contents for a regex or literal pattern. Defaults to 30 matches; use limit to request more. Respects .gitignore and remains capped by Pi's 50KB hard limit.",
+			"Search file contents for a regex or literal pattern. Defaults to 30 matches; use limit to request more. Respects .gitignore and remains capped by Pi's 50KB hard limit. Pass `patterns` to search several known patterns in one call.",
+		parameters: withOptionalStringArray(
+			origGrep.parameters,
+			"patterns",
+			"Known patterns to search in one call (each capped, one combined result). Use instead of `pattern` for multiple known patterns.",
+			["pattern"],
+		),
 		renderShell: "self",
 
 		async execute(
 			tid: string,
-			params: GrepParams,
+			params: GrepBatchParams,
 			sig: AbortSignal | undefined,
 			upd: unknown,
 			toolCtx: ExtensionContext,
 		) {
-			const effectiveParams = applyGrepDefaults(params);
+			// Search one pattern (FFF-accelerated, SDK fallback) → structured grep result.
+			const runOne = async (
+				pattern: string,
+				callId: string,
+			): Promise<ToolResultLike<GrepResultDetails>> => {
+				const { patterns: _patterns, ...rest } = params;
+				const effectiveParams = applyGrepDefaults({ ...rest, pattern });
 
-			// Try FFF first (SIMD-accelerated).
-			// Constrained searches (path/glob) fall through to SDK — FFF 0.5.2
-			// can abort the process on constrained searches with Unicode filenames.
-			if (
-				fffState.finder &&
-				!fffState.finder.isDestroyed &&
-				!effectiveParams.path &&
-				!effectiveParams.glob
-			) {
-				try {
-					const effectiveLimit = Math.max(1, effectiveParams.limit ?? DEFAULT_GREP_LIMIT);
-					const grepResult = fffState.finder.grep(effectiveParams.pattern, {
-						mode: effectiveParams.literal ? "plain" : "regex",
-						smartCase: !effectiveParams.ignoreCase,
-						maxMatchesPerFile: Math.min(effectiveLimit, 50),
-						cursor: null,
-						beforeContext: effectiveParams.context ?? 0,
-						afterContext: effectiveParams.context ?? 0,
-					});
-
-					if (grepResult.ok) {
-						const grep = grepResult.value;
-						const notices: string[] = [];
-						if (fffState.partialIndex) notices.push("Warning: partial file index");
-						if (grep.items.length >= effectiveLimit)
-							notices.push(`${effectiveLimit} limit reached`);
-						if (grep.regexFallbackError)
-							notices.push(`Regex failed: ${grep.regexFallbackError}, used literal match`);
-						if (grep.nextCursor) {
-							const cursorId = cursorStore.store(grep.nextCursor);
-							notices.push(`More results available. Use cursor="${cursorId}" to continue`);
-						}
-
-						const textContent = appendNotices(
-							fffFormatGrepText(grep.items, effectiveLimit),
-							notices,
-						);
-						return makeTextResult<GrepResultDetails>(textContent, {
-							_type: "grepResult",
-							text: textContent,
-							pattern: effectiveParams.pattern,
-							path: effectiveParams.path,
-							matchCount: Math.min(grep.items.length, effectiveLimit),
-							literal: effectiveParams.literal,
-							ignoreCase: effectiveParams.ignoreCase,
+				// Try FFF first (SIMD-accelerated).
+				// Constrained searches (path/glob) fall through to SDK — FFF 0.5.2
+				// can abort the process on constrained searches with Unicode filenames.
+				if (
+					fffState.finder &&
+					!fffState.finder.isDestroyed &&
+					!effectiveParams.path &&
+					!effectiveParams.glob
+				) {
+					try {
+						const effectiveLimit = Math.max(1, effectiveParams.limit ?? DEFAULT_GREP_LIMIT);
+						const grepResult = fffState.finder.grep(effectiveParams.pattern, {
+							mode: effectiveParams.literal ? "plain" : "regex",
+							smartCase: !effectiveParams.ignoreCase,
+							maxMatchesPerFile: Math.min(effectiveLimit, 50),
+							cursor: null,
+							beforeContext: effectiveParams.context ?? 0,
+							afterContext: effectiveParams.context ?? 0,
 						});
-					}
-				} catch {
-					/* fall through to SDK */
-				}
-			}
 
-			// SDK fallback
-			try {
-				const result = await origGrep.execute(tid, effectiveParams, sig, upd as never, toolCtx);
+						if (grepResult.ok) {
+							const grep = grepResult.value;
+							const notices: string[] = [];
+							if (fffState.partialIndex) notices.push("Warning: partial file index");
+							if (grep.items.length >= effectiveLimit)
+								notices.push(`${effectiveLimit} limit reached`);
+							if (grep.regexFallbackError)
+								notices.push(`Regex failed: ${grep.regexFallbackError}, used literal match`);
+							if (grep.nextCursor) {
+								const cursorId = cursorStore.store(grep.nextCursor);
+								notices.push(`More results available. Use cursor="${cursorId}" to continue`);
+							}
+
+							const textContent = appendNotices(
+								fffFormatGrepText(grep.items, effectiveLimit),
+								notices,
+							);
+							return makeTextResult<GrepResultDetails>(textContent, {
+								_type: "grepResult",
+								text: textContent,
+								pattern: effectiveParams.pattern,
+								path: effectiveParams.path,
+								matchCount: Math.min(grep.items.length, effectiveLimit),
+								literal: effectiveParams.literal,
+								ignoreCase: effectiveParams.ignoreCase,
+							});
+						}
+					} catch {
+						/* fall through to SDK */
+					}
+				}
+
+				// SDK fallback
+				const result = await origGrep.execute(callId, effectiveParams, sig, upd as never, toolCtx);
 				const textContent = normalizeLineEndings(getTextContent(result));
 				if (result.content) {
 					for (const content of result.content) {
 						if (isTextContent(content)) content.text = normalizeLineEndings(content.text || "");
 					}
 				}
-				const matchCount = textContent ? countRipgrepMatches(textContent) : 0;
-
 				setResultDetails<GrepResultDetails>(result, {
 					_type: "grepResult",
 					text: textContent,
-					pattern: params.pattern,
-					path: params.path,
-					matchCount,
-					literal: params.literal,
-					ignoreCase: params.ignoreCase,
+					pattern,
+					path: effectiveParams.path,
+					matchCount: textContent ? countRipgrepMatches(textContent) : 0,
+					literal: effectiveParams.literal,
+					ignoreCase: effectiveParams.ignoreCase,
 				});
+				return result as ToolResultLike<GrepResultDetails>;
+			};
 
-				return result;
-			} catch (error) {
-				const text = error instanceof Error ? error.message : String(error);
-				if (sig?.aborted || /aborted/i.test(text)) throw error;
-				return {
-					content: [{ type: "text" as const, text }],
-					details: {
-						_type: "grepResult" as const,
-						text,
-						pattern: params.pattern,
-						path: params.path,
-						matchCount: 0,
-						literal: params.literal,
-						ignoreCase: params.ignoreCase,
-					},
-					isError: true,
-				};
+			const { targets, omitted } = sliceBatchTargets(
+				resolveBatchStrings(params.pattern, params.patterns),
+			);
+			if (targets.length === 0) {
+				return makeTextResult<GrepResultDetails>("pattern or patterns required", {
+					_type: "grepResult",
+					text: "pattern or patterns required",
+					pattern: "",
+					path: params.path,
+					matchCount: 0,
+				});
 			}
+
+			// Single pattern → preserve the original single-search result shape.
+			if (targets.length === 1 && omitted === 0) {
+				try {
+					return await runOne(targets[0] ?? "", tid);
+				} catch (error) {
+					const text = error instanceof Error ? error.message : String(error);
+					if (sig?.aborted || /aborted/i.test(text)) throw error;
+					return {
+						content: [{ type: "text" as const, text }],
+						details: {
+							_type: "grepResult" as const,
+							text,
+							pattern: params.pattern ?? "",
+							path: params.path,
+							matchCount: 0,
+							literal: params.literal,
+							ignoreCase: params.ignoreCase,
+						},
+						isError: true,
+					};
+				}
+			}
+
+			// Batch: search every pattern in parallel, cap the combined output.
+			const settled = await Promise.all(
+				targets.map(async (pattern, i) => {
+					try {
+						return { pattern, result: await runOne(pattern, `${tid}:${i}`) };
+					} catch (error) {
+						if (sig?.aborted) throw error;
+						return { pattern, error: error instanceof Error ? error.message : String(error) };
+					}
+				}),
+			);
+			const sections: BatchSection[] = settled.map((entry) => {
+				if ("error" in entry && entry.error) {
+					return { id: entry.pattern, body: "", units: 0, nouns: MATCH_NOUNS, error: entry.error };
+				}
+				const details = (entry as { result: ToolResultLike<GrepResultDetails> }).result.details;
+				const body =
+					details?._type === "grepResult"
+						? details.text
+						: getTextContent((entry as { result: ToolResultLike }).result);
+				const units =
+					details?._type === "grepResult" ? details.matchCount : countRipgrepMatches(body);
+				return { id: entry.pattern, body, units, nouns: MATCH_NOUNS };
+			});
+			const { text } = capSections(
+				sections,
+				BATCH_MAX_BYTES,
+				params.limit ?? DEFAULT_GREP_LIMIT,
+				omitted,
+			);
+			const matchCount = sections.reduce((sum, s) => sum + (s.error ? 0 : s.units), 0);
+			const full = [formatBatchIndex(sections, omitted), joinSectionBodies(sections)]
+				.filter(Boolean)
+				.join("\n\n");
+			return makeTextResult<GrepResultDetails>(text, {
+				_type: "grepResult",
+				text: full,
+				pattern: targets.join(", "),
+				patterns: targets,
+				path: params.path,
+				matchCount,
+			});
 		},
 
-		renderCall(args: GrepParams, theme: ThemeLike, renderCtx: RenderContextLike) {
+		renderCall(args: GrepBatchParams, theme: ThemeLike, renderCtx: RenderContextLike) {
 			resolveBaseBackground(theme);
-			const pattern = args.pattern ?? "";
+			const batchPatterns = resolveBatchStrings(args.pattern, args.patterns);
+			const pattern =
+				batchPatterns.length > 1
+					? formatCallTargets(batchPatterns, 3, "patterns")
+					: (args.pattern ?? "");
 			const path = args.path ? ` ${theme.fg("muted", `in ${sp(args.path)}`)}` : "";
 			const glob = args.glob ? ` ${theme.fg("muted", `(${args.glob})`)}` : "";
 			const text = renderCtx.lastComponent ?? new TextComponent("", 0, 0);
@@ -240,7 +331,7 @@ export function registerGrepTool(
 				renderDimPreview(output, theme, {
 					frame: !isPartial,
 					paint: (s: string) => theme.fg(renderCtx.isError ? "error" : "success", s),
-					highlight: d?._type === "grepResult" ? grepHighlight(d) : undefined,
+					highlight: d?._type === "grepResult" && !d.patterns ? grepHighlight(d) : undefined,
 				}),
 			);
 			return text;

@@ -186,6 +186,8 @@ export type FindResultDetails = {
 	_type: "findResult";
 	text: string;
 	pattern: string;
+	/** Present when the call batched several glob patterns in one search. */
+	patterns?: string[];
 	path?: string;
 	matchCount: number;
 };
@@ -194,6 +196,8 @@ export type GrepResultDetails = {
 	_type: "grepResult";
 	text: string;
 	pattern: string;
+	/** Present when the call batched several patterns in one search. */
+	patterns?: string[];
 	path?: string;
 	matchCount: number;
 	/** Search flags, so the renderer can rebuild the matcher to highlight hits:
@@ -217,7 +221,7 @@ export type RenderDetails =
 			exitCode: number | null;
 			command: string;
 	  }
-	| { _type: "lsResult"; text: string; path: string; entryCount: number }
+	| { _type: "lsResult"; text: string; path: string; entryCount: number; paths?: string[] }
 	| FindResultDetails
 	| GrepResultDetails
 	| EditInfoDetails

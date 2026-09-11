@@ -172,6 +172,35 @@ const parseItems = (raw: string): string[] =>
 		.map((l) => l.replace(/^\s*(?:\d+[.)]|[-*•])\s*/, "").trim())
 		.filter(Boolean);
 
+const STATUSES: readonly TodoStatus[] = ["pending", "in_progress", "done", "blocked"];
+
+export interface TodoUpdateOp {
+	id: number;
+	status: TodoStatus;
+}
+
+/**
+ * Parse the batch `updates` string: comma/newline separated `id:status` pairs
+ * (e.g. "3:done, 4:blocked"). Returns an error string on the first bad token so
+ * the model gets one precise correction instead of a silent partial apply.
+ */
+export function parseUpdates(raw: string): { ops: TodoUpdateOp[] } | { error: string } {
+	const ops: TodoUpdateOp[] = [];
+	for (const token of raw.split(/[,\n]/)) {
+		const tok = token.trim();
+		if (!tok) continue;
+		const m = /^#?(\d+)\s*[:=]\s*(\w+)$/.exec(tok);
+		if (!m) return { error: `Bad update token "${tok}" — expected "id:status".` };
+		const status = m[2] as TodoStatus;
+		if (!STATUSES.includes(status))
+			return { error: `Bad status "${m[2]}" — expected one of ${STATUSES.join(", ")}.` };
+		ops.push({ id: Number(m[1]), status });
+	}
+	return ops.length
+		? { ops }
+		: { error: 'update requires `updates` ("id:status") or `id`+`status`.' };
+}
+
 export default function registerTodo(pi: ExtensionAPI): void {
 	once(pi, "pix-todo", () => {
 		let todos: TodoItem[] = [];
@@ -212,6 +241,16 @@ export default function registerTodo(pi: ExtensionAPI): void {
 			return `Todos ${done}/${todos.length} done:\n${lines.join("\n")}`;
 		}
 
+		/** Compact next-step hint for the delta echo — the full list is already in
+		 *  the transcript and the tool card, so re-sending it is token waste. */
+		function todoHint(): string {
+			const done = todos.filter((t) => t.status === "done").length;
+			const next =
+				todos.find((t) => t.status === "in_progress") ?? todos.find((t) => t.status === "pending");
+			if (!next) return `${done}/${todos.length} done — all items closed.`;
+			return `${done}/${todos.length} done — next #${next.id} ${next.text}`;
+		}
+
 		// Durable execution checklist for BUILD mode. Survives context compaction
 		// and session restore. Workflows like plan instruct the model to seed it
 		// from a plan's "Implementation Phases" so it stays anchored to plan.md.
@@ -222,12 +261,12 @@ export default function registerTodo(pi: ExtensionAPI): void {
 			// result row and should align its status glyph with other compact tools.
 			renderShell: "self",
 			description:
-				"Track BUILD-phase execution progress. Durable across context compaction. Actions: list, set (replace all items from newline/numbered text), add, update (change one item's status), clear.",
+				"Track BUILD-phase execution progress. Durable across context compaction. Actions: list, set (replace all items from newline/numbered text), add, update (change one or more items' status — batch via `updates`), clear.",
 			promptSnippet:
-				"todo(action, items?, id?, status?, text?) — action: list|set|add|update|clear. Use to track implementation progress, especially when executing a plan.",
+				"todo(action, items?, updates?, id?, status?, text?) — action: list|set|add|update|clear. Use to track implementation progress, especially when executing a plan.",
 			promptGuidelines: [
 				"When you start executing a multi-step plan in BUILD mode, seed the todo list with `todo(action:'set', items: <plan Implementation Phases>)`.",
-				"Mark each item in_progress before working it via `todo(action:'update', id, status)`; opening one auto-closes every earlier item, so just open the next and skipped steps mark done themselves.",
+				"Batch status changes in ONE call: `todo(action:'update', updates:'3:done,4:in_progress')`. Opening an item auto-closes earlier ones (ordered lists), so do not send per-item update calls.",
 				"When marking an item done, the tool checks for earlier incomplete items and warns you — resolve each skipped item (mark done or blocked) before moving on.",
 				"If the list is NOT a sequential run (items independent, done in any order), pass `ordered:false` on `set` — that disables the cascade-close and skip warning.",
 				"Call `todo(action:'list')` to recover your place after long runs or context compaction.",
@@ -236,14 +275,20 @@ export default function registerTodo(pi: ExtensionAPI): void {
 				action: Type.Enum(["list", "set", "add", "update", "clear"] as const, {
 					type: "string",
 					description:
-						'Required operation: "list" shows items; "set" replaces all from items; "add" appends items; "update" changes one item by id; "clear" removes all.',
+						'Required operation: "list" shows items; "set" replaces all from items; "add" appends items; "update" changes one or more items by id; "clear" removes all.',
 				}),
 				items: Type.Optional(
 					Type.String({
 						description: "For set/add: newline-separated or numbered list of todo texts.",
 					}),
 				),
-				id: Type.Optional(Type.Number({ description: "For update: target todo id." })),
+				updates: Type.Optional(
+					Type.String({
+						description:
+							'For update (preferred for status changes): comma-separated "id:status" pairs, e.g. "3:done,4:in_progress". Applied in order.',
+					}),
+				),
+				id: Type.Optional(Type.Number({ description: "For update: single target todo id." })),
 				status: Type.Optional(
 					Type.Enum(["pending", "in_progress", "done", "blocked"] as const, {
 						type: "string",
@@ -342,30 +387,73 @@ export default function registerTodo(pi: ExtensionAPI): void {
 					}
 
 					case "update": {
-						const t = todos.find((x) => x.id === params.id);
-						if (!t) return fail(`No todo with id ${params.id}.`);
+						// Batch form (`updates`) is preferred — one call closes many items.
+						// Single form (`id`+`status`/`text`) stays supported for renames.
+						let ops: TodoUpdateOp[];
+						if (params.updates) {
+							const parsed = parseUpdates(params.updates as string);
+							if ("error" in parsed) return fail(parsed.error);
+							ops = parsed.ops;
+						} else if (params.id !== undefined && params.status) {
+							ops = [{ id: params.id as number, status: params.status as TodoStatus }];
+						} else {
+							ops = [];
+						}
+
+						const missing = ops.filter((o) => !todos.some((t) => t.id === o.id)).map((o) => o.id);
+						if (missing.length) return fail(`No todo with id ${missing.join(", ")}.`);
+
+						// Text-only / no-op single update: keep the legacy tolerant path.
+						if (!ops.length) {
+							const t = todos.find((x) => x.id === params.id);
+							if (!t) return fail(`No todo with id ${params.id}.`);
+							if (params.text) {
+								t.text = params.text;
+								persistTodos();
+							}
+							return ok(`#${t.id} ${t.status} · ${todoHint()}`);
+						}
+
+						const autoClosed = new Set<number>();
 						let skipWarning = "";
-						if (params.status) {
+						for (const op of ops) {
+							const t = todos.find((x) => x.id === op.id) as TodoItem;
 							// Sequential-progress invariant (ordered lists only): opening a task
 							// means everything before it is finished. Cascade-close every earlier
 							// pending or in_progress item so the model never has to mark skipped
 							// steps done by hand. `blocked` is left untouched. Unordered lists
 							// treat each item independently — no cascade, no skip warning.
-							if (ordered && params.status === "in_progress")
+							if (ordered && op.status === "in_progress")
 								for (const other of todos)
 									if (
 										other.id < t.id &&
 										(other.status === "pending" || other.status === "in_progress")
-									)
+									) {
 										other.status = "done";
+										autoClosed.add(other.id);
+									}
 
-							if (ordered && params.status === "done") skipWarning = buildSkipWarning(todos, t.id);
-
-							t.status = params.status;
+							// Only the last op's skip state matters — earlier ops in the same
+							// batch may legitimately still be settling.
+							skipWarning = ordered && op.status === "done" ? buildSkipWarning(todos, t.id) : "";
+							t.status = op.status;
 						}
-						if (params.text) t.text = params.text;
+						// Text rename only applies to a single-target update.
+						const only = ops.length === 1 ? ops[0] : undefined;
+						if (params.text && only) {
+							const t = todos.find((x) => x.id === only.id) as TodoItem;
+							t.text = params.text;
+						}
 						persistTodos();
-						return ok(todoSummary() + skipWarning);
+
+						// Delta-only echo: the model already holds the list; re-sending it on
+						// every update is pure token waste. The TUI card still renders the
+						// full checklist from `details.snapshot`.
+						const applied = ops.map((o) => `#${o.id} ${o.status}`).join(", ");
+						const auto = autoClosed.size
+							? ` (auto-done ${[...autoClosed].map((i) => `#${i}`).join(",")})`
+							: "";
+						return ok(`${applied}${auto} · ${todoHint()}${skipWarning}`);
 					}
 
 					case "clear":

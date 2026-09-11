@@ -4,6 +4,17 @@ import type {
 	ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import { resolveBaseBackground } from "@xynogen/pix-pretty/ansi";
+import {
+	BATCH_MAX_BYTES,
+	type BatchSection,
+	capSections,
+	formatBatchIndex,
+	formatCallTargets,
+	joinSectionBodies,
+	resolveBatchStrings,
+	sliceBatchTargets,
+	withOptionalStringArray,
+} from "@xynogen/pix-pretty/batch";
 import type { ToolContext } from "@xynogen/pix-pretty/context";
 import type {
 	FindParams,
@@ -31,6 +42,11 @@ import {
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
 
 export const DEFAULT_FIND_LIMIT = 200;
+
+const FILE_NOUNS = ["file", "files"] as const;
+
+/** FindParams plus the optional batch `patterns` array (added to the schema at runtime). */
+type FindBatchParams = FindParams & { patterns?: string[] };
 
 export function applyFindDefaults(params: FindParams): FindParams {
 	return params.limit === undefined ? { ...params, limit: DEFAULT_FIND_LIMIT } : params;
@@ -67,88 +83,165 @@ export function registerFindTool(
 		...origFind,
 		name: "find",
 		description:
-			"Find files by glob pattern. Defaults to 200 paths; use limit to request more. Respects .gitignore and remains capped by Pi's 50KB hard limit.",
+			"Find files by glob pattern. Defaults to 200 paths; use limit to request more. Respects .gitignore and remains capped by Pi's 50KB hard limit. Pass `patterns` to search several known globs in one call.",
+		parameters: withOptionalStringArray(
+			origFind.parameters,
+			"patterns",
+			"Known glob patterns to search in one call (each capped, one combined result). Use instead of `pattern` for multiple known globs.",
+			["pattern"],
+		),
 		renderShell: "self",
 
 		async execute(
 			tid: string,
-			params: FindParams,
+			params: FindBatchParams,
 			sig: AbortSignal | undefined,
 			upd: unknown,
 			toolCtx: ExtensionContext,
 		) {
-			const effectiveParams = applyFindDefaults(params);
+			// Search one glob (FFF-accelerated, SDK fallback) → structured find result.
+			const runOne = async (
+				pattern: string,
+				callId: string,
+			): Promise<ToolResultLike<FindResultDetails>> => {
+				const { patterns: _patterns, ...rest } = params;
+				const effectiveParams = applyFindDefaults({ ...rest, pattern });
 
-			// Try FFF first (frecency-ranked, SIMD-accelerated)
-			if (fffState.finder && !fffState.finder.isDestroyed) {
-				try {
-					const effectiveLimit = Math.max(1, effectiveParams.limit ?? DEFAULT_FIND_LIMIT);
-					let query = effectiveParams.pattern;
-					if (effectiveParams.path) query = `${effectiveParams.path} ${query}`;
+				// Try FFF first (frecency-ranked, SIMD-accelerated)
+				if (fffState.finder && !fffState.finder.isDestroyed) {
+					try {
+						const effectiveLimit = Math.max(1, effectiveParams.limit ?? DEFAULT_FIND_LIMIT);
+						let query = effectiveParams.pattern;
+						if (effectiveParams.path) query = `${effectiveParams.path} ${query}`;
 
-					const searchResult = fffState.finder.fileSearch(query, {
-						pageSize: effectiveLimit,
-					});
-					if (searchResult.ok) {
-						const { items, totalMatched } = searchResult.value;
-						const trimmed = items.slice(0, effectiveLimit);
-						const notices: string[] = [];
-						if (fffState.partialIndex) notices.push("Warning: partial file index");
-						if (trimmed.length >= effectiveLimit) notices.push(`${effectiveLimit} limit reached`);
-						if (totalMatched > trimmed.length) notices.push(`${totalMatched} total matches`);
-
-						const textContent = appendNotices(
-							trimmed.map((item) => item.relativePath).join("\n"),
-							notices,
-						);
-						return makeTextResult<FindResultDetails>(textContent, {
-							_type: "findResult",
-							text: textContent,
-							pattern: effectiveParams.pattern,
-							path: effectiveParams.path,
-							matchCount: trimmed.length,
+						const searchResult = fffState.finder.fileSearch(query, {
+							pageSize: effectiveLimit,
 						});
+						if (searchResult.ok) {
+							const { items, totalMatched } = searchResult.value;
+							const trimmed = items.slice(0, effectiveLimit);
+							const notices: string[] = [];
+							if (fffState.partialIndex) notices.push("Warning: partial file index");
+							if (trimmed.length >= effectiveLimit) notices.push(`${effectiveLimit} limit reached`);
+							if (totalMatched > trimmed.length) notices.push(`${totalMatched} total matches`);
+
+							const textContent = appendNotices(
+								trimmed.map((item) => item.relativePath).join("\n"),
+								notices,
+							);
+							return makeTextResult<FindResultDetails>(textContent, {
+								_type: "findResult",
+								text: textContent,
+								pattern: effectiveParams.pattern,
+								path: effectiveParams.path,
+								matchCount: trimmed.length,
+							});
+						}
+					} catch {
+						/* fall through to SDK */
 					}
-				} catch {
-					/* fall through to SDK */
 				}
-			}
 
-			// SDK fallback
-			try {
-				const result = await origFind.execute(tid, effectiveParams, sig, upd as never, toolCtx);
+				// SDK fallback
+				const result = await origFind.execute(callId, effectiveParams, sig, upd as never, toolCtx);
 				const textContent = getTextContent(result);
-				const matchCount = textContent ? textContent.trim().split("\n").filter(Boolean).length : 0;
-
 				setResultDetails<FindResultDetails>(result, {
 					_type: "findResult",
 					text: textContent,
-					pattern: params.pattern,
-					path: params.path,
-					matchCount,
+					pattern,
+					path: effectiveParams.path,
+					matchCount: textContent ? textContent.trim().split("\n").filter(Boolean).length : 0,
 				});
+				return result as ToolResultLike<FindResultDetails>;
+			};
 
-				return result;
-			} catch (error) {
-				const text = error instanceof Error ? error.message : String(error);
-				if (sig?.aborted || /aborted/i.test(text)) throw error;
-				return {
-					content: [{ type: "text" as const, text }],
-					details: {
-						_type: "findResult" as const,
-						text,
-						pattern: params.pattern,
-						path: params.path,
-						matchCount: 0,
-					},
-					isError: true,
-				};
+			const { targets, omitted } = sliceBatchTargets(
+				resolveBatchStrings(params.pattern, params.patterns),
+			);
+			if (targets.length === 0) {
+				return makeTextResult<FindResultDetails>("pattern or patterns required", {
+					_type: "findResult",
+					text: "pattern or patterns required",
+					pattern: "",
+					path: params.path,
+					matchCount: 0,
+				});
 			}
+
+			// Single glob → preserve the original single-search result shape.
+			if (targets.length === 1 && omitted === 0) {
+				try {
+					return await runOne(targets[0] ?? "", tid);
+				} catch (error) {
+					const text = error instanceof Error ? error.message : String(error);
+					if (sig?.aborted || /aborted/i.test(text)) throw error;
+					return {
+						content: [{ type: "text" as const, text }],
+						details: {
+							_type: "findResult" as const,
+							text,
+							pattern: params.pattern ?? "",
+							path: params.path,
+							matchCount: 0,
+						},
+						isError: true,
+					};
+				}
+			}
+
+			// Batch: search every glob in parallel, cap the combined output.
+			const settled = await Promise.all(
+				targets.map(async (pattern, i) => {
+					try {
+						return { pattern, result: await runOne(pattern, `${tid}:${i}`) };
+					} catch (error) {
+						if (sig?.aborted) throw error;
+						return { pattern, error: error instanceof Error ? error.message : String(error) };
+					}
+				}),
+			);
+			const sections: BatchSection[] = settled.map((entry) => {
+				if ("error" in entry && entry.error) {
+					return { id: entry.pattern, body: "", units: 0, nouns: FILE_NOUNS, error: entry.error };
+				}
+				const details = (entry as { result: ToolResultLike<FindResultDetails> }).result.details;
+				const body =
+					details?._type === "findResult"
+						? details.text
+						: getTextContent((entry as { result: ToolResultLike }).result);
+				const units =
+					details?._type === "findResult"
+						? details.matchCount
+						: body.trim().split("\n").filter(Boolean).length;
+				return { id: entry.pattern, body, units, nouns: FILE_NOUNS };
+			});
+			const { text } = capSections(
+				sections,
+				BATCH_MAX_BYTES,
+				params.limit ?? DEFAULT_FIND_LIMIT,
+				omitted,
+			);
+			const matchCount = sections.reduce((sum, s) => sum + (s.error ? 0 : s.units), 0);
+			const full = [formatBatchIndex(sections, omitted), joinSectionBodies(sections)]
+				.filter(Boolean)
+				.join("\n\n");
+			return makeTextResult<FindResultDetails>(text, {
+				_type: "findResult",
+				text: full,
+				pattern: targets.join(", "),
+				patterns: targets,
+				path: params.path,
+				matchCount,
+			});
 		},
 
-		renderCall(args: FindParams, theme: ThemeLike, renderCtx: RenderContextLike) {
+		renderCall(args: FindBatchParams, theme: ThemeLike, renderCtx: RenderContextLike) {
 			resolveBaseBackground(theme);
-			const pattern = args.pattern ?? "";
+			const batchPatterns = resolveBatchStrings(args.pattern, args.patterns);
+			const pattern =
+				batchPatterns.length > 1
+					? formatCallTargets(batchPatterns, 3, "patterns")
+					: (args.pattern ?? "");
 			const path = args.path ? ` ${theme.fg("muted", `in ${sp(args.path)}`)}` : "";
 			const text = renderCtx.lastComponent ?? new TextComponent("", 0, 0);
 			if (
@@ -215,7 +308,8 @@ export function registerFindTool(
 				renderDimPreview(output, theme, {
 					frame: !isPartial,
 					paint: (s: string) => theme.fg(renderCtx.isError ? "error" : "success", s),
-					highlight: d?._type === "findResult" ? globHighlight(d.pattern) : undefined,
+					highlight:
+						d?._type === "findResult" && !d.patterns ? globHighlight(d.pattern) : undefined,
 				}),
 			);
 			return text;

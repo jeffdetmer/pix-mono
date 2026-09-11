@@ -5,9 +5,23 @@ import {
 	makeTheme,
 	makeToolContext,
 } from "@xynogen/pix-pretty/test-utils";
+import type { ToolResultLike } from "@xynogen/pix-pretty/types";
 import { applyFindDefaults, DEFAULT_FIND_LIMIT, globHighlight, registerFindTool } from "./find";
 
 const noopFactory = () => ({ execute: async () => ({ content: [], details: undefined }) });
+
+// Factory echoing one matched path per requested glob (SDK path; finder is null in tests).
+const echoFactory = (() => ({
+	parameters: {
+		type: "object",
+		required: ["pattern"],
+		properties: { pattern: { type: "string" } },
+	},
+	execute: async (_id: string, params: { pattern?: string }) => ({
+		content: [{ type: "text", text: `match-for-${params.pattern}.ts` }],
+		details: undefined,
+	}),
+})) as unknown as typeof noopFactory;
 
 describe("globHighlight", () => {
 	it("keeps literal runs from a glob as case-insensitive alternatives", () => {
@@ -44,6 +58,32 @@ describe("registerFindTool", () => {
 		const { pi, names } = capturePi();
 		registerFindTool(pi, noopFactory, makeToolContext());
 		expect(names).toEqual(["find"]);
+	});
+
+	it("searches multiple globs in one call and combines into a batch result", async () => {
+		const { pi, tool } = capturePi();
+		registerFindTool(pi, echoFactory, makeToolContext());
+		const execute = tool.execute as (...args: unknown[]) => Promise<ToolResultLike>;
+		const result = await execute("tid", { patterns: ["*.ts", "*.md"] }, undefined, undefined, {});
+		const d = result.details as { _type: string; patterns?: string[]; matchCount: number };
+		expect(d._type).toBe("findResult");
+		expect(d.patterns).toEqual(["*.ts", "*.md"]);
+		expect(d.matchCount).toBe(2);
+		const text = result.content?.[0];
+		const body = text && "text" in text ? text.text : "";
+		expect(body).toContain("===== *.ts =====");
+		expect(body).toContain("match-for-*.md.ts");
+	});
+
+	it("keeps the single-search shape for one glob", async () => {
+		const { pi, tool } = capturePi();
+		registerFindTool(pi, echoFactory, makeToolContext());
+		const execute = tool.execute as (...args: unknown[]) => Promise<ToolResultLike>;
+		const result = await execute("tid", { pattern: "*.ts" }, undefined, undefined, {});
+		const d = result.details as { _type: string; pattern: string; patterns?: string[] };
+		expect(d._type).toBe("findResult");
+		expect(d.pattern).toBe("*.ts");
+		expect(d.patterns).toBeUndefined();
 	});
 
 	it("restores result paths when an elapsed card is expanded", () => {

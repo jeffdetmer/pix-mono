@@ -5,9 +5,19 @@ import {
 	makeTheme,
 	makeToolContext,
 } from "@xynogen/pix-pretty/test-utils";
+import type { ToolResultLike } from "@xynogen/pix-pretty/types";
 import { applyLsDefaults, DEFAULT_LS_LIMIT, registerLsTool } from "./ls";
 
 const noopFactory = () => ({ execute: async () => ({ content: [], details: undefined }) });
+
+// Factory echoing one entry per requested directory path.
+const echoFactory = (() => ({
+	parameters: { type: "object", required: ["path"], properties: { path: { type: "string" } } },
+	execute: async (_id: string, params: { path?: string }) => ({
+		content: [{ type: "text", text: `entry-in-${params.path}` }],
+		details: undefined,
+	}),
+})) as unknown as typeof noopFactory;
 
 describe("applyLsDefaults", () => {
 	it("applies a conservative default without overriding an explicit limit", () => {
@@ -21,6 +31,32 @@ describe("registerLsTool", () => {
 		const { pi, names } = capturePi();
 		registerLsTool(pi, noopFactory, makeToolContext());
 		expect(names).toEqual(["ls"]);
+	});
+
+	it("lists multiple directories in one call and combines into a batch result", async () => {
+		const { pi, tool } = capturePi();
+		registerLsTool(pi, echoFactory, makeToolContext());
+		const execute = tool.execute as (...args: unknown[]) => Promise<ToolResultLike>;
+		const result = await execute("tid", { paths: ["src", "lib"] }, undefined, undefined, {});
+		const d = result.details as { _type: string; paths?: string[]; entryCount: number };
+		expect(d._type).toBe("lsResult");
+		expect(d.paths).toEqual(["src", "lib"]);
+		expect(d.entryCount).toBe(2);
+		const text = result.content?.[0];
+		const body = text && "text" in text ? text.text : "";
+		expect(body).toContain("===== src =====");
+		expect(body).toContain("entry-in-lib");
+	});
+
+	it("keeps the single-listing shape for one directory", async () => {
+		const { pi, tool } = capturePi();
+		registerLsTool(pi, echoFactory, makeToolContext());
+		const execute = tool.execute as (...args: unknown[]) => Promise<ToolResultLike>;
+		const result = await execute("tid", { path: "src" }, undefined, undefined, {});
+		const d = result.details as { _type: string; path: string; paths?: string[] };
+		expect(d._type).toBe("lsResult");
+		expect(d.path).toBe("src");
+		expect(d.paths).toBeUndefined();
 	});
 
 	it("restores the listing when an elapsed card is expanded", () => {

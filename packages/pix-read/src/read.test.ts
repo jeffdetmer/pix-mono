@@ -5,9 +5,19 @@ import {
 	makeTheme,
 	makeToolContext,
 } from "@xynogen/pix-pretty/test-utils";
+import type { ToolResultLike } from "@xynogen/pix-pretty/types";
 import { applyReadDefaults, DEFAULT_READ_LIMIT, registerReadTool } from "./read";
 
 const noopFactory = () => ({ execute: async () => ({ content: [], details: undefined }) });
+
+// Factory that echoes each requested path as file content, for batch tests.
+const echoFactory = (() => ({
+	parameters: { type: "object", required: ["path"], properties: { path: { type: "string" } } },
+	execute: async (_id: string, params: { path?: string }) => ({
+		content: [{ type: "text", text: `content of ${params.path}` }],
+		details: undefined,
+	}),
+})) as unknown as typeof noopFactory;
 
 describe("applyReadDefaults", () => {
 	it("applies a conservative default without overriding an explicit limit", () => {
@@ -82,6 +92,29 @@ describe("registerReadTool", () => {
 		expect(render({ timer: 1 })).toContain("─");
 		expect(render({ collapsed: true })).toContain("✗  read missing.ts · failed");
 		expect(render({ collapsed: true }, true)).toContain(diagnostic);
+	});
+
+	it("reads multiple paths in one call and caps into a combined batch result", async () => {
+		const { pi, tool } = capturePi();
+		registerReadTool(pi, echoFactory, makeToolContext());
+		const execute = tool.execute as (...args: unknown[]) => Promise<ToolResultLike>;
+		const result = await execute("tid", { paths: ["a.ts", "b.ts"] }, undefined, undefined, {});
+		const details = result.details as { _type: string; items: unknown[]; index: string };
+		expect(details._type).toBe("readBatch");
+		expect(details.items).toHaveLength(2);
+		const text = result.content?.[0];
+		expect(text && "text" in text ? text.text : "").toContain("===== a.ts =====");
+		expect(text && "text" in text ? text.text : "").toContain("content of b.ts");
+	});
+
+	it("keeps the single-file shape when only one path is given", async () => {
+		const { pi, tool } = capturePi();
+		registerReadTool(pi, echoFactory, makeToolContext());
+		const execute = tool.execute as (...args: unknown[]) => Promise<ToolResultLike>;
+		const result = await execute("tid", { path: "solo.ts" }, undefined, undefined, {});
+		const details = result.details as { _type: string; filePath: string };
+		expect(details._type).toBe("readFile");
+		expect(details.filePath).toBe("solo.ts");
 	});
 
 	it("frames completed image and fallback results, not partial fallback", () => {

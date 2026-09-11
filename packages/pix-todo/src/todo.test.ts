@@ -143,6 +143,15 @@ function text(result: { content: Array<{ type: string; text: string }> }) {
 	return result.content.map((c) => c.text).join("\n");
 }
 
+/** The result's snapshot (status source of truth), independent of the
+ *  delta-only echo text. Returns an id→item map for concise assertions. */
+function snap(result: { details?: unknown }): Record<number, TodoItem> {
+	const details = result.details as { snapshot?: TodoItem[] } | undefined;
+	const out: Record<number, TodoItem> = {};
+	for (const item of details?.snapshot ?? []) out[item.id] = item;
+	return out;
+}
+
 // ─── Tool schema ────────────────────────────────────────────────────────────
 
 test("todo exposes action and status as guided string enums", () => {
@@ -160,7 +169,7 @@ test("todo exposes action and status as guided string enums", () => {
 	expect(action.type).toBe("string");
 	expect(action.enum).toEqual(["list", "set", "add", "update", "clear"]);
 	expect(action.description).toContain('"list" shows items');
-	expect(action.description).toContain('"update" changes one item by id');
+	expect(action.description).toContain('"update" changes one or more items by id');
 	expect(status?.type).toBe("string");
 	expect(status?.enum).toEqual(["pending", "in_progress", "done", "blocked"]);
 	expect(status?.description).toContain('"pending" = not started');
@@ -298,10 +307,11 @@ describe("todo actions", () => {
 			id: 1,
 			status: "done",
 		});
-		const out = text(result);
-		expect(out).toContain("● 1. alpha");
-		expect(out).toContain("○ 2. bravo");
-		expect(out).toContain("Todos 1/2 done");
+		// Delta echo names the applied op + next-step hint; state lives in snapshot.
+		expect(text(result)).toContain("#1 done");
+		const s = snap(result);
+		expect(s[1]?.status).toBe("done");
+		expect(s[2]?.status).toBe("pending");
 	});
 
 	test("update changes text", async () => {
@@ -312,9 +322,10 @@ describe("todo actions", () => {
 		const result = await run(host.execute, {
 			action: "update",
 			id: 1,
+			status: "in_progress",
 			text: "new name",
 		});
-		expect(text(result)).toContain("○ 1. new name");
+		expect(snap(result)[1]?.text).toBe("new name");
 	});
 
 	test("update changes status and text together", async () => {
@@ -328,9 +339,35 @@ describe("todo actions", () => {
 			status: "blocked",
 			text: "alpha (waiting)",
 		});
-		const out = text(result);
-		expect(out).toContain("⊘ 1. alpha (waiting)");
-		expect(out).toContain("Todos 0/1 done");
+		const s = snap(result);
+		expect(s[1]?.status).toBe("blocked");
+		expect(s[1]?.text).toBe("alpha (waiting)");
+	});
+
+	test("batch updates apply several id:status pairs in one call", async () => {
+		const host = makeHost();
+		registerTodo(host.pi);
+		await host.emit("session_start", {}, { sessionManager: host.sessionManager });
+		await run(host.execute, { action: "set", items: "a\nb\nc" });
+		const result = await run(host.execute, {
+			action: "update",
+			updates: "1:done, 2:done, 3:in_progress",
+		});
+		expect(text(result)).toContain("#1 done, #2 done, #3 in_progress");
+		const s = snap(result);
+		expect(s[1]?.status).toBe("done");
+		expect(s[2]?.status).toBe("done");
+		expect(s[3]?.status).toBe("in_progress");
+	});
+
+	test("batch updates reject an unknown id before applying", async () => {
+		const host = makeHost();
+		registerTodo(host.pi);
+		await host.emit("session_start", {}, { sessionManager: host.sessionManager });
+		await run(host.execute, { action: "set", items: "a\nb" });
+		const result = await run(host.execute, { action: "update", updates: "1:done, 9:done" });
+		expect(result.isError).toBe(true);
+		expect(text(result)).toContain("9");
 	});
 
 	test("opening a new in_progress closes the previous one", async () => {
@@ -344,11 +381,10 @@ describe("todo actions", () => {
 			id: 2,
 			status: "in_progress",
 		});
-		const out = text(result);
-		expect(out).toContain("● 1. a"); // auto-closed to done
-		expect(out).toContain("◐ 2. b"); // now active
-		expect(out).toContain("○ 3. c");
-		expect(out).toContain("Todos 1/3 done");
+		const s = snap(result);
+		expect(s[1]?.status).toBe("done"); // auto-closed
+		expect(s[2]?.status).toBe("in_progress"); // now active
+		expect(s[3]?.status).toBe("pending");
 	});
 
 	test("opening a later item cascade-closes skipped pending items", async () => {
@@ -362,12 +398,12 @@ describe("todo actions", () => {
 			id: 4,
 			status: "in_progress",
 		});
-		const out = text(result);
-		expect(out).toContain("● 1. a");
-		expect(out).toContain("● 2. b");
-		expect(out).toContain("● 3. c");
-		expect(out).toContain("◐ 4. d");
-		expect(out).toContain("Todos 3/4 done");
+		const s = snap(result);
+		expect(s[1]?.status).toBe("done");
+		expect(s[2]?.status).toBe("done");
+		expect(s[3]?.status).toBe("done");
+		expect(s[4]?.status).toBe("in_progress");
+		expect(text(result)).toContain("auto-done #1,#2,#3");
 	});
 
 	test("cascade-close leaves a blocked earlier item untouched", async () => {
@@ -381,10 +417,10 @@ describe("todo actions", () => {
 			id: 3,
 			status: "in_progress",
 		});
-		const out = text(result);
-		expect(out).toContain("⊘ 1. a"); // still blocked, not force-closed
-		expect(out).toContain("● 2. b"); // pending -> done
-		expect(out).toContain("◐ 3. c");
+		const s = snap(result);
+		expect(s[1]?.status).toBe("blocked"); // still blocked, not force-closed
+		expect(s[2]?.status).toBe("done"); // pending -> done
+		expect(s[3]?.status).toBe("in_progress");
 	});
 
 	test("update unknown id returns error", async () => {
@@ -406,7 +442,9 @@ describe("todo actions", () => {
 		await host.emit("session_start", {}, { sessionManager: host.sessionManager });
 		await run(host.execute, { action: "set", items: "unchanged" });
 		const result = await run(host.execute, { action: "update", id: 1 });
-		expect(text(result)).toContain("○ 1. unchanged");
+		const s = snap(result);
+		expect(s[1]?.status).toBe("pending");
+		expect(s[1]?.text).toBe("unchanged");
 	});
 
 	test("clear empties list", async () => {

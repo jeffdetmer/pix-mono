@@ -4,6 +4,15 @@ import type {
 	ReadToolInput,
 } from "@earendil-works/pi-coding-agent";
 import { resolveBaseBackground } from "@xynogen/pix-pretty/ansi";
+import {
+	BATCH_MAX_BYTES,
+	type BatchSection,
+	capSections,
+	formatCallTargets,
+	resolveBatchStrings,
+	sliceBatchTargets,
+	withOptionalStringArray,
+} from "@xynogen/pix-pretty/batch";
 import { MAX_PREVIEW_LINES } from "@xynogen/pix-pretty/config";
 import type { ToolContext } from "@xynogen/pix-pretty/context";
 import { fileIcon } from "@xynogen/pix-pretty/icons";
@@ -27,6 +36,7 @@ import {
 	isTextContent,
 	normalizeLineEndings,
 	renderCollapsedToolRow,
+	renderDimPreview,
 	renderToolError,
 	ruleFrame,
 	setResultDetails,
@@ -36,8 +46,68 @@ import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse"
 
 export const DEFAULT_READ_LIMIT = 400;
 
+const LINE_NOUNS = ["line", "lines"] as const;
+
+/** ReadParams plus the optional batch `paths` array (added to the schema at runtime). */
+type ReadBatchParams = ReadParams & { paths?: string[] };
+
+type ReadFileDetails = {
+	_type: "readFile";
+	filePath: string;
+	content: string;
+	offset: number;
+	lineCount: number;
+};
+type ReadImageDetails = {
+	_type: "readImage";
+	filePath: string;
+	data: string;
+	mimeType: string;
+};
+type ReadErrorDetails = { _type: "readError"; filePath: string; message: string };
+type ReadItem = ReadFileDetails | ReadImageDetails | ReadErrorDetails;
+type ReadBatchDetails = { _type: "readBatch"; items: ReadItem[]; index: string };
+
 export function applyReadDefaults(params: ReadParams): ReadParams {
 	return params.limit === undefined ? { ...params, limit: DEFAULT_READ_LIMIT } : params;
+}
+
+function itemFromResult(fp: string, offset: number, result: ToolResultLike): ReadItem {
+	const d = result.details as ReadItem | undefined;
+	if (d?._type === "readImage" || d?._type === "readFile") return d;
+	const image = result.content?.find(isImageContent);
+	if (image) {
+		return {
+			_type: "readImage",
+			filePath: fp,
+			data: image.data,
+			mimeType: image.mimeType ?? "image/png",
+		};
+	}
+	const text = normalizeLineEndings(getTextContent(result));
+	return {
+		_type: "readFile",
+		filePath: fp,
+		content: text,
+		offset,
+		lineCount: text ? text.split("\n").length : 0,
+	};
+}
+
+function sectionFromItem(item: ReadItem): BatchSection {
+	if (item._type === "readError") {
+		return { id: item.filePath, body: "", units: 0, nouns: LINE_NOUNS, error: item.message };
+	}
+	if (item._type === "readImage") {
+		return { id: item.filePath, body: "", units: 1, nouns: ["image", "images"] };
+	}
+	return {
+		id: item.filePath,
+		body: item.content,
+		units: item.lineCount,
+		nouns: LINE_NOUNS,
+		hint: "use offset",
+	};
 }
 
 export function registerReadTool(
@@ -52,75 +122,127 @@ export function registerReadTool(
 		...origRead,
 		name: "read",
 		description:
-			"Read text files and images. Text reads default to 400 lines and remain capped by Pi's 2,000-line/50KB hard limit. Use offset/limit to continue large files.",
+			"Read text files and images. Text reads default to 400 lines and remain capped by Pi's 2,000-line/50KB hard limit. Use offset/limit to continue large files. Pass `paths` to read several known files in one call.",
+		parameters: withOptionalStringArray(
+			origRead.parameters,
+			"paths",
+			"Known files to read in one call (each capped, one combined result). Use instead of `path` for multiple known files.",
+			["path"],
+		),
 		// Full-width framing baked at termW(); default Box shell pads x by 1
 		// and re-wraps at width-2, splitting every line into a padding row.
 		renderShell: "self",
 
 		async execute(
 			tid: string,
-			params: ReadParams,
+			params: ReadBatchParams,
 			sig: AbortSignal | undefined,
 			upd: AgentToolUpdateCallback<unknown> | undefined,
 			toolCtx: ExtensionContext,
 		) {
-			const effectiveParams = applyReadDefaults(params);
-			const fp = effectiveParams.path ?? "";
-			const offset = effectiveParams.offset ?? 1;
-			try {
+			const { targets, omitted } = sliceBatchTargets(
+				resolveBatchStrings(params.path, params.paths),
+			);
+			const offset = params.offset ?? 1;
+
+			const runOne = async (path: string, callId: string): Promise<ToolResultLike> => {
+				const { paths: _paths, ...rest } = params;
+				const effectiveParams = applyReadDefaults({ ...rest, path });
 				const result = (await origRead.execute(
-					tid,
+					callId,
 					effectiveParams,
 					sig,
 					upd,
 					toolCtx,
 				)) as ToolResultLike;
-
 				const imageBlock = result.content?.find(isImageContent);
 				if (imageBlock) {
 					setResultDetails(result, {
 						_type: "readImage",
-						filePath: fp,
+						filePath: path,
 						data: imageBlock.data,
 						mimeType: imageBlock.mimeType ?? "image/png",
 					});
 					return result;
 				}
-
 				const textContent = getTextContent(result);
-				if (textContent && fp) {
+				if (textContent && path) {
 					const normalizedContent = normalizeLineEndings(textContent);
-					const lineCount = normalizedContent.split("\n").length;
 					setResultDetails(result, {
 						_type: "readFile",
-						filePath: fp,
+						filePath: path,
 						content: normalizedContent,
 						offset,
-						lineCount,
+						lineCount: normalizedContent.split("\n").length,
 					});
 				}
-
 				return result;
-			} catch (error) {
-				const text = error instanceof Error ? error.message : String(error);
-				if (sig?.aborted || /aborted/i.test(text)) throw error;
-				return {
-					content: [{ type: "text" as const, text }],
-					details: {
-						_type: "readFile" as const,
-						filePath: fp,
-						content: text,
-						offset,
-						lineCount: 1,
-					},
-					isError: true,
-				};
+			};
+
+			// Single target → preserve the original single-file result/detail shape.
+			if (targets.length <= 1 && omitted === 0) {
+				const fp = targets[0] ?? params.path ?? "";
+				try {
+					return await runOne(fp, tid);
+				} catch (error) {
+					const text = error instanceof Error ? error.message : String(error);
+					if (sig?.aborted || /aborted/i.test(text)) throw error;
+					return {
+						content: [{ type: "text" as const, text }],
+						details: {
+							_type: "readFile" as const,
+							filePath: fp,
+							content: text,
+							offset,
+							lineCount: 1,
+						},
+						isError: true,
+					};
+				}
 			}
+
+			// Batch: read all targets in parallel, cap the combined output.
+			const settled = await Promise.all(
+				targets.map(async (path, i) => {
+					try {
+						return { path, result: await runOne(path, `${tid}:${i}`) };
+					} catch (error) {
+						if (sig?.aborted) throw error;
+						return { path, error: error instanceof Error ? error.message : String(error) };
+					}
+				}),
+			);
+			const items: ReadItem[] = settled.map((entry) =>
+				"error" in entry && entry.error
+					? { _type: "readError", filePath: entry.path, message: entry.error }
+					: itemFromResult(entry.path, offset, entry.result as ToolResultLike),
+			);
+			const { index, text } = capSections(
+				items.map(sectionFromItem),
+				BATCH_MAX_BYTES,
+				params.limit ?? DEFAULT_READ_LIMIT,
+				omitted,
+			);
+			const images = items.filter((i): i is ReadImageDetails => i._type === "readImage");
+			const details: ReadBatchDetails = { _type: "readBatch", items, index };
+			return {
+				content: [
+					{ type: "text" as const, text },
+					...images.map((img) => ({
+						type: "image" as const,
+						data: img.data,
+						mimeType: img.mimeType,
+					})),
+				],
+				details,
+			};
 		},
 
-		renderCall(args: ReadParams, theme: ThemeLike, renderCtx: RenderContextLike) {
+		renderCall(args: ReadBatchParams, theme: ThemeLike, renderCtx: RenderContextLike) {
 			resolveBaseBackground(theme);
-			const fp = args.path ?? "";
+			const batchTargets = resolveBatchStrings(args.path, args.paths);
+			const fp =
+				batchTargets.length > 1 ? formatCallTargets(batchTargets.map(sp)) : (args.path ?? "");
 			const text = renderCtx.lastComponent ?? new TextComponent("", 0, 0);
 			if (
 				hideCollapsedToolCall(renderCtx.state as CollapseState, renderCtx.expanded, (value) =>
@@ -164,6 +286,17 @@ export function registerReadTool(
 					text.setText(
 						renderCollapsedToolRow(theme, "read", sp(String(d?.filePath ?? "")), "failed", "error"),
 					);
+				} else if (d?._type === "readBatch") {
+					// SAFETY: _type discriminant is "readBatch", set only where we build ReadBatchDetails.
+					const batch = d as unknown as ReadBatchDetails;
+					text.setText(
+						renderCollapsedToolRow(
+							theme,
+							"read",
+							formatCallTargets(batch.items.map((item) => sp(item.filePath))),
+							`${batch.items.length} files`,
+						),
+					);
 				} else if (d?._type === "readFile") {
 					text.setText(
 						renderCollapsedToolRow(
@@ -192,6 +325,27 @@ export function registerReadTool(
 			if (renderCtx.isError) {
 				text.setText(renderToolError(getTextContent(result) || "Error", theme));
 				return completed();
+			}
+
+			if (d?._type === "readBatch") {
+				// SAFETY: _type discriminant is "readBatch", set only where we build ReadBatchDetails.
+				const batch = d as unknown as ReadBatchDetails;
+				const full = batch.items
+					.map((item) =>
+						item._type === "readError"
+							? `===== ${item.filePath} =====\n${item.message}`
+							: item._type === "readImage"
+								? `===== ${item.filePath} =====\n${item.mimeType}`
+								: `===== ${item.filePath} =====\n${item.content}`,
+					)
+					.join("\n\n");
+				text.setText(
+					renderDimPreview(full || batch.index, theme, {
+						header: batch.index,
+						...(renderCtx.expanded ? { maxLines: Number.MAX_SAFE_INTEGER } : {}),
+					}),
+				);
+				return isPartial ? text : completed();
 			}
 
 			if (d?._type === "readImage") {
