@@ -6,11 +6,14 @@ import {
 	benchlm,
 	buildModelsDevIndex,
 	DataSource,
+	fromRegisteredModel,
 	lookupBenchmark,
 	lookupInIndex,
 	lookupModelsDev,
 	type ModelGrepModel,
+	mergeModelsDev,
 	modelgrep,
+	resolveModelsDev,
 } from "./data.ts";
 
 // Compact modelgrep-shaped fixture builder.
@@ -328,5 +331,99 @@ describe("modelgrep AA primary wins over benchlm", () => {
 		const b = lookupBenchmark("claude-opus-4-8");
 		// 60/65 * 100 = 92.23 → 92, not benchlm's 50
 		expect(b?.overallScore).toBe(92);
+	});
+});
+
+describe("fromRegisteredModel", () => {
+	it("maps Pi Model fields into ModelsDevModel shape", () => {
+		const m = fromRegisteredModel({
+			id: "gateway/composer-2.5",
+			name: "Composer 2.5",
+			reasoning: true,
+			input: ["text", "image"],
+			contextWindow: 200000,
+			maxTokens: 16384,
+			cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+		});
+		expect(m).toEqual({
+			id: "composer-2.5", // slug — maker prefix stripped
+			name: "Composer 2.5",
+			reasoning: true,
+			modalities: { input: ["text", "image"] },
+			limit: { context: 200000, output: 16384 },
+			cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 },
+		});
+	});
+
+	it("accepts snake_case cache rates and free (0) cost", () => {
+		const m = fromRegisteredModel({ id: "x", cost: { input: 0, output: 0, cache_read: 0 } });
+		expect(m?.cost).toEqual({ input: 0, output: 0, cache_read: 0, cache_write: undefined });
+	});
+
+	it("returns undefined for null or an all-empty model", () => {
+		expect(fromRegisteredModel(null)).toBeUndefined();
+		expect(fromRegisteredModel({})).toBeUndefined();
+		// cost object present but with no known rate → still empty
+		expect(fromRegisteredModel({ cost: { cacheRead: 1 } })).toBeUndefined();
+	});
+});
+
+describe("mergeModelsDev", () => {
+	const catalog = {
+		id: "m",
+		name: "Catalog Name",
+		cost: { input: 2, output: 8 },
+	};
+
+	it("fills missing catalog cost/context from the registered model", () => {
+		const merged = mergeModelsDev(
+			{ id: "m", name: "Cat" }, // no cost, no limit
+			{ id: "m", contextWindow: 128000, cost: { input: 1, output: 4 } },
+		);
+		expect(merged?.cost).toEqual({
+			input: 1,
+			output: 4,
+			cache_read: undefined,
+			cache_write: undefined,
+		});
+		expect(merged?.limit?.context).toBe(128000);
+	});
+
+	it("prefers catalog cost when the catalog already has a rate", () => {
+		const merged = mergeModelsDev(catalog, { id: "m", cost: { input: 99, output: 99 } });
+		expect(merged?.cost).toEqual({ input: 2, output: 8 });
+		expect(merged?.name).toBe("Catalog Name");
+	});
+
+	it("returns whichever side is present when the other is missing", () => {
+		expect(mergeModelsDev(catalog, null)).toBe(catalog);
+		expect(mergeModelsDev(undefined, { id: "z", cost: { input: 1, output: 1 } })?.id).toBe("z");
+		expect(mergeModelsDev(undefined, null)).toBeUndefined();
+	});
+});
+
+describe("resolveModelsDev fallback", () => {
+	const catalog: ModelGrepModel[] = [mg("anthropic/claude-x", { ctx: 200000, in: 3, out: 15 })];
+	beforeEach(() => {
+		(modelgrep as unknown as { _mem: ModelGrepModel[] })._mem = catalog;
+	});
+	afterEach(() => {
+		(modelgrep as unknown as { _mem: ModelGrepModel[] | null })._mem = null;
+	});
+
+	it("uses catalog when the model is listed", () => {
+		const d = resolveModelsDev("anthropic", "claude-x");
+		expect(d?.cost?.input).toBe(3);
+		expect(d?.limit?.context).toBe(200000);
+	});
+
+	it("falls back to the registered model for an off-catalog id", () => {
+		const d = resolveModelsDev("gateway", "composer-2.5", {
+			id: "composer-2.5",
+			contextWindow: 128000,
+			cost: { input: 1, output: 4 },
+		});
+		expect(d?.cost?.input).toBe(1);
+		expect(d?.limit?.context).toBe(128000);
 	});
 });

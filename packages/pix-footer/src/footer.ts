@@ -17,7 +17,7 @@ import type { AssistantMessage, AssistantMessageEvent } from "@earendil-works/pi
 import type { ExtensionAPI, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { ModelsDevModel } from "@xynogen/pix-data";
-import { benchScoreColor, lookupBenchmark, lookupModelsDev } from "@xynogen/pix-data";
+import { benchScoreColor, lookupBenchmark, resolveModelsDev } from "@xynogen/pix-data";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { fmtTokenCount } from "@xynogen/pix-pretty/widget-format";
 
@@ -184,7 +184,16 @@ function renderBranch(
 
 /** "<modelId> [· thinking] [· ctxK · $in/$out]" */
 function renderModel(
-	model: { id?: string; provider?: string; name?: string } | undefined,
+	model:
+		| {
+				id?: string;
+				provider?: string;
+				name?: string;
+				contextWindow?: number;
+				maxTokens?: number;
+				cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+		  }
+		| undefined,
 	thinking: string,
 	theme: Theme,
 ): string {
@@ -205,7 +214,8 @@ function renderModel(
 		out += theme.fg("muted", " · ") + renderThinkingLevel(theme, thinking, abbr);
 	}
 	if (provider && id !== "?") {
-		const dev = lookupModelsDev(provider, id);
+		// modelgrep first; registered model cost/ctx fills private / gateway gaps
+		const dev = resolveModelsDev(provider, id, model);
 		const costStr = fmtCost(dev);
 		// color the $ and numbers green, separator muted
 		out += theme.fg("muted", " · ") + theme.fg("success", costStr);
