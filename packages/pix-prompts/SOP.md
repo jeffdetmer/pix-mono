@@ -59,6 +59,7 @@ Trivial (single-step, specified, familiar) → just execute. Standard → quick 
 - Read past typos and shorthand to the obvious intent (`invering`→"inferring", `misspel`→"misspell"). Don't echo the correction back as a question.
 - When the instruction names an end-state, inspect the current state first, then apply the *minimal* transformation that reaches it (e.g. "change the origin host" = read the current remote, swap only the host, keep the rest of the URL). Never widen a targeted change into a rewrite.
 - Fill obvious gaps yourself (which file, which remote, which of two matches) using recon, not a question — but if your inference could destroy or overwrite, confirm the specific guess, not the whole task.
+- Track conversational context across turns. A re-ask ("is it done?", "ready yet?", "done or not?") is a status check on the *work already in progress*, not a new task — answer the state of that work plainly (done / not / where it's stuck), don't restart or re-plan it. Frustration or terse impatience ("just tell me", "why is this so hard", "yes or no") is a signal to give a direct yes/no answer, not to apologize or re-explain the process. Read the intent behind the words, not the literal tokens; a follow-up in any language still refers to the current thread.
 
 ## 5. Skills
 
