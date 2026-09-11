@@ -24,7 +24,6 @@ import {
 	getTextContent,
 	hideCollapsedToolCall,
 	isTextContent,
-	normalizeLineEndings,
 	renderCollapsedToolRow,
 	renderToolError,
 	ruleFrame,
@@ -59,6 +58,42 @@ export function summarizeBashCommand(command: string): string {
 // ponytail: thin wrapper keeps old import path; canonical is formatDuration(ms,'bash') in pix-pretty
 export function formatBashDuration(durationMs: number): string {
 	return formatDuration(durationMs, "bash");
+}
+
+/** Drop cursor/erase CSI + OSC sequences (keep SGR colors) so progress-bar
+ *  control codes don't leak into the TUI as literal escape junk. */
+function stripNonSgrCsi(text: string): string {
+	return text
+		.replace(/\x1b\][\s\S]*?(?:\x07|\x1b\\)/g, "") // OSC …BEL/ST
+		.replace(/\x1b\[[?][0-9;]*[A-Za-z]/g, "") // private-mode CSI (?25l etc.)
+		.replace(/\x1b\[[0-9;]*[A-HJKSTfhl]/g, ""); // cursor move / erase CSI
+}
+
+/**
+ * Progress bars rewrite one line with CR (and often ESC[K). Treat each CR as
+ * "overwrite this line", not a newline — otherwise every tick dumps a new row
+ * and the card scrolls with dozens of near-identical frames.
+ *
+ * Split on LF first: `.` does not match CR, so a single `/^.*$/gm` pass would
+ * miss CR-only progress streams entirely.
+ */
+export function collapseProgressFrames(text: string): string {
+	return text
+		.replace(/\r\n/g, "\n")
+		.split("\n")
+		.map((line) => {
+			const cr = line.lastIndexOf("\r");
+			return stripNonSgrCsi(cr >= 0 ? line.slice(cr + 1) : line);
+		})
+		.join("\n");
+}
+
+/** Canonical bash output normalization: collapse CR progress frames, then
+ *  squeeze blank runs and trim — replaces the old normalizeLineEndings chain. */
+function normalizeBashText(text: string): string {
+	return collapseProgressFrames(text)
+		.replace(/\n{3,}/g, "\n\n")
+		.replace(/^\n+|\n+$/g, "");
 }
 
 export function registerBashTool(
@@ -170,9 +205,7 @@ export function registerBashTool(
 			const cs = renderCtx.state as CollapseState;
 			if (!isPartial && tickCollapse("bash", cs, renderCtx.invalidate, renderCtx.expanded)) {
 				if (d?._type === "bashResult") {
-					const normalizedText = normalizeLineEndings(d.text as string)
-						.replace(/\n{3,}/g, "\n\n")
-						.replace(/^\n+|\n+$/g, "");
+					const normalizedText = normalizeBashText(d.text as string);
 					const lc = normalizedText ? normalizedText.split("\n").length : 0;
 					const durationMs = Number(d.durationMs ?? 0);
 					const exitCode = d.exitCode as number | null;
@@ -204,9 +237,7 @@ export function registerBashTool(
 			}
 
 			if (d?._type === "bashResult") {
-				const normalizedText = normalizeLineEndings(d.text as string)
-					.replace(/\n{3,}/g, "\n\n")
-					.replace(/^\n+|\n+$/g, "");
+				const normalizedText = normalizeBashText(d.text as string);
 				const { summary } = renderBashOutput(normalizedText, d.exitCode as number | null, theme);
 				const lines = normalizedText ? normalizedText.split("\n") : [];
 				const lineCount = lines.length;

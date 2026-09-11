@@ -7,7 +7,12 @@ import {
 	makeToolContext,
 } from "@xynogen/pix-pretty/test-utils";
 import type { ThemeLike, ToolResultLike } from "@xynogen/pix-pretty/types";
-import { formatBashDuration, registerBashTool, summarizeBashCommand } from "./bash";
+import {
+	collapseProgressFrames,
+	formatBashDuration,
+	registerBashTool,
+	summarizeBashCommand,
+} from "./bash";
 
 const okFactory = () => ({
 	execute: async () => ({ content: [{ type: "text" as const, text: "ok" }], details: undefined }),
@@ -33,6 +38,26 @@ describe("bash summaries", () => {
 		expect(formatBashDuration(420)).toBe("420ms");
 		expect(formatBashDuration(2_450)).toBe("2.5s");
 		expect(formatBashDuration(12_400)).toBe("12s");
+	});
+});
+
+describe("collapseProgressFrames", () => {
+	it("keeps only the final frame of a CR-overwritten progress line", () => {
+		expect(collapseProgressFrames("Progress: 10%\rProgress: 50%\rProgress: 100%")).toBe(
+			"Progress: 100%",
+		);
+	});
+
+	it("treats CRLF as a real newline, CR alone as overwrite", () => {
+		expect(collapseProgressFrames("line one\r\nold\rnew")).toBe("line one\nnew");
+	});
+
+	it("strips cursor/erase control codes but keeps SGR color", () => {
+		expect(collapseProgressFrames("\x1b[2K\x1b[31mred\x1b[0m")).toBe("\x1b[31mred\x1b[0m");
+	});
+
+	it("leaves plain multi-line output untouched", () => {
+		expect(collapseProgressFrames("a\nb\nc")).toBe("a\nb\nc");
 	});
 });
 
