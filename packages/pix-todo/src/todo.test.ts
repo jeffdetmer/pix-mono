@@ -735,8 +735,9 @@ describe("skip-guard on marking done", () => {
 		const result = await run(host.execute, { action: "update", id: 3, status: "in_progress" });
 		// Should cascade-close, not warn
 		expect(text(result)).not.toContain("\u26a0");
-		expect(text(result)).toContain("\u25cf 1. a"); // cascade-closed to done
-		expect(text(result)).toContain("\u25cf 2. b");
+		const s = snap(result);
+		expect(s[1]?.status).toBe("done"); // cascade-closed
+		expect(s[2]?.status).toBe("done");
 	});
 });
 
@@ -750,9 +751,10 @@ describe("unordered lists", () => {
 		await run(host.execute, { action: "set", items: "a\nb\nc", ordered: false });
 		const result = await run(host.execute, { action: "update", id: 3, status: "in_progress" });
 		// Earlier items stay pending — no silent completion.
-		expect(text(result)).toContain("\u25cb 1. a");
-		expect(text(result)).toContain("\u25cb 2. b");
-		expect(text(result)).toContain("\u25d0 3. c");
+		const s = snap(result);
+		expect(s[1]?.status).toBe("pending");
+		expect(s[2]?.status).toBe("pending");
+		expect(s[3]?.status).toBe("in_progress");
 	});
 
 	test("ordered:false marking a later item done does NOT warn about earlier ones", async () => {
@@ -770,7 +772,7 @@ describe("unordered lists", () => {
 		await host.emit("session_start", {}, { sessionManager: host.sessionManager });
 		await run(host.execute, { action: "set", items: "a\nb\nc" });
 		const result = await run(host.execute, { action: "update", id: 3, status: "in_progress" });
-		expect(text(result)).toContain("\u25cf 1. a"); // cascade-closed to done
+		expect(snap(result)[1]?.status).toBe("done"); // cascade-closed to done
 	});
 
 	test("ordered flag persists and restores", async () => {
@@ -801,7 +803,7 @@ describe("unordered lists", () => {
 		registerTodo(host2.pi);
 		await host2.emit("session_start", {}, { sessionManager: host2.sessionManager });
 		const result = await run(host2.execute, { action: "update", id: 2, status: "in_progress" });
-		expect(text(result)).toContain("\u25cb 1. a"); // NOT cascade-closed
+		expect(snap(result)[1]?.status).toBe("pending"); // NOT cascade-closed
 	});
 });
 
