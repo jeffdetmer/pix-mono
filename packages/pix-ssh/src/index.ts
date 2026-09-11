@@ -66,6 +66,7 @@ import {
 	MAX_OUTPUT_LINES,
 	parseHost,
 	probeKeyAuth,
+	probeSudoNoPassword,
 	readSshConfigAliases,
 	resolveHostInfo,
 	resolveSshHost,
@@ -536,7 +537,15 @@ export default function (pi: ExtensionAPI): void {
 			const keyOk = probe === "ok";
 			// Which passwords must the overlay collect this call?
 			const needLogin = probe === "auth" && !creds.loginPassword;
-			const needSudo = sudo && !creds.sudoPassword;
+			// Remote sudo password only when NOT already cached, NOT NOPASSWD, and
+			// the SSH connection is passwordless (so the probe can open its own
+			// channel without prompting). When login still needs a password we
+			// can't probe yet, so fall back to prompting for the sudo password.
+			const sudoNoPassword =
+				sudo && !creds.sudoPassword && !needLogin && (keyOk || Boolean(creds.loginPassword))
+					? await probeSudoNoPassword(spec, controlPath, sig)
+					: false;
+			const needSudo = sudo && !creds.sudoPassword && !sudoNoPassword;
 			// The overlay stage pipeline: any password we still need is prompted
 			// (login first, then sudo). Confirm-only when nothing is missing.
 			const promptFor: ("login" | "sudo")[] = [

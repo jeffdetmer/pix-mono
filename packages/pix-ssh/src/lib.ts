@@ -454,6 +454,33 @@ export function probeKeyAuth(
 	});
 }
 
+/**
+ * Probe whether remote sudo runs without a password (NOPASSWD sudoers) via
+ * `sudo -n true`. Returns true when no sudo password is needed. Requires a
+ * passwordless SSH connection (key/agent/existing-master or a cached login
+ * password) — the probe opens its own channel with `BatchMode=yes`, so callers
+ * must only probe when SSH login auth already succeeds without prompting.
+ */
+export function probeSudoNoPassword(
+	spec: HostSpec,
+	controlPath: string,
+	signal?: AbortSignal,
+): Promise<boolean> {
+	const args = [
+		...baseSshArgs(spec, controlPath),
+		"-o",
+		"BatchMode=yes",
+		hostTarget(spec),
+		"sudo -n true",
+	];
+	return new Promise((resolve) => {
+		const proc = spawn("ssh", args, { stdio: ["ignore", "ignore", "ignore"] });
+		proc.on("error", () => resolve(false));
+		proc.on("close", (code) => resolve(code === 0));
+		signal?.addEventListener("abort", () => proc.kill("SIGTERM"), { once: true });
+	});
+}
+
 /** Connection/DNS-level failure (not an auth rejection) — a password can't fix it. */
 export function isUnreachable(stderr: string): boolean {
 	const lower = stderr.toLowerCase();

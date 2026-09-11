@@ -26,7 +26,7 @@ Lets the agent discover hosts without reading `~/.ssh/config` itself. Read-only:
 ### Authentication
 
 - **SSH login** — tries key/agent/existing-master auth first via a `BatchMode=yes` probe. If that succeeds, no login password is needed. If it fails, a masked overlay (`●` per character) collects the login password, fed to `sshpass -e` through the child's `SSHPASS` env var — never as an argv (no `ps` leak), never written to disk.
-- **Remote sudo** (`sudo: true`) — a separate masked prompt collects the remote sudo password, piped to the remote `sudo -S -p ''` on stdin, so it travels inside the encrypted SSH channel, not as an argv.
+- **Remote sudo** (`sudo: true`) — when the SSH connection is passwordless, `ssh_run` first probes `sudo -n true`; if the remote sudoers is `NOPASSWD` the overlay shows a plain Allow/Deny with no sudo prompt. Otherwise a separate masked prompt collects the remote sudo password, piped to the remote `sudo -S -p ''` on stdin, so it travels inside the encrypted SSH channel, not as an argv.
 
 Both passwords are cached **in-memory per host** for the session (keyed by `user@host:port`), never persisted. A wrong login password drops the login cache; a wrong sudo password drops the sudo cache — the next call re-prompts.
 
