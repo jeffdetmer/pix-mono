@@ -31,6 +31,30 @@ test("no match returns an error string listing available models", () => {
 	expect(r as string).toContain("anthropic/claude-haiku-4-5");
 });
 
+test("ambiguous fuzzy query rejects with tied candidates instead of guessing", () => {
+	// Two equal-length ids both substring-matching "gpt" score identically — the
+	// resolver must reject rather than silently pick the first-seen one.
+	const tieReg = {
+		find: (p: string, id: string) => ({ provider: p, id, name: id }),
+		getAll: () => [
+			{ provider: "openai", id: "gpt-aaa-1", name: "GPT AAA" },
+			{ provider: "openai", id: "gpt-bbb-1", name: "GPT BBB" },
+		],
+	} as unknown as ModelRegistry;
+	const r = resolveModel("gpt", tieReg);
+	expect(typeof r).toBe("string");
+	expect(r as string).toContain("Ambiguous model");
+	expect(r as string).toContain("openai/gpt-aaa-1");
+	expect(r as string).toContain("openai/gpt-bbb-1");
+});
+
+test("a tighter substring still resolves uniquely (no false ambiguity)", () => {
+	// "haiku" only substring-matches one id — unique win, resolves.
+	const m = resolveModel("haiku", registry);
+	expect(typeof m).not.toBe("string");
+	expect((m as { id: string }).id).toBe("claude-haiku-4-5");
+});
+
 // ── listAvailable enrichment ────────────────────────────────────────────────
 // Bench/dev data comes from the shared pix-data cache (non-deterministic across
 // machines), so assertions target structure that holds regardless of cache

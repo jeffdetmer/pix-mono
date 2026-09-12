@@ -121,15 +121,25 @@ interface SpawnOptions {
 	onWarning?: (message: string) => void;
 }
 
+/** Default number of finished (terminal) records kept per session. */
+export const DEFAULT_MAX_RETAINED = 4;
+
 export class AgentManager {
 	private agents = new Map<string, AgentRecord>();
-	private cleanupInterval: ReturnType<typeof setInterval>;
+	/** Monotonic finish counter — eviction order tiebreaker when completedAt collides. */
+	private finishSeq = 0;
+	private finishOrder = new Map<string, number>();
 	private onComplete?: OnAgentComplete;
 	private onStart?: OnAgentStart;
 	private onCompact?: OnAgentCompact;
 	private maxConcurrent: number;
-	/** Completed-record retention: records older than this are cleaned up. */
-	private retentionMs = 10 * 60_000;
+	/**
+	 * Ring-buffer cap: at most this many terminal (completed/steered/aborted/
+	 * stopped/error) records are retained. When a new agent finishes and the count
+	 * exceeds the cap, the oldest terminal record is evicted (its session disposed).
+	 * Running/queued agents never count toward the cap and are never evicted.
+	 */
+	private maxRetained = DEFAULT_MAX_RETAINED;
 	/** Queue of background agents waiting to start. */
 	private queue: { id: string; args: SpawnArgs }[] = [];
 	/** Number of currently running background agents. */
@@ -145,9 +155,6 @@ export class AgentManager {
 		this.onStart = onStart;
 		this.onCompact = onCompact;
 		this.maxConcurrent = maxConcurrent;
-		// Periodically clean up completed agents older than retentionMs
-		this.cleanupInterval = setInterval(() => this.cleanup(), 60_000);
-		this.cleanupInterval.unref();
 	}
 
 	/** Update the max concurrent background agents limit. */
@@ -161,13 +168,14 @@ export class AgentManager {
 		return this.maxConcurrent;
 	}
 
-	/** Set completed-record retention in ms (minimum 1 minute). */
-	setRetentionMs(n: number) {
-		this.retentionMs = Math.max(60_000, n);
+	/** Set the finished-record ring-buffer cap (minimum 1). */
+	setMaxRetained(n: number) {
+		this.maxRetained = Math.max(1, Math.floor(n));
+		this.evictOldTerminal();
 	}
 
-	getRetentionMs(): number {
-		return this.retentionMs;
+	getMaxRetained(): number {
+		return this.maxRetained;
 	}
 
 	/**
@@ -333,7 +341,7 @@ export class AgentManager {
 				}
 				record.result = responseText;
 				record.session = session;
-				record.completedAt ??= Date.now();
+				this.finalize(record);
 
 				detach();
 
@@ -355,7 +363,7 @@ export class AgentManager {
 					record.status = "error";
 				}
 				record.error = err instanceof Error ? err.message : String(err);
-				record.completedAt ??= Date.now();
+				this.finalize(record);
 
 				detach();
 
@@ -386,7 +394,7 @@ export class AgentManager {
 				// so the user/agent can see it via /agents, then keep draining.
 				record.status = "error";
 				record.error = err instanceof Error ? err.message : String(err);
-				record.completedAt = Date.now();
+				this.finalize(record);
 				this.onComplete?.(record);
 			}
 		}
@@ -404,6 +412,9 @@ export class AgentManager {
 		record.completedAt = undefined;
 		record.result = undefined;
 		record.error = undefined;
+		// Re-entering the running set: drop the old finish rank so the resumed
+		// run is ranked by its NEW completion, not treated as the oldest.
+		this.finishOrder.delete(id);
 
 		try {
 			const { responseText, aborted, steered } = await _resumeAgentImpl(record.session, prompt, {
@@ -426,12 +437,11 @@ export class AgentManager {
 			});
 			record.status = aborted ? "aborted" : steered ? "steered" : "completed";
 			record.result = responseText;
-			record.completedAt = Date.now();
 		} catch (err) {
 			record.status = "error";
 			record.error = err instanceof Error ? err.message : String(err);
-			record.completedAt = Date.now();
 		}
+		this.finalize(record);
 
 		return record;
 	}
@@ -454,14 +464,14 @@ export class AgentManager {
 			queued?.args.endActivity?.();
 			this.queue = this.queue.filter((q) => q.id !== id);
 			record.status = "stopped";
-			record.completedAt = Date.now();
+			this.finalize(record);
 			return true;
 		}
 
 		if (record.status !== "running") return false;
 		record.abortController?.abort();
 		record.status = "stopped";
-		record.completedAt = Date.now();
+		this.finalize(record);
 		return true;
 	}
 
@@ -504,15 +514,30 @@ export class AgentManager {
 		record.session?.dispose?.();
 		record.session = undefined;
 		this.agents.delete(id);
+		this.finishOrder.delete(id);
 	}
 
-	private cleanup() {
-		const cutoff = Date.now() - this.retentionMs;
-		for (const [id, record] of this.agents) {
-			if (record.status === "running" || record.status === "queued") continue;
-			if ((record.completedAt ?? 0) >= cutoff) continue;
-			this.removeRecord(id, record);
-		}
+	/**
+	 * Single exit point for every terminal transition: stamp completedAt (first
+	 * write wins — abort() may have stamped before the promise settles), record
+	 * finish order, then trim the ring buffer. Callers set `status` first.
+	 */
+	private finalize(record: AgentRecord): void {
+		record.completedAt ??= Date.now();
+		if (!this.finishOrder.has(record.id)) this.finishOrder.set(record.id, ++this.finishSeq);
+		this.evictOldTerminal();
+	}
+
+	/**
+	 * Ring-buffer trim: keep only the newest `maxRetained` terminal records,
+	 * evicting the oldest first. Running/queued agents are untouched.
+	 */
+	private evictOldTerminal(): void {
+		const terminal = [...this.agents.values()].filter(isTerminal);
+		const excess = terminal.length - this.maxRetained;
+		if (excess <= 0) return;
+		terminal.sort((a, b) => (this.finishOrder.get(a.id) ?? 0) - (this.finishOrder.get(b.id) ?? 0));
+		for (const record of terminal.slice(0, excess)) this.removeRecord(record.id, record);
 	}
 
 	/**
@@ -521,14 +546,13 @@ export class AgentManager {
 	 */
 	clearCompleted(): void {
 		for (const [id, record] of this.agents) {
-			if (record.status === "running" || record.status === "queued") continue;
-			this.removeRecord(id, record);
+			if (isTerminal(record)) this.removeRecord(id, record);
 		}
 	}
 
 	/** Whether any agents are still running or queued. */
 	hasRunning(): boolean {
-		return [...this.agents.values()].some((r) => r.status === "running" || r.status === "queued");
+		return [...this.agents.values()].some((r) => !isTerminal(r));
 	}
 
 	/** Abort all running and queued agents immediately. */
@@ -540,7 +564,7 @@ export class AgentManager {
 			const record = this.agents.get(queued.id);
 			if (record) {
 				record.status = "stopped";
-				record.completedAt = Date.now();
+				this.finalize(record);
 				count++;
 			}
 		}
@@ -550,7 +574,7 @@ export class AgentManager {
 			if (record.status === "running") {
 				record.abortController?.abort();
 				record.status = "stopped";
-				record.completedAt = Date.now();
+				this.finalize(record);
 				count++;
 			}
 		}
@@ -573,12 +597,16 @@ export class AgentManager {
 	}
 
 	dispose() {
-		clearInterval(this.cleanupInterval);
 		// Clear queue
 		this.queue = [];
 		for (const record of this.agents.values()) {
 			record.session?.dispose();
 		}
 		this.agents.clear();
+		this.finishOrder.clear();
 	}
+}
+
+function isTerminal(record: AgentRecord): boolean {
+	return record.status !== "running" && record.status !== "queued";
 }

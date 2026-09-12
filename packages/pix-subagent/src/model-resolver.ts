@@ -42,10 +42,8 @@ export function resolveModel(input: string, registry: ModelRegistry): Model<Api>
 	// 2. Fuzzy match against available models
 	const query = input.toLowerCase();
 
-	// Score each model: prefer exact id match > id contains > name contains > provider+id contains
-	let bestMatch: ModelEntry | undefined;
-	let bestScore = 0;
-
+	// Score each model: prefer exact id match > id contains > name contains > all-parts-present
+	const scored: { m: ModelEntry; score: number }[] = [];
 	for (const m of all) {
 		const id = m.id.toLowerCase();
 		const name = m.name.toLowerCase();
@@ -68,15 +66,25 @@ export function resolveModel(input: string, registry: ModelRegistry): Model<Api>
 		) {
 			score = 20; // all parts present somewhere
 		}
-
-		if (score > bestScore) {
-			bestScore = score;
-			bestMatch = m;
-		}
+		if (score >= 20) scored.push({ m, score });
 	}
 
-	if (bestMatch && bestScore >= 20) {
-		const found = registry.find(bestMatch.provider, bestMatch.id);
+	const best = scored.sort((a, b) => b.score - a.score)[0];
+	if (best) {
+		// Ambiguity guard: when the top matches tie (same score, distinct models),
+		// don't silently pick the first-seen one — a loose typo like "claude" must
+		// not resolve to whichever model happens to come first. Reject and list the
+		// tied candidates so the caller disambiguates. Score 100 is an exact id/full
+		// match and is always unique, so it never triggers this.
+		const tied = scored.filter((s) => best.score - s.score < 0.001);
+		if (tied.length > 1 && best.score < 100) {
+			const options = tied
+				.map((s) => `  ${s.m.provider}/${s.m.id}`)
+				.sort()
+				.join("\n");
+			return `Ambiguous model: "${input}" matches ${tied.length} models equally well.\n\nDid you mean one of:\n${options}`;
+		}
+		const found = registry.find(best.m.provider, best.m.id);
 		if (found) return found;
 	}
 

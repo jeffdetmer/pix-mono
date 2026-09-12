@@ -258,12 +258,47 @@ describe("subagent utility compact renderers", () => {
 		}
 	});
 
-	test("agent_control summarizes info and expands exact content", async () => {
+	test("agent_control summarizes info and expands pretty content", async () => {
 		const tool = createAgentControlTool({} as never, new Map(), () => {});
 		const result = await execute(tool, { action: "info", kind: "models", limit: 5 }, ctx);
 		expect(render(tool, result)).toContain(`${OK} agent_control info models · 5 available`);
+		// Expanded view reformats the raw text into a colored, structured panel:
+		// a `● Models · N` heading, every model id, and the guidance line survive.
 		const text = (result as { content: { text: string }[] }).content[0]?.text ?? "";
-		expect(render(tool, result, true)).toContain(text);
+		const expanded = render(tool, result, true);
+		expect(expanded).toContain("Models · 5");
+		expect(expanded).toContain("parent:");
+		for (const id of text.match(/test\/\w+/g) ?? []) expect(expanded).toContain(id);
+		expect(expanded).toContain("omit model to inherit the parent");
+	});
+
+	test("agent_control info active expands to one structured row per agent", async () => {
+		const manager = {
+			listAgents: () => [
+				{
+					id: "agent-abc",
+					status: "completed",
+					type: "Explore",
+					description: "scout auth flow",
+					invocation: { modelName: "opus 4.8" },
+				},
+				{
+					id: "agent-def",
+					status: "running",
+					type: "Plan",
+					description: "design refactor",
+					invocation: { modelName: "sonnet" },
+				},
+			],
+		};
+		const tool = createAgentControlTool(manager as never, new Map(), () => {});
+		const result = await execute(tool, { action: "info", kind: "active" }, ctx);
+		const expanded = render(tool, result, true);
+		expect(expanded).toContain("Agents · 2");
+		// Each row: <mark> <id> <type> [model] · <desc>
+		expect(expanded).toContain(`${OK} agent-abc Explore [opus 4.8] · scout auth flow`);
+		expect(expanded).toContain("agent-def Plan [sonnet] · design refactor");
+		expect(expanded).toContain("Pass an ID to agent_control");
 	});
 
 	test("agent_control routes result, steer, and stop through one public tool", async () => {

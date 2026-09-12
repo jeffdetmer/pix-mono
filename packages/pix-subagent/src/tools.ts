@@ -41,7 +41,7 @@ import {
 } from "@xynogen/pix-pretty/widget-format";
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
 import { Type } from "typebox";
-import type { AgentManager } from "./agent-manager.ts";
+import { type AgentManager, DEFAULT_MAX_RETAINED } from "./agent-manager.ts";
 import {
 	getAgentConversation,
 	getAgentLastTurns,
@@ -177,6 +177,223 @@ function resultText(result: { content: { type: string; text?: string }[] }): str
 		.join("\n");
 }
 
+/** Split `s` on the first occurrence of `sep`; the separator is discarded. */
+function splitFirst(s: string, sep: string): [string, string] {
+	const i = s.indexOf(sep);
+	return i < 0 ? [s, ""] : [s.slice(0, i), s.slice(i + sep.length)];
+}
+
+/** Colored, width-normalized status marker shared by every expanded utility row. */
+function statusMark(status: string, theme: Theme): string {
+	switch (status) {
+		case "completed":
+		case "steered":
+		case "delivered":
+		case "success":
+			return theme.fg("success", padIcon(icon("status.ok")));
+		case "running":
+		case "queued":
+		case "background":
+			return theme.fg("accent", padIcon(icon("status.running")));
+		case "stopped":
+			return theme.fg("muted", padIcon("■"));
+		case "aborted":
+		case "warning":
+		case "already-finished":
+			return theme.fg("warning", padIcon(icon("status.warn")));
+		default: // error, not-found, invalid
+			return theme.fg("error", padIcon(icon("status.error")));
+	}
+}
+
+/** `● Agents · 3` heading built from details (label + count). */
+function utilityHeading(label: string, count: number, theme: Theme): string {
+	return `${theme.fg("accent", icon("status.active"))} ${theme.fg("toolTitle", theme.bold(label))} ${theme.fg("muted", `· ${count}`)}`;
+}
+
+// ── expanded pretty renderers ────────────────────────────────────────────────
+// ponytail: these reparse the plain text emitted by the tools' execute(); if the
+// execute() line format changes, update the split logic here. Ceiling: a format
+// drift degrades to a dim raw line, never crashes. Upgrade path: have execute()
+// return structured rows in `details` instead of a joined string.
+
+/** `info active` — one row per agent: <mark> <id> <type>[model] · <desc>. */
+function formatInfoActive(text: string, count: number, theme: Theme): string {
+	const raw = text.split("\n");
+	const guidance = raw.filter((l) => l.trim()).pop();
+	const headingIdx = raw.findIndex((l) => l.trimEnd().endsWith(":"));
+	const dataLines = raw.slice(headingIdx + 1).filter((l) => l.trim() && l !== guidance);
+	const out = [utilityHeading("Agents", count, theme)];
+	for (const line of dataLines) {
+		if (line.trim() === "(none)") {
+			out.push(theme.fg("muted", "  (none)"));
+			continue;
+		}
+		const [id, rest] = splitFirst(line, "  — ");
+		if (!rest) {
+			out.push(theme.fg("dim", `  ${line.trim()}`));
+			continue;
+		}
+		const segs = rest.split(" · ");
+		const status = segs[0]?.trim() ?? "";
+		const typeModel = segs[1] ?? "";
+		const desc = segs.slice(2).join(" · ");
+		const mm = typeModel.match(/^(.*?)\s*(\[[^\]]*\])?\s*$/);
+		const type = mm?.[1]?.trim() ?? typeModel.trim();
+		const model = mm?.[2] ?? "";
+		const head = dotJoin(
+			[
+				`${statusMark(status, theme)} ${theme.fg("dim", id.trim())} ${theme.fg("toolTitle", type)}${model ? ` ${theme.fg("muted", model)}` : ""}`,
+				desc ? theme.fg("muted", desc) : "",
+			],
+			(s) => theme.fg("muted", s),
+		);
+		out.push(`  ${head}`);
+	}
+	if (guidance) out.push("", theme.fg("muted", `  ${guidance}`));
+	return out.join("\n");
+}
+
+/** `info types` — <name> <tools> · <desc>. */
+function formatInfoTypes(text: string, count: number, theme: Theme): string {
+	const raw = text.split("\n");
+	const guidance = raw.filter((l) => l.trim()).pop();
+	const headingIdx = raw.findIndex((l) => l.trimEnd().endsWith(":"));
+	const dataLines = raw.slice(headingIdx + 1).filter((l) => l.trim().startsWith("-"));
+	const out = [utilityHeading("Agent types", count, theme)];
+	for (const line of dataLines) {
+		const body = line.replace(/^\s*-\s*/, "");
+		const ci = body.indexOf(": ");
+		const name = ci < 0 ? body : body.slice(0, ci);
+		const rest = ci < 0 ? "" : body.slice(ci + 2);
+		const tm = rest.match(/\s*\(tools:([^)]*)\)\s*$/);
+		const tools = tm?.[1] ?? "";
+		const desc = tm ? rest.slice(0, tm.index).trim() : rest.trim();
+		out.push(
+			`  ${dotJoin(
+				[
+					`${theme.fg("toolTitle", name)}${tools ? ` ${theme.fg("dim", tools)}` : ""}`,
+					desc ? theme.fg("muted", desc) : "",
+				],
+				(s) => theme.fg("muted", s),
+			)}`,
+		);
+	}
+	if (guidance) out.push("", theme.fg("muted", `  ${guidance}`));
+	return out.join("\n");
+}
+
+/** `info models` — parent line + <id> — <meta>. */
+function formatInfoModels(text: string, count: number, theme: Theme): string {
+	const raw = text.split("\n");
+	const guidance = raw.filter((l) => l.trim()).pop();
+	const parentLine = raw.find((l) => l.startsWith("Current parent:"));
+	const headingIdx = raw.findIndex((l) => l.trimEnd().endsWith(":"));
+	const dataLines = raw
+		.slice(headingIdx + 1)
+		.filter((l) => l.trim() && l !== guidance && !l.startsWith("Current parent:"));
+	const out = [utilityHeading("Models", count, theme)];
+	if (parentLine) {
+		const val = parentLine.slice("Current parent:".length).trim();
+		out.push(`  ${theme.fg("muted", "parent:")} ${theme.fg("dim", val)}`);
+	}
+	for (const line of dataLines) {
+		if (line.trim() === "(none)") {
+			out.push(theme.fg("muted", "  (none)"));
+			continue;
+		}
+		const [id, meta] = splitFirst(line, "  — ");
+		out.push(`  ${theme.fg("dim", id.trim())}${meta ? ` ${theme.fg("muted", `— ${meta}`)}` : ""}`);
+	}
+	if (guidance) out.push("", theme.fg("muted", `  ${guidance}`));
+	return out.join("\n");
+}
+
+/** `result`/`steer`/`stop` — colored header row + dim, indented body. */
+function formatUtilityAction(
+	verb: string,
+	agentId: string,
+	statusWord: string,
+	meta: string,
+	body: string,
+	theme: Theme,
+): string {
+	const header = dotJoin(
+		[
+			`${statusMark(statusWord, theme)} ${theme.fg("toolTitle", theme.bold("agent_control"))} ${theme.fg("dim", `${verb} ${agentId}`)}`,
+			meta ? theme.fg("muted", meta) : "",
+		],
+		(s) => theme.fg("muted", s),
+	);
+	const bodyLines = body
+		.split("\n")
+		.filter((l) => l.trim())
+		.map((l) => theme.fg("dim", `  ${l}`));
+	return [header, ...bodyLines].join("\n");
+}
+
+/** Pick the pretty expanded body + error flag for one utility result. */
+function renderExpandedUtility(
+	details: AgentUtilityResultDetails,
+	text: string,
+	theme: Theme,
+	ctxIsError: boolean,
+): { pretty?: string; isError?: boolean } {
+	if (details._type === "agent-info") {
+		const pretty =
+			details.kind === "active"
+				? formatInfoActive(text, details.count, theme)
+				: details.kind === "types"
+					? formatInfoTypes(text, details.count, theme)
+					: formatInfoModels(text, details.count, theme);
+		return { pretty, isError: ctxIsError };
+	}
+	if (details._type === "agent-result") {
+		let isError: boolean | undefined;
+		if (details.status === "completed" || details.status === "steered") isError = false;
+		else if (details.status === "error" || details.status === "not-found") isError = true;
+		else if ((details.status === "aborted" || details.status === "stopped") && ctxIsError)
+			isError = true;
+		const meta =
+			details.status === "not-found"
+				? "not found"
+				: details.turns != null
+					? `last ${details.turns} turn${details.turns === 1 ? "" : "s"}`
+					: details.status;
+		return {
+			pretty: formatUtilityAction("result", details.agentId, details.status, meta, text, theme),
+			isError,
+		};
+	}
+	let isError: boolean | undefined;
+	if (details.outcome === "delivered") isError = false;
+	else if (
+		details.outcome === "not-found" ||
+		details.outcome === "invalid" ||
+		details.outcome === "error"
+	)
+		isError = true;
+	else if ((details.outcome === "stopped" || details.outcome === "already-finished") && ctxIsError)
+		isError = true;
+	let meta: string = details.outcome;
+	if (details.outcome === "stopped") {
+		if (text.includes("Partial output saved")) meta = "partial output saved";
+		else if (text.includes("summarize its progress")) meta = "summarizing progress";
+	} else if (details.outcome === "already-finished") meta = "already finished";
+	else if (details.outcome === "not-found") meta = "not found";
+	return {
+		pretty: formatUtilityAction(
+			details.action,
+			details.agentId,
+			details.outcome,
+			meta,
+			text,
+			theme,
+		),
+		isError,
+	};
+}
+
 function renderAgentUtilityResult(
 	result: { content: { type: string; text?: string }[]; details?: unknown },
 	expanded: boolean,
@@ -205,32 +422,14 @@ function renderAgentUtilityResult(
 	);
 
 	if (!collapsed) {
-		let isError: boolean | undefined;
-		if (details._type === "agent-info") {
-			isError = renderCtx.isError === true;
-		} else if (details._type === "agent-result") {
-			if (details.status === "completed" || details.status === "steered") isError = false;
-			else if (details.status === "error" || details.status === "not-found") isError = true;
-			else if (
-				(details.status === "aborted" || details.status === "stopped") &&
-				renderCtx.isError === true
-			)
-				isError = true;
-		} else if (details.outcome === "delivered") {
-			isError = false;
-		} else if (
-			details.outcome === "not-found" ||
-			details.outcome === "invalid" ||
-			details.outcome === "error"
-		) {
-			isError = true;
-		} else if (
-			(details.outcome === "stopped" || details.outcome === "already-finished") &&
-			renderCtx.isError === true
-		) {
-			isError = true;
-		}
-		return isError == null ? component : frameToolResult(component, theme, isError);
+		const { pretty, isError } = renderExpandedUtility(
+			details,
+			text,
+			theme,
+			renderCtx.isError === true,
+		);
+		const view = pretty ? new Text(pretty, 0, 0) : component;
+		return isError == null ? view : frameToolResult(view, theme, isError);
 	}
 
 	if (details._type === "agent-info") {
@@ -459,12 +658,13 @@ export function createAgentInfoTool(reloadCustomAgents: () => void, manager?: Ag
 		name: "agent_info",
 		label: "Agent Info",
 		renderShell: "self",
-		description: "List runtime agent types, available models, or active agent IDs.",
+		description:
+			"List runtime agent types, available models, or agent IDs (running plus retained finished).",
 		parameters: Type.Object({
 			kind: Type.Enum(["types", "models", "active"] as const, {
 				type: "string",
 				description:
-					'Catalog: "types" = roles/tools; "models" = available models; "active" = running agent IDs.',
+					'Catalog: "types" = roles/tools; "models" = available models; "active" = agent IDs (running/queued plus retained finished, so completed IDs stay recoverable).',
 			}),
 			query: Type.Optional(Type.String({ description: "Optional text filter." })),
 			limit: Type.Optional(
@@ -509,15 +709,18 @@ export function createAgentInfoTool(reloadCustomAgents: () => void, manager?: Ag
 				parent = `Current parent: ${describeParentModel(ctx.modelRegistry, ctx.model)}\n\n`;
 			} else if (params.kind === "active") {
 				const needle = normalizeQuery(query);
+				// Show running/queued first, then retained finished agents (still in the
+				// ring buffer) so their IDs stay recoverable for agent_control result.
+				const rank = (s: string) => (s === "running" || s === "queued" ? 0 : 1);
 				lines = (manager?.listAgents() ?? [])
-					.filter((record) => record.status === "running" || record.status === "queued")
+					.sort((a, b) => rank(a.status) - rank(b.status))
 					.map((record) => {
 						const model = record.invocation?.modelName ? ` [${record.invocation.modelName}]` : "";
 						return `${record.id}  — ${record.status} · ${record.type}${model} · ${record.description}`;
 					})
 					.filter((line) => !needle || line.toLocaleLowerCase().includes(needle))
 					.slice(0, limit);
-				heading = "Active agents";
+				heading = "Agents";
 				guidance = "Pass an ID to agent_control with action steer/stop/result.";
 			} else {
 				lines = listAgentTypes(query, limit);
@@ -898,7 +1101,9 @@ export function createAgentTool(
 			if (params.resume) {
 				const existing = manager.getRecord(params.resume as string);
 				if (!existing)
-					return textResult(`Agent not found: "${params.resume}". It may have been cleaned up.`);
+					return textResult(
+						`Agent not found: "${params.resume}". Only the last ${DEFAULT_MAX_RETAINED} finished agents are kept per session; older ones are evicted.`,
+					);
 				if (!existing.session)
 					return textResult(`Agent "${params.resume}" has no active session to resume.`);
 				const record = await manager.resume(
@@ -1171,7 +1376,7 @@ export function createAgentResultTool(
 			const record = manager.getRecord(id);
 			if (!record) {
 				return textResult(
-					`Agent not found: "${id}". It may have been cleaned up or the ID is wrong.`,
+					`Agent not found: "${id}". Only the last ${DEFAULT_MAX_RETAINED} finished agents are kept per session (older ones are evicted), or the ID is wrong.`,
 					{
 						_type: "agent-result",
 						agentId: id,

@@ -59,7 +59,7 @@ test("agent_info exposes kind as a string enum with actionable guidance", () => 
 	expect(kind.type).toBe("string");
 	expect(kind.enum).toEqual(["types", "models", "active"]);
 	expect(kind.description).toBe(
-		'Catalog: "types" = roles/tools; "models" = available models; "active" = running agent IDs.',
+		'Catalog: "types" = roles/tools; "models" = available models; "active" = agent IDs (running/queued plus retained finished, so completed IDs stay recoverable).',
 	);
 });
 
@@ -97,6 +97,41 @@ test("agent info lists active IDs usable by agent_control", async () => {
 	expect(text).toContain("Inspect renderers");
 	expect(text).toContain("agent_control");
 	expect(text).not.toContain("agent-done-456");
+});
+
+test("agent info lists retained finished agents so their IDs stay recoverable", async () => {
+	const manager = {
+		listAgents: () => [
+			{
+				id: "agent-running-1",
+				type: "general",
+				description: "live one",
+				status: "running",
+				startedAt: Date.now(),
+			},
+			{
+				id: "agent-finished-2",
+				type: "general",
+				description: "done one",
+				status: "completed",
+				startedAt: Date.now() - 1_000,
+			},
+		],
+	};
+	const tool = createAgentControlTool(manager as never, new Map(), () => {});
+	const result = (await tool.execute(
+		"call",
+		{ action: "info", kind: "active", limit: 20 },
+		new AbortController().signal,
+		undefined,
+		{} as never,
+	)) as { content: Array<{ type: string; text: string }> };
+	const text = result.content[0]?.text ?? "";
+
+	// Both surface; running is listed before finished.
+	expect(text).toContain("agent-running-1");
+	expect(text).toContain("agent-finished-2");
+	expect(text.indexOf("agent-running-1")).toBeLessThan(text.indexOf("agent-finished-2"));
 });
 
 test("agent exposes thinking as a guided string enum", () => {

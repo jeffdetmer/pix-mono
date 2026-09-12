@@ -12,6 +12,7 @@ import {
 	__setResumeAgentForTests,
 	__setRunAgentForTests,
 	AgentManager,
+	DEFAULT_MAX_RETAINED,
 	type OnAgentComplete,
 	type OnAgentStart,
 } from "../src/agent-manager.ts";
@@ -860,17 +861,152 @@ describe("AgentManager", () => {
 		expect(record.completedAt).toBeLessThanOrEqual(after);
 	});
 
-	// ── retentionMs ────────────────────────────────────────────────────────
+	// ── maxRetained ring buffer ────────────────────────────────────────────
 
-	test("setRetentionMs / getRetentionMs roundtrips", () => {
-		manager = new AgentManager(undefined, 4);
-		manager.setRetentionMs(300_000);
-		expect(manager.getRetentionMs()).toBe(300_000);
+	const spawnBg = (i: number) =>
+		manager.spawn(pi, ctx, "general", `task ${i}`, {
+			description: `agent ${i}`,
+			isBackground: true,
+		});
+	/** Settle the record's promise so the .then/.catch finalizer has run. */
+	const settle = (id: string) => manager.getRecord(id)?.promise;
+
+	test("default cap is DEFAULT_MAX_RETAINED (4); setter floors at 1", () => {
+		manager = new AgentManager();
+		expect(manager.getMaxRetained()).toBe(DEFAULT_MAX_RETAINED);
+		expect(DEFAULT_MAX_RETAINED).toBe(4);
+		manager.setMaxRetained(0);
+		expect(manager.getMaxRetained()).toBe(1);
+		manager.setMaxRetained(2.9);
+		expect(manager.getMaxRetained()).toBe(2);
 	});
 
-	test("setRetentionMs enforces minimum of 1 minute", () => {
-		manager = new AgentManager(undefined, 4);
-		manager.setRetentionMs(1000); // too low
-		expect(manager.getRetentionMs()).toBe(60_000);
+	test("keeps exactly the last N finished, FIFO eviction", async () => {
+		const calls = installFakeRunAgent();
+		manager = new AgentManager(undefined, 10);
+		const ids = [0, 1, 2, 3, 4, 5].map(spawnBg);
+
+		for (let i = 0; i < ids.length; i++) {
+			calls[i]!.resolve(`r${i}`);
+			await settle(ids[i]!);
+		}
+
+		// 6 finished, cap 4 → the two oldest are gone, newest four survive intact.
+		expect(manager.getRecord(ids[0]!)).toBeUndefined();
+		expect(manager.getRecord(ids[1]!)).toBeUndefined();
+		expect(ids.slice(2).map((id) => manager.getRecord(id)?.result)).toEqual([
+			"r2",
+			"r3",
+			"r4",
+			"r5",
+		]);
+	});
+
+	test("eviction counts every terminal path: error, abort, abortAll", async () => {
+		const calls = installFakeRunAgent();
+		manager = new AgentManager(undefined, 10);
+		manager.setMaxRetained(2);
+		const [a, b, c, d] = [0, 1, 2, 3].map(spawnBg) as [string, string, string, string];
+
+		calls[0]!.resolve();
+		await settle(a); // completed
+		calls[1]!.reject(new Error("boom"));
+		await settle(b); // error
+		manager.abort(c); // stopped (sync)
+		expect(manager.getRecord(a)).toBeUndefined(); // cap 2: a evicted after c
+		expect(manager.getRecord(b)?.status).toBe("error");
+		expect(manager.getRecord(c)?.status).toBe("stopped");
+
+		manager.abortAll(); // d stopped
+		expect(manager.getRecord(b)).toBeUndefined();
+		expect(manager.getRecord(c)?.status).toBe("stopped");
+		expect(manager.getRecord(d)?.status).toBe("stopped");
+
+		// Settle the aborted promises so no dangling handlers leak into other tests.
+		calls[2]!.resolve();
+		calls[3]!.resolve();
+		await Promise.allSettled([settle(c), settle(d)]);
+	});
+
+	test("running and queued agents never count toward or fall out of the cap", async () => {
+		const calls = installFakeRunAgent();
+		manager = new AgentManager(undefined, 1); // force queueing
+		manager.setMaxRetained(1);
+		const running = spawnBg(0);
+		const queued = spawnBg(1);
+		expect(manager.getRecord(queued)?.status).toBe("queued");
+
+		// Lower the cap far below the live count — nothing live may be evicted.
+		manager.setMaxRetained(1);
+		expect(manager.getRecord(running)?.status).toBe("running");
+		expect(manager.getRecord(queued)?.status).toBe("queued");
+
+		calls[0]!.resolve();
+		await settle(running); // running finishes → queued starts
+		calls[1]!.resolve();
+		await settle(queued);
+
+		// Cap 1: the first finisher is evicted, the second retained.
+		expect(manager.getRecord(running)).toBeUndefined();
+		expect(manager.getRecord(queued)?.status).toBe("completed");
+	});
+
+	test("evicted record's session is disposed", async () => {
+		const calls = installFakeRunAgent();
+		manager = new AgentManager(undefined, 10);
+		manager.setMaxRetained(1);
+		const [a, b] = [0, 1].map(spawnBg) as [string, string];
+
+		calls[0]!.resolve();
+		await settle(a);
+		let disposed = false;
+		const rec = manager.getRecord(a);
+		if (!rec?.session) throw new Error("expected session");
+		rec.session.dispose = () => {
+			disposed = true;
+		};
+
+		calls[1]!.resolve();
+		await settle(b);
+		expect(manager.getRecord(a)).toBeUndefined();
+		expect(disposed).toBe(true);
+	});
+
+	test("lowering the cap trims immediately", async () => {
+		const calls = installFakeRunAgent();
+		manager = new AgentManager(undefined, 10);
+		const ids = [0, 1, 2].map(spawnBg);
+		for (let i = 0; i < ids.length; i++) {
+			calls[i]!.resolve();
+			await settle(ids[i]!);
+		}
+		expect(manager.listAgents()).toHaveLength(3);
+
+		manager.setMaxRetained(1);
+		expect(manager.listAgents().map((r) => r.id)).toEqual([ids[2]!]);
+	});
+
+	test("resume re-ranks the record as the newest finisher", async () => {
+		const calls = installFakeRunAgent();
+		const resumes = installFakeResumeAgent();
+		manager = new AgentManager(undefined, 10);
+		manager.setMaxRetained(2);
+		const [a, b, c] = [0, 1, 2].map(spawnBg) as [string, string, string];
+
+		calls[0]!.resolve();
+		await settle(a);
+		calls[1]!.resolve();
+		await settle(b);
+
+		// Resume `a` — it becomes the newest finisher, so `b` is now oldest.
+		const resumed = manager.resume(a, "again");
+		resumes[0]!.resolve("a2");
+		await resumed;
+
+		calls[2]!.resolve();
+		await settle(c);
+		expect(manager.getRecord(b)).toBeUndefined();
+		expect(manager.getRecord(a)?.result).toBe("a2");
+		expect(manager.getRecord(c)?.status).toBe("completed");
 	});
 });

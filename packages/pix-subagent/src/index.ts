@@ -23,16 +23,25 @@ import { getSessionContextUsage, type SessionLike } from "./usage.ts";
 
 const EXTENSION_KEY = "pix-subagent";
 
-// Reload guard key — stored on globalThis so a dev-reload cleans up stale state
+// Reload guard — keyed per `pi` host so a dev-reload on the SAME host cleans
+// up stale state, while a child subagent session (which loads this extension
+// again with its OWN `pi`) never disposes the parent's manager. A plain
+// globalThis function slot did exactly that: every spawn wiped the parent's
+// agent map, so agent_control saw "(none)" / "Agent not found" as soon as a
+// child booted. Lives on globalThis because jiti re-evaluates this module.
 const CLEANUP_KEY = `__${EXTENSION_KEY}Cleanup`;
+const cleanupByHost: WeakMap<object, () => void> = (() => {
+	const g = globalThis as { [CLEANUP_KEY]?: WeakMap<object, () => void> };
+	if (!g[CLEANUP_KEY]) g[CLEANUP_KEY] = new WeakMap();
+	return g[CLEANUP_KEY];
+})();
 
 export default function registerPixSubagent(pi: ExtensionAPI): void {
 	// ── Cleanup stale timers from a prior reload ───────────────────────────────
-	const g = globalThis as Record<string, unknown>;
-	const prevCleanup = g[CLEANUP_KEY];
-	if (typeof prevCleanup === "function") {
+	const prevCleanup = cleanupByHost.get(pi);
+	if (prevCleanup) {
 		try {
-			(prevCleanup as () => void)();
+			prevCleanup();
 		} catch {
 			/* best effort */
 		}
@@ -207,7 +216,7 @@ export default function registerPixSubagent(pi: ExtensionAPI): void {
 
 	pi.on("session_shutdown", () => {
 		runtimeCleanup();
-		if (g[CLEANUP_KEY] === runtimeCleanup) delete g[CLEANUP_KEY];
+		if (cleanupByHost.get(pi) === runtimeCleanup) cleanupByHost.delete(pi);
 	});
-	g[CLEANUP_KEY] = runtimeCleanup;
+	cleanupByHost.set(pi, runtimeCleanup);
 }
