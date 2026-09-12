@@ -66,6 +66,7 @@ import {
 	MAX_OUTPUT_LINES,
 	parseHost,
 	probeKeyAuth,
+	probePasswordAuth,
 	probeSudoNoPassword,
 	readSshConfigAliases,
 	resolveHostInfo,
@@ -99,6 +100,23 @@ const approvedHosts = new Map<string, number>();
 
 function cacheKey(spec: HostSpec): string {
 	return `${spec.user ?? ""}@${spec.host}:${spec.port ?? 22}`;
+}
+
+/**
+ * Overlay password validator for a prompt stage. The login stage tests the
+ * password against the host (wrong one re-prompts up to MAX_PASSWORD_ATTEMPTS);
+ * the sudo stage can't be probed before login, so it only rejects a blank entry
+ * and surfaces a real failure on the run.
+ */
+export function validatorFor(
+	stage: "login" | "sudo",
+	spec: HostSpec,
+	controlPath: string,
+	sig?: AbortSignal,
+): (pw: string) => Promise<boolean> {
+	if (stage !== "login") return (pw) => Promise.resolve(pw.trim().length > 0);
+	return (pw) =>
+		pw.trim().length === 0 ? Promise.resolve(false) : probePasswordAuth(spec, controlPath, pw, sig);
 }
 
 type SshOutcome =
@@ -647,7 +665,11 @@ export default function (pi: ExtensionAPI): void {
 							timeoutMs: PROMPT_TIMEOUT_MS,
 							maxPasswordAttempts: MAX_PASSWORD_ATTEMPTS,
 							passwordLabel: `${label}:`,
-							validatePassword: (pw) => Promise.resolve(pw.trim().length > 0),
+							// Login stage: actually test the password against the host so a
+							// wrong one re-prompts (up to MAX_PASSWORD_ATTEMPTS), mirroring
+							// pix-sudo. Sudo stage can't be validated until login succeeds, so
+							// it keeps the non-empty check and surfaces failures on the run.
+							validatePassword: validatorFor(stage, spec, controlPath, sig),
 							choices: [
 								{
 									value: "yes",

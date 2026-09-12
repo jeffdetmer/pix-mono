@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerSsh from "./index.ts";
+import registerSsh, { validatorFor } from "./index.ts";
 import {
 	baseScpArgs,
 	baseSshArgs,
@@ -292,6 +292,21 @@ describe("commandEscalatesPrivilege", () => {
 		expect(commandEscalatesPrivilege("ls -la")).toBe(false);
 		expect(commandEscalatesPrivilege("pseudo-tty")).toBe(false);
 		expect(commandEscalatesPrivilege("cat sudoku.txt")).toBe(false);
+	});
+});
+
+describe("validatorFor", () => {
+	const spec = { host: "h", user: "root" };
+	it("sudo stage: rejects blank, accepts any non-empty (no host probe)", async () => {
+		const v = validatorFor("sudo", spec, "/tmp/cp");
+		expect(await v("")).toBe(false);
+		expect(await v("   ")).toBe(false);
+		expect(await v("anything")).toBe(true);
+	});
+	it("login stage: rejects blank without probing the host", async () => {
+		const v = validatorFor("login", spec, "/tmp/cp");
+		expect(await v("")).toBe(false);
+		expect(await v("  ")).toBe(false);
 	});
 });
 

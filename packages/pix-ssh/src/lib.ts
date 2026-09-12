@@ -455,6 +455,57 @@ export function probeKeyAuth(
 }
 
 /**
+ * Validate an SSH *login* password by attempting one real password auth. Forces
+ * password auth (no pubkey/agent) with a single prompt, fed via `sshpass -e`
+ * (env, never argv). Returns true only on a clean login; an auth rejection
+ * returns false so the overlay can re-prompt. Unreachable/spawn errors return
+ * true — a password can't fix connectivity, so defer to the real run instead of
+ * burning retry attempts. ponytail: each call is one fresh connection (its own
+ * MaxAuthTries counter, NumberOfPasswordPrompts=1), so retries don't stack
+ * toward a per-connection lockout; a host with fail2ban-style IP banning is the
+ * ceiling — then drop back to a single prompt.
+ */
+export function probePasswordAuth(
+	spec: HostSpec,
+	controlPath: string,
+	password: string,
+	signal?: AbortSignal,
+): Promise<boolean> {
+	const args = [
+		"-e",
+		"ssh",
+		...baseSshArgs(spec, controlPath),
+		"-o",
+		"BatchMode=no",
+		"-o",
+		"PubkeyAuthentication=no",
+		"-o",
+		"PreferredAuthentications=password",
+		"-o",
+		"NumberOfPasswordPrompts=1",
+		hostTarget(spec),
+		"true",
+	];
+	return new Promise((resolve) => {
+		let stderr = "";
+		const proc = spawn("sshpass", args, {
+			stdio: ["ignore", "ignore", "pipe"],
+			env: { ...process.env, SSHPASS: password },
+		});
+		proc.stderr.on("data", (c: Buffer) => {
+			stderr += c.toString();
+		});
+		proc.on("error", () => resolve(true));
+		proc.on("close", (code) => {
+			if (code === 0) return resolve(true);
+			if (isUnreachable(stderr)) return resolve(true);
+			resolve(false);
+		});
+		signal?.addEventListener("abort", () => proc.kill("SIGTERM"), { once: true });
+	});
+}
+
+/**
  * Probe whether remote sudo runs without a password (NOPASSWD sudoers) via
  * `sudo -n true`. Returns true when no sudo password is needed. Requires a
  * passwordless SSH connection (key/agent/existing-master or a cached login
