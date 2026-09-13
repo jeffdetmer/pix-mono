@@ -137,6 +137,36 @@ describe("proxy auto auth", () => {
 		);
 	});
 
+	it("merges ephemeral env override into the connect definition (not config)", async () => {
+		const { executeConnect } = await import("../src/proxy-modes.ts");
+		let seenDef: any;
+		const fresh = { status: "connected", tools: [], resources: [] };
+		const manager = {
+			close: mock(async () => {}),
+			connect: mock(async (_name: string, def: any) => {
+				seenDef = def;
+				return fresh;
+			}),
+			getConnection: mock(() => fresh),
+		};
+		const config = {
+			settings: { toolPrefix: "server" },
+			mcpServers: { demo: { command: "demo", env: { KEEP: "1" } } },
+		};
+		const state = {
+			config,
+			manager,
+			toolMetadata: new Map(),
+			failureTracker: new Map(),
+		} as any;
+
+		await executeConnect(state, "demo", undefined, { API_KEY: "sk-x" });
+
+		expect(seenDef.env).toEqual({ KEEP: "1", API_KEY: "sk-x" });
+		// config untouched — override is ephemeral
+		expect(config.mcpServers.demo.env).toEqual({ KEEP: "1" });
+	});
+
 	it("auto-authenticates and retries executeConnect once", async () => {
 		const { executeConnect } = await import("../src/proxy-modes.ts");
 

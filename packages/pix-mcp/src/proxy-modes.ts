@@ -699,10 +699,11 @@ export async function executeConnect(
 	state: McpExtensionState,
 	serverName: string,
 	signal?: AbortSignal,
+	envOverride?: Record<string, string>,
 ): Promise<ProxyToolResult> {
 	throwIfAborted(signal);
-	const definition = state.config.mcpServers[serverName];
-	if (!definition) {
+	const configured = state.config.mcpServers[serverName];
+	if (!configured) {
 		return {
 			content: [
 				{
@@ -713,6 +714,12 @@ export async function executeConnect(
 			details: { mode: "connect", error: "not_found", server: serverName },
 		};
 	}
+
+	// ponytail: env passed at connect is ephemeral (merged over config.env for this
+	// connect only, never written to config). Agent-supplied secrets stay out of disk.
+	const definition = envOverride
+		? { ...configured, env: { ...configured.env, ...envOverride } }
+		: configured;
 
 	try {
 		if (state.ui) {

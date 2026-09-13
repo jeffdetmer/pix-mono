@@ -416,6 +416,8 @@ export function createDirectToolExecutor(
 			);
 
 			const result = await abortable(resultPromise, signal);
+			// SAFETY: callTool returns the SDK CallToolResult shape; the local widened
+			// result type is structurally the same, only nominally distinct here.
 			uiSession?.sendToolResult(
 				result as unknown as import("@modelcontextprotocol/client").CallToolResult,
 			);

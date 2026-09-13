@@ -344,7 +344,12 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 			parameters: Type.Object({
 				tool: Type.Optional(Type.String({ description: "Call this tool" })),
 				args: Type.Optional(Type.String({ description: "Tool arguments as a JSON object string" })),
-				connect: Type.Optional(Type.String({ description: "Connect or refresh this server" })),
+				connect: Type.Optional(
+					Type.String({
+						description:
+							'Connect or refresh this server. Pass ephemeral env via args, e.g. args: \'{"env":{"API_KEY":"sk-..."}}\' — merged over config env for this connect only, never persisted.',
+					}),
+				),
 				describe: Type.Optional(Type.String({ description: "Show one tool's schema" })),
 				search: Type.Optional(Type.String({ description: "Find tools by name or description" })),
 				server: Type.Optional(Type.String({ description: "Filter/disambiguate by server" })),
@@ -462,7 +467,24 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 					return executeCall(state, params.tool, parsedArgs, params.server, getPiTools, signal);
 				}
 				if (params.connect) {
-					return executeConnect(state, params.connect, signal);
+					const envRaw = parsedArgs?.env;
+					if (
+						envRaw !== undefined &&
+						(typeof envRaw !== "object" ||
+							envRaw === null ||
+							Array.isArray(envRaw) ||
+							Object.values(envRaw).some((v) => typeof v !== "string"))
+					) {
+						throw new Error(
+							'Invalid env: expected a JSON object of strings, e.g. args: \'{"env":{"API_KEY":"sk-..."}}\'',
+						);
+					}
+					return executeConnect(
+						state,
+						params.connect,
+						signal,
+						envRaw as Record<string, string> | undefined,
+					);
 				}
 				if (params.describe) {
 					return executeDescribe(state, params.describe);
