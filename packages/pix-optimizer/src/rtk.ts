@@ -11,6 +11,7 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { showTransientError } from "@xynogen/pix-pretty/transient-error";
 import { canExecute } from "./capability.ts";
 import { loadOptValue, saveOptValue } from "./persist.ts";
 import type { OptimizerHandle, OptimizerStatus } from "./status.ts";
@@ -285,7 +286,12 @@ export function rtk(pi: ExtensionAPI, status: OptimizerStatus): OptimizerHandle 
 
 	async function run(value: string, ctx: ExtensionCommandContext): Promise<void> {
 		enabled = value === "on";
-		saveOptValue("rtk", enabled ? "on" : "off");
+		try {
+			saveOptValue("rtk", enabled ? "on" : "off");
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			showTransientError(ctx.ui, `optimizer: failed to save rtk: ${detail}`);
+		}
 
 		await checkRtkAvailability();
 		syncStatus(ctx);

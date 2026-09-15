@@ -580,7 +580,28 @@ describe("mcpAdapter session lifecycle", () => {
 		expect(commandNames).not.toContain("mcp-auth");
 	});
 
-	it("logs initialization errors when updateStatusBar throws", async () => {
+	it("renders OAuth initialization warnings through the session UI", async () => {
+		mocks.initializeOAuth.mockRejectedValue(new Error("auth store unavailable"));
+		const consoleError = spyOn(console, "error").mockImplementation(() => {});
+
+		try {
+			const { default: mcpAdapter } = await import("../src/index.ts");
+			const { api, handlers } = createPi();
+			mcpAdapter(api);
+			const setWidget = mock();
+
+			await handlers.get("session_start")?.({}, { hasUI: true, ui: { setWidget } });
+
+			expect(setWidget).toHaveBeenCalledWith("pix-transient-error", expect.any(Function), {
+				placement: "aboveEditor",
+			});
+			expect(consoleError).not.toHaveBeenCalled();
+		} finally {
+			consoleError.mockRestore();
+		}
+	});
+
+	it("renders initialization errors through the session UI", async () => {
 		const state = createState();
 		mocks.initializeMcp.mockResolvedValue(state);
 		mocks.updateStatusBar.mockImplementation(() => {
@@ -593,16 +614,20 @@ describe("mcpAdapter session lifecycle", () => {
 			const { default: mcpAdapter } = await import("../src/index.ts");
 			const { api, handlers } = createPi();
 			mcpAdapter(api);
+			const setWidget = mock();
 
 			const sessionStart = handlers.get("session_start");
 			expect(sessionStart).toBeTypeOf("function");
 
-			await sessionStart?.({}, {});
+			await sessionStart?.({}, { hasUI: true, ui: { setWidget } });
 			await Promise.resolve();
 			await Promise.resolve();
 			await new Promise((resolve) => setImmediate(resolve));
 
-			expect(consoleError).toHaveBeenCalledWith("MCP initialization failed:", expect.any(Error));
+			expect(setWidget).toHaveBeenCalledWith("pix-transient-error", expect.any(Function), {
+				placement: "aboveEditor",
+			});
+			expect(consoleError).not.toHaveBeenCalled();
 		} finally {
 			consoleError.mockRestore();
 		}

@@ -167,15 +167,14 @@ export class DataSource<T> {
 			this._mem = val;
 			void this._writeCache(raw);
 			return val;
-		} catch (error) {
-			const msg = error instanceof Error ? error.message : String(error);
+		} catch {
+			// ponytail: cache refresh is best-effort; callers already receive stale or empty data.
+			// Raw console output corrupts Pi's active TUI editor, so fallback stays silent.
 			if (cached !== undefined) {
-				console.warn(`${this.opts.label} fetch failed, using stale cache: ${msg}`);
 				const val = this.opts.parseCache(cached.data);
 				this._mem = val;
 				return val;
 			}
-			console.warn(`${this.opts.label} unavailable: ${msg}`);
 			return this.opts.empty;
 		}
 	}

@@ -63,4 +63,15 @@ describe("optimizer persistence", () => {
 			rtk: "on",
 		});
 	});
+
+	test("throws persistence failures for the UI caller to render", () => {
+		const blockedAgentDir = join(tmpAgentDir, "not-a-directory");
+		writeFileSync(blockedAgentDir, "blocked");
+		process.env.PI_CODING_AGENT_DIR = blockedAgentDir;
+		try {
+			expect(() => saveOptValue("caveman", "full")).toThrow();
+		} finally {
+			process.env.PI_CODING_AGENT_DIR = tmpAgentDir;
+		}
+	});
 });

@@ -47,12 +47,8 @@ export function loadOptValue(tool: OptimizerTool): string | undefined {
 
 /** Persist a single tool's value, merging into the shared config file. */
 export function saveOptValue(tool: OptimizerTool, value: string): void {
-	try {
-		const sp = getStatePath();
-		mkdirSync(dirname(sp), { recursive: true });
-		const next = { ...readFile(), [tool]: value };
-		writeFileSync(sp, JSON.stringify(next, null, 2), "utf-8");
-	} catch (err) {
-		console.warn(`optimizer: persist ${tool} failed:`, err);
-	}
+	const sp = getStatePath();
+	mkdirSync(dirname(sp), { recursive: true });
+	const next = { ...readFile(), [tool]: value };
+	writeFileSync(sp, JSON.stringify(next, null, 2), "utf-8");
 }

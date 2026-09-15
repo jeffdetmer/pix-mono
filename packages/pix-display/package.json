@@ -1,6 +1,6 @@
 {
 	"name": "@xynogen/pix-display",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Pi core extension — inline chips, thinking blocks, and framed code rendering",
 	"type": "module",
 	"main": "src/index.ts",

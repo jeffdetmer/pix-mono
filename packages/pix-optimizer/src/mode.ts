@@ -13,6 +13,7 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { showTransientError } from "@xynogen/pix-pretty/transient-error";
 import { loadOptValue, saveOptValue } from "./persist.ts";
 import type { OptimizerHandle, OptimizerStatus, OptimizerTool } from "./status.ts";
 
@@ -100,7 +101,12 @@ export function createMode<L extends string>(
 		level = resolved;
 
 		pi.appendEntry(customType, { level });
-		saveOptValue(name, level);
+		try {
+			saveOptValue(name, level);
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			showTransientError(ctx.ui, `optimizer: failed to save ${name}: ${detail}`);
+		}
 		syncStatus(ctx);
 
 		ctx.ui.notify(config.notify(level), "info");

@@ -29,13 +29,8 @@ export function loadIconMode(): IconMode | undefined {
 }
 
 /** Persist the icon mode to pix.json (`pretty.icons`). */
-export function saveIconMode(mode: IconMode): Promise<void> {
-	return updateConfig(prettySection, { icons: mode }).then(
-		() => undefined,
-		(err) => {
-			console.error("pix-pretty: persist icon mode failed:", err);
-		},
-	);
+export async function saveIconMode(mode: IconMode): Promise<void> {
+	await updateConfig(prettySection, { icons: mode });
 }
 
 /**

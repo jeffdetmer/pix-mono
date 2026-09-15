@@ -188,16 +188,56 @@ The required visual ramp is **primary → dim → muted**. `dim` must be brighte
 
 ---
 
-## Shared Rendering & Widget Helpers
+## UI Surfaces & Shared Rendering
 
-**pix-pretty is the home for any rendering, layout, or display-formatting code shared by two or more packages.** It is a sanctioned shared layer, so extracting into it never breaks the Package Independence rule.
+**Choose UI surface by audience and lifetime. Do not pick whichever API is nearby.**
 
-This refines — it does not contradict — "prefer duplicating small utilities over adding a cross-package dep":
+| Need | Standard surface |
+|---|---|
+| Tool call/result, including failures needed by model or transcript | Structured tool result + tool renderer |
+| User-invoked command result, instructions, confirmation, or long actionable message | `ctx.ui.notify()` or command overlay |
+| Short asynchronous background/runtime diagnostic | `showTransientMessage()` from `@xynogen/pix-pretty/transient-error` |
+| Persistent live activity/progress | Named `ctx.ui.setWidget()` widget; clear it on completion/shutdown |
+| Footer state | `ctx.ui.setStatus()` or shared footer integration |
+| Interactive picker/settings/form | Existing shared overlay/modal primitive, then package-local component only if none fits |
+| CLI output, browser DevTools, or explicit debug logging | `console.*`; never let extension runtime logs write into active TUI |
 
-- **One-off, package-local helper** (a bespoke summary line, a single-use parser) → keep it local; do not reach for pix-pretty.
-- **The same rendering/formatting/UI surface appears in ≥2 packages** (or you're about to copy one in) → extract it into pix-pretty and import from there. Do not leave parallel copies that drift.
+Transient diagnostics use one shared above-editor slot: one bounded line, newest wins, 30-second TTL. Levels are `error`, `warning`, and `info`; use `showTransientError()` only as the error convenience wrapper. Do not route structured tool errors or actionable multi-line notices through this slot.
 
-Before writing a new formatter, spinner, token/duration/byte formatter, activity/status line, modal, overlay, or widget layout, **grep pix-pretty first** — the primitive may already exist:
+```ts
+import {
+  showTransientError,
+  showTransientMessage,
+} from "@xynogen/pix-pretty/transient-error";
+```
+
+**pix-pretty owns rendering, layout, and display formatting shared by two or more packages.** It is a sanctioned shared layer, so extracting into it does not break Package Independence.
+
+- **One-off package-local helper** (bespoke summary line, single-use parser) → keep it local.
+- **Same UI or formatter in ≥2 packages** (or about to be copied) → extract it into pix-pretty; remove parallel copies.
+- Shared helpers accept minimal structural types (`ThemeLike`, `SessionLike`, `UILike`), not full `ExtensionAPI` or unrelated host state.
+- Non-trivial shared helpers ship with focused tests in pix-pretty.
+
+### Import boundary
+
+Always import another package through a declared public package export:
+
+```ts
+import { icon } from "@xynogen/pix-pretty/icon-catalog";
+import { frameLines, modalWidth } from "@xynogen/pix-pretty/modal-frame";
+```
+
+Never import another package by filesystem path or source internals:
+
+```ts
+// forbidden
+import { icon } from "../../pix-pretty/src/icon-catalog.ts";
+import { icon } from "@xynogen/pix-pretty/src/icon-catalog.ts";
+```
+
+Before using a subpath, verify it exists in `packages/pix-pretty/package.json#exports`. Missing subpath means add one public export or keep implementation package-local; do not bypass package boundary. Package-internal relative imports remain valid.
+
+Before writing a formatter, spinner, token/duration/byte formatter, status line, modal, overlay, panel, or widget, inspect `packages/pix-pretty/package.json#exports` and grep pix-pretty first:
 
 ```ts
 import { SPINNER, formatMs, formatTokens, fmtTokenCount, formatContext,
@@ -208,14 +248,15 @@ import { frameLines, modalWidth } from "@xynogen/pix-pretty/modal-frame";
 import { showOverlay } from "@xynogen/pix-pretty/gate-overlay";
 ```
 
-- `widget-format` — live-widget helpers: `SPINNER` (braille frames), token/duration formatters, `describeActivity`, session-stats readers. Shared by pix-subagent's agent widget and pix-commands' `/btw` widget.
-- `modal-frame` — rounded-border overlay primitives (`frameLines`, `modalWidth`). Used by pix-ask, pix-mcp, pix-models, pix-optimizer.
-- `gate-overlay` — the permission/confirm dialog (pix-gate, pix-sudo).
-- `icon-catalog` — semantic glyph table (never hardcode codepoints). Includes the `status.*` family (`status.ok/error/warn/pending/running/active/done/blocked`, all three modes) for checklists, panels, and finished-line markers; nerd/unicode keep the historical literal so mixed rows stay aligned, ascii mode is tofu-free.
-- `utils` — `humanSize(bytes)` renders IEC units (`B`/`KiB`/`MiB`/`GiB`, 1024-based). Token *counts* use `fmtTokenCount` in `widget-format` (plain `K`/`M`, no `iB`) — different formatter, do not conflate.
-- `diff`/`diff-render`, `highlight`, `renderers`, `fff`, `ansi` — see the full export map in `packages/pix-pretty/README.md`.
+- `widget-format` — live activity and session-stat formatting: `SPINNER`, duration/token/count/speed formatters, and `describeActivity`.
+- `modal-frame` — generic rounded frame and modal width primitives.
+- `gate-overlay` — permission/root approval dialog only; do not repurpose it as a generic panel.
+- `transient-error` — shared short-lived runtime diagnostic slot for error/warning/info.
+- `icon-catalog` — semantic icon catalog, including `status.*`; never hardcode glyph codepoints.
+- `utils` — `humanSize(bytes)` uses IEC units. Token counts use `fmtTokenCount`; do not conflate them.
+- `diff`, `diff-render`, `highlight`, `renderers`, `fff`, `ansi` — specialized rendering primitives exposed by package export map.
 
-Adding a helper to pix-pretty is a public-API addition → **minor bump** (needs approval per Key Rules). Consumers on `^1.x` carets already match a new minor, so no range edits ripple; only the packages you actually rewire (plus their pix-core pins) need patch bumps. New shared helpers must be pure and Pi-host-agnostic (accept a minimal `Theme`/`SessionLike` shape, not the full `ExtensionAPI`), and ship with unit tests in pix-pretty.
+Adding a pix-pretty public helper or subpath is a public API addition and requires a minor bump. Rewired consumers need their own patch bumps; update pix-core pins for every bumped bundled package. New shared helpers must stay pure and Pi-host-agnostic.
 
 ---
 

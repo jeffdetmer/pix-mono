@@ -4,6 +4,7 @@ import type {
 	ExtensionContext,
 	ToolInfo,
 } from "@earendil-works/pi-coding-agent";
+import { showTransientError, showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { Type } from "typebox";
 import {
 	logoutServer,
@@ -215,8 +216,10 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 			return;
 		}
 
-		await initializeOAuth().catch((err) => {
-			console.error("MCP OAuth initialization failed:", err);
+		await initializeOAuth().catch((error) => {
+			const detail = error instanceof Error ? error.message : String(error);
+			if (ctx.hasUI)
+				showTransientMessage(ctx.ui, `MCP OAuth initialization failed: ${detail}`, "warning");
 		});
 
 		if (generation !== lifecycleGeneration) return;
@@ -250,7 +253,8 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 				if (initPromise !== promise && initPromise !== null) {
 					return;
 				}
-				console.error("MCP initialization failed:", err);
+				const detail = err instanceof Error ? err.message : String(err);
+				if (ctx.hasUI) showTransientError(ctx.ui, `MCP initialization failed: ${detail}`);
 				initPromise = null;
 			});
 	});

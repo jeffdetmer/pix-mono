@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 import { throwIfAborted } from "./abort.ts";
 import { loadMcpConfig } from "./config.ts";
@@ -159,9 +160,8 @@ export async function initializeMcp(
 	for (const { name, definition, connection, error } of results) {
 		if (error || !connection) {
 			if (ctx.hasUI) {
-				ctx.ui.notify(`MCP: Failed to connect to ${name}: ${error}`, "error");
+				showTransientMessage(ctx.ui, `MCP: failed to connect to ${name}: ${error}`, "warning");
 			}
-			console.error(`MCP: Failed to connect to ${name}: ${error}`);
 			continue;
 		}
 
@@ -176,7 +176,7 @@ export async function initializeMcp(
 		updateMetadataCache(state, name);
 
 		if (failedTools.length > 0 && ctx.hasUI) {
-			ctx.ui.notify(`MCP: ${name} - ${failedTools.length} tools skipped`, "warning");
+			showTransientMessage(ctx.ui, `MCP: ${name} - ${failedTools.length} tools skipped`, "warning");
 		}
 	}
 

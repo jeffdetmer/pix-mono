@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { rm } from "node:fs/promises";
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { rm, writeFile } from "node:fs/promises";
 import { pixRuntime } from "@xynogen/pix-runtime/config";
 import { ioSection } from "@xynogen/pix-runtime/sections";
 import {
@@ -50,7 +50,33 @@ function mg(
 	};
 }
 
-describe("network timeout config", () => {
+describe("DataSource", () => {
+	it("uses stale cache silently when refresh fails", async () => {
+		const cachePath = `/tmp/pix-data-stale-${process.pid}-${Date.now()}.json`;
+		const warn = spyOn(console, "warn").mockImplementation(() => undefined);
+		try {
+			await writeFile(cachePath, JSON.stringify({ ts: 0, data: ["cached"] }));
+			const source = new DataSource<string[]>({
+				label: "test",
+				url: "https://example.test/data",
+				cachePath,
+				ttlMs: 0,
+				fetchRaw: async () => {
+					throw new Error("offline");
+				},
+				parse: () => [],
+				parseCache: (data) => data as string[],
+				empty: [],
+			});
+
+			expect(await source.get()).toEqual(["cached"]);
+			expect(warn).not.toHaveBeenCalled();
+		} finally {
+			warn.mockRestore();
+			await rm(cachePath, { force: true });
+		}
+	});
+
 	it("uses the shared timeout when a data source has no explicit override", async () => {
 		const cachePath = `/tmp/pix-data-timeout-${process.pid}-${Date.now()}.json`;
 		await pixRuntime().update(ioSection, { timeoutSec: 120 });

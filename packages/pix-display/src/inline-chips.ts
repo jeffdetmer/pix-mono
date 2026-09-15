@@ -166,8 +166,13 @@ export function installChips(editor: CustomEditor): void {
 }
 
 export default function (pi: ExtensionAPI): void {
-	// Optional call: Pi < 0.85 has no Markdown transformer hook.
-	pi.registerMarkdownTransformer?.((markdown, { messageType }) =>
+	// ponytail: local Pi 0.82 types predate the runtime Markdown transformer hook.
+	const markdownPi = pi as ExtensionAPI & {
+		registerMarkdownTransformer?: (
+			transformer: (markdown: string, context: { messageType: string }) => string,
+		) => void;
+	};
+	markdownPi.registerMarkdownTransformer?.((markdown, { messageType }) =>
 		messageType === "user" ? renderHistoryChips(markdown) : markdown,
 	);
 
