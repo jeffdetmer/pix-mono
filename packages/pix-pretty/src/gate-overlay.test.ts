@@ -315,6 +315,52 @@ describe("showOverlay — sudo mode", () => {
 		expect(overlayCount).toBe(1);
 	});
 
+	test("renders password checking as neutral and incorrect password as error", async () => {
+		const colors: string[] = [];
+		const coloredTheme = {
+			fg: (color: string, text: string) => {
+				if (text.includes("password")) colors.push(`${color}:${text}`);
+				return text;
+			},
+			bg: (_color: string, text: string) => text,
+			bold: (text: string) => text,
+		};
+		let component: Wired | undefined;
+		let finishValidation: ((valid: boolean) => void) | undefined;
+		const pending = showOverlay(
+			{
+				custom: <T>(cb: Parameters<OverlayUI["custom"]>[0]): Promise<T | undefined> =>
+					new Promise((resolve) => {
+						component = cb({ requestRender: () => {} }, coloredTheme, undefined, (value) =>
+							resolve(value as T),
+						);
+					}),
+			},
+			{
+				mode: "sudo",
+				title: "ROOT",
+				timeoutMs: 0,
+				validatePassword: () =>
+					new Promise<boolean>((resolve) => {
+						finishValidation = resolve;
+					}),
+			},
+		);
+		component?.handleInput(ENTER);
+		component?.handleInput("wrong");
+		component?.handleInput(ENTER);
+		component?.render(80);
+		expect(colors).toContain("dim:Checking password…");
+		finishValidation?.(false);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		component?.render(80);
+		expect(colors).toContain("error:Incorrect password — attempt 1 of 3");
+		component?.handleInput("retry");
+		component?.handleInput(ENTER);
+		finishValidation?.(true);
+		await pending;
+	});
+
 	test("password is masked in render (● not plaintext)", async () => {
 		let pwFrame: string[] = [];
 		await showOverlay(

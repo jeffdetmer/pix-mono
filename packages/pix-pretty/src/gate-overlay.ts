@@ -218,7 +218,10 @@ function buildSections(opts: {
 	} else {
 		const label = config.mode === "sudo" ? (config.passwordLabel ?? "Sudo password:") : "Password:";
 		footer.push(theme.fg("dim", label));
-		if (passwordStatus) footer.push(theme.fg("error", passwordStatus));
+		if (passwordStatus)
+			footer.push(
+				theme.fg(passwordStatus === "Checking password…" ? "dim" : "error", passwordStatus),
+			);
 		footer.push(...maskedInput.render(inner));
 		footer.push("");
 		footer.push(theme.fg("muted", "←→/PgUp/PgDn inspect • enter confirm • esc cancel"));
