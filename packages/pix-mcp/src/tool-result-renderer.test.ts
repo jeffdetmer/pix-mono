@@ -10,7 +10,26 @@ import {
 // semantic color each token got without matching raw ANSI.
 const tagTheme = { fg: (k: string, t: string) => `«${k}»${t}` };
 
-test("terminal MCP results use status-colored rules", () => {
+test("default terminal MCP results use a status-colored dashed close", () => {
+	const result = { content: [{ type: "text" as const, text: "done" }], details: {} };
+	const success = renderMcpToolResult(result, { expanded: false, isPartial: false }, tagTheme, {
+		isError: false,
+		expanded: false,
+	}).render(40);
+	const failed = renderMcpToolResult(
+		{ ...result, details: { error: "failed" } },
+		{ expanded: false, isPartial: false },
+		tagTheme,
+		{ isError: true, expanded: false },
+	).render(40);
+
+	expect(success[0]).toBe("«toolOutput»done");
+	expect(success.at(-1)).toBe(`«success»${"- ".repeat(20)}`);
+	expect(failed[0]).toBe("«toolOutput»done");
+	expect(failed.at(-1)).toBe(`«error»${"- ".repeat(20)}`);
+});
+
+test("expanded MCP results use the same status-colored dashed close", () => {
 	const result = { content: [{ type: "text" as const, text: "done" }], details: {} };
 	const success = renderMcpToolResult(result, { expanded: true, isPartial: false }, tagTheme, {
 		isError: false,
@@ -23,10 +42,10 @@ test("terminal MCP results use status-colored rules", () => {
 		{ isError: true, expanded: true },
 	).render(8);
 
-	expect(success[0]).toBe("«success»────────");
-	expect(success.at(-1)).toBe("«success»────────");
-	expect(failed[0]).toBe("«error»────────");
-	expect(failed.at(-1)).toBe("«error»────────");
+	expect(success[0]).toBe("«toolOut");
+	expect(success.at(-1)).toBe("«success»- - - - ");
+	expect(failed[0]).toBe("«toolOut");
+	expect(failed.at(-1)).toBe("«error»- - - - ");
 });
 
 test("detectHighlightLang: JSON object/array → json", () => {

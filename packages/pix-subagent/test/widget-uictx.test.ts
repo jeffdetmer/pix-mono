@@ -88,6 +88,18 @@ test("a running background agent keeps its widget registered across updates", ()
 	widget.dispose();
 });
 
+test("widget rows align under the heading without tree connectors", () => {
+	const widget = new AgentWidget(makeManager([runningBg]), new Map());
+	const ctx = makeSpyCtx();
+	widget.setUICtx(ctx);
+	widget.update();
+	if (typeof ctx.widgetContent !== "function") throw new Error("agent widget was not registered");
+	const component = ctx.widgetContent({ terminal: { columns: 160 } }, ctx.theme);
+	const lines = component.render();
+	expect(lines[1]).toMatch(/^ {2}\S.*Agent.*long job/);
+	widget.dispose();
+});
+
 test("widget clears only once no agent is active", () => {
 	const done = { ...runningBg, status: "completed", completedAt: Date.now() - 60_000 };
 	const widget = new AgentWidget(makeManager([done]), new Map());

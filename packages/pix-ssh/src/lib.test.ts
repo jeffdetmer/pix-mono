@@ -343,7 +343,7 @@ describe("ssh result renderer", () => {
 		isError = false,
 		isPartial = false,
 		state: Record<string, unknown> = {},
-		expanded = true,
+		expanded = false,
 	) =>
 		renderer(
 			{ content: [{ type: "text", text: String(details?.outcome ?? "done") }], details },
@@ -354,10 +354,17 @@ describe("ssh result renderer", () => {
 			.render(24)
 			.join("\n");
 
-	it("frames open terminal outcomes and generic results by status", () => {
+	it("uses dashed status closes in normal and expanded output", () => {
 		const renderer = register();
-		expect(render(renderer, undefined)).toContain("[success]─");
-		expect(render(renderer, undefined, true)).toContain("[error]─");
+		const success = render(renderer, undefined).split("\n");
+		expect(success[0]).toContain("done");
+		expect(success.at(-1)).toBe(`[success]${"- ".repeat(12)}[/]`);
+		expect(render(renderer, undefined, false, false, {}, true).split("\n").at(-1)).toBe(
+			`[success]${"- ".repeat(12)}[/]`,
+		);
+		expect(render(renderer, undefined, true).split("\n").at(-1)).toBe(
+			`[error]${"- ".repeat(12)}[/]`,
+		);
 		for (const outcome of ["denied", "timed-out", "cancelled", "error"]) {
 			expect(
 				render(renderer, {
@@ -367,7 +374,7 @@ describe("ssh result renderer", () => {
 					sudo: false,
 					outcome,
 				}),
-			).toContain("[error]─");
+			).toContain("[error]- - ");
 		}
 	});
 
@@ -380,9 +387,15 @@ describe("ssh result renderer", () => {
 			sudo: false,
 			outcome: "running",
 		};
-		expect(render(renderer, running, false, true)).not.toContain("[success]─");
-		expect(render(renderer, running)).not.toContain("[success]─");
+		const partial = render(renderer, running, false, true);
+		expect(partial.split("\n")[0]).toContain("running");
+		expect(partial).not.toContain(`[success]${"- ".repeat(12)}[/]`);
+		const open = render(renderer, running);
+		expect(open.split("\n")[0]).toContain("running");
+		expect(open).not.toContain(`[success]${"- ".repeat(12)}[/]`);
 		const success = { ...running, outcome: "success", exitCode: 0, _render: "done" };
-		expect(render(renderer, success, false, false, { collapsed: true }, false)).not.toContain("─");
+		const collapsed = render(renderer, success, false, false, { collapsed: true }, false);
+		expect(collapsed.split("\n")[0]).toContain("success");
+		expect(collapsed).not.toContain(`[success]${"- ".repeat(12)}[/]`);
 	});
 });

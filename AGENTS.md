@@ -205,14 +205,16 @@ The required visual ramp is **primary → dim → muted**. `dim` must be brighte
 
 Transient diagnostics use one shared above-editor slot: one bounded line, newest wins, 30-second TTL. Levels are `error`, `warning`, and `info`; use `showTransientError()` only as the error convenience wrapper. Do not route structured tool errors or actionable multi-line notices through this slot.
 
-Pix tool result renderers must frame open or expanded terminal output with status-colored horizontal rules.
+Pix tool result renderers use one canonical completed-result shape: unchanged body followed by a full-width, status-colored dashed close. Normal and expanded output use the same outer shape.
 
 - Use `frameToolResult()` from `@xynogen/pix-pretty/utils`; do not hand-build rules or duplicate frame logic.
 - Successful completed results use the `success` theme role; failed results (`isError`) use `error`.
-- Frame both the top and bottom at the current render width. Keep result content between them unchanged except for tool-specific highlighting.
-- Partial/streaming output may remain unframed until completion to avoid moving terminal chrome.
-- Collapsed one-line summaries stay unframed; they must include a status glyph or text label so status is not conveyed by color alone.
-- Renderer tests must assert both success and error frame roles; avoid pixel snapshots beyond stable text and semantic theme tags.
+- Do not add a top rule, `└─`, or continuation indentation to ordinary tool results.
+- Keep solid rules only for intentional inner/detail sections, not outer result chrome.
+- Partial/streaming output remains unframed until completion to avoid moving terminal chrome.
+- Auto-collapsed one-line summaries stay unframed and include a status glyph or text label, so status is not conveyed by color alone.
+- Persistent live widgets are separate surfaces: indent child rows by two spaces without tree connectors. A download-progress widget may keep one solid full-width rule above its heading; clear completed rows after `collapse.delaySec`.
+- Renderer tests must assert both success and error close roles; avoid pixel snapshots beyond stable text and semantic theme tags.
 
 ```ts
 import {
@@ -227,6 +229,16 @@ import {
 - **Same UI or formatter in ≥2 packages** (or about to be copied) → extract it into pix-pretty; remove parallel copies.
 - Shared helpers accept minimal structural types (`ThemeLike`, `SessionLike`, `UILike`), not full `ExtensionAPI` or unrelated host state.
 - Non-trivial shared helpers ship with focused tests in pix-pretty.
+
+### Test assertions — Tiger Style
+
+Define the valid output space instead of trying to enumerate invalid output.
+
+- Prefer positive, canonical-shape assertions: required segments, order, separators, indentation, semantic color roles, and bounded value patterns.
+- For variable formatting, measure deviation with ranges, structural parsing, or regex bounds; do not pin an entire rendered sentence when units, rounding, width, timing, or metadata may vary.
+- Use exact equality only when the exact bytes/text are the contract.
+- Negative assertions are exceptional: keep them for a specific regression, omission requirement, security boundary, or mutually exclusive state. Do not make blacklist-style `not.toContain()` checks the main format test.
+- One positive assertion should describe the accepted form. Do not attempt to reject every malformed alternative; that state space is unbounded.
 
 ### Import boundary
 

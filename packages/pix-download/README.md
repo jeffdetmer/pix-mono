@@ -1,0 +1,123 @@
+# @xynogen/pix-download
+
+Pi tool for direct, resumable downloads through a private [aria2](https://aria2.github.io/) RPC daemon. It gives the agent short `dl-*` handles for controlling transfers and shows active progress in the TUI.
+
+The extension starts `aria2c` only when first used, binds RPC to `127.0.0.1`, authenticates it with a random per-session secret, and stops it when the Pi session shuts down.
+
+## Requirements
+
+This package requires:
+
+- [Pi Coding Agent](https://github.com/earendil-works/pi)
+- `aria2c` available on `PATH`
+
+Install aria2 with your operating system's package manager. For example:
+
+```bash
+# Fedora
+sudo dnf install aria2
+
+# Debian or Ubuntu
+sudo apt install aria2
+
+# macOS
+brew install aria2
+```
+
+## Install
+
+Install the extension from npm:
+
+```bash
+pi install npm:@xynogen/pix-download
+```
+
+`pix-download` is standalone and opt-in. It is not bundled by `@xynogen/pix-core` because it requires the external `aria2c` binary and starts a local daemon.
+
+## Tool
+
+The `download` tool supports five actions:
+
+| Action | Required input | Result |
+|---|---|---|
+| `add` | `url` | Starts a transfer and returns a short `dl-*` handle |
+| `list` | None | Lists active transfers with file name, percentage, bytes, speed, and ETA |
+| `pause` | `handle` | Pauses a tracked transfer |
+| `resume` | `handle` | Resumes a paused transfer and restores live progress polling |
+| `rm` | `handle` | Removes the transfer from aria2 without deleting downloaded or partial files |
+
+`add` also accepts `dir` to override the destination directory. The current working directory is used by default.
+
+Example calls:
+
+```ts
+download({
+  action: "add",
+  url: "https://example.com/archive.iso",
+  dir: "/tmp/downloads",
+});
+
+download({ action: "list" });
+download({ action: "pause", handle: "dl-sleek-pika-63" });
+download({ action: "resume", handle: "dl-sleek-pika-63" });
+download({ action: "rm", handle: "dl-sleek-pika-63" });
+```
+
+## Supported downloads
+
+aria2 downloads bytes and does not restrict file extensions. Current protocol support is:
+
+| Input | Support |
+|---|---|
+| Direct HTTP and HTTPS URLs | Yes |
+| FTP URLs | Yes |
+| Magnet links and BitTorrent | Basic aria2 support |
+| ISO, archive, package, image, document, audio, and video files | Yes, when supplied as direct URLs |
+| Interrupted partial files | Yes, through aria2 continuation files |
+| Segmented multi-connection downloads | Yes, managed by aria2 |
+
+This package does not extract media URLs from web pages. YouTube, Twitch, HLS playlists, DASH manifests, DRM media, authentication cookies, custom request headers, transcoding, and playback are outside current scope. Use `yt-dlp`, `ffmpeg`, or another dedicated tool for those workflows.
+
+## Runtime behavior
+
+Each loaded extension instance owns one private aria2 daemon. The daemon uses:
+
+- loopback-only RPC on a random port;
+- a random 128-bit RPC secret;
+- continuation enabled with `--continue=true`;
+- overwrite and automatic file renaming disabled;
+- one-second polling while downloads are active.
+
+Tool results use compact status rows in collapsed mode and framed details when expanded. Active transfers also appear in a live widget with handle, file name, completion, transferred size, speed, and ETA.
+
+## Session limits
+
+Download handles and daemon connection details are held in memory. They work across tool calls and pause/resume operations within the same running Pi process.
+
+Quitting or fully restarting Pi stops the private daemon and discards handle mappings. Partial files remain on disk and can still be continued by aria2, but automatic cross-process reconnection is not implemented. Shared daemons, persistent handles, torrent file selection, per-download limits, and authenticated request configuration remain outside current scope.
+
+## Development
+
+Run focused package checks from the repository root:
+
+```bash
+bun test packages/pix-download
+bun run check
+bun run typecheck
+```
+
+`bun run typecheck` checks the full monorepo, not only this package.
+
+## Full distro
+
+The full Pix source and installer live in the monorepo:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
+
+## License
+
+MIT

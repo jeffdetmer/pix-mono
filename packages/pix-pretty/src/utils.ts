@@ -87,7 +87,7 @@ const RESULT_FRAME = Symbol("pix.resultFrame");
 type FramedResultComponent = ResultComponent & {
 	[RESULT_FRAME]: {
 		component: FramableComponent;
-		update(theme: ResultFrameTheme, isError: boolean): void;
+		update(theme: ResultFrameTheme, isError: boolean, section: boolean): void;
 	};
 };
 
@@ -519,9 +519,11 @@ export function shortPath(cwd: string, home: string, p: string): string {
 /** Paints a rule line. Callers pass `(s) => theme.fg(status, s)` so the frame
  *  tint follows the active theme (success/error/warning). Default = neutral FG_RULE. */
 export type RulePaint = (glyphs: string) => string;
+export type RuleStyle = "solid" | "dashed";
 
-export function rule(w: number, paint?: RulePaint): string {
-	const glyphs = "─".repeat(w);
+/** Render a full-width solid rule or a spaced ASCII dashed separator. */
+export function rule(w: number, paint?: RulePaint, style: RuleStyle = "solid"): string {
+	const glyphs = style === "dashed" ? "- ".repeat(Math.ceil(w / 2)).slice(0, w) : "─".repeat(w);
 	return paint ? paint(glyphs) : `${FG_RULE}${glyphs}${RST}`;
 }
 
@@ -549,7 +551,7 @@ export function sectionRule(line: string, theme: FgTheme, width: number): string
 	return theme.fg("muted", `${"─".repeat(lead)}${label}${"─".repeat(tail)}`);
 }
 
-/** Decorate any tool result component with status-colored top/bottom rules. */
+/** Decorate completed tool output with status-colored default chrome. */
 export function frameToolResult<T extends FramableComponent & { setText(value: string): void }>(
 	component: T,
 	theme: ResultFrameTheme,
@@ -565,25 +567,46 @@ export function frameToolResult(
 	theme: ResultFrameTheme,
 	isError: boolean,
 ): ResultComponent {
+	return decorateToolResult(component, theme, isError, false);
+}
+
+/** Decorate explicit expanded/detail sections with solid top and bottom rules. */
+export function frameToolSection(
+	component: FramableComponent,
+	theme: ResultFrameTheme,
+	isError: boolean,
+): ResultComponent {
+	return decorateToolResult(component, theme, isError, true);
+}
+
+function decorateToolResult(
+	component: FramableComponent,
+	theme: ResultFrameTheme,
+	isError: boolean,
+	section: boolean,
+): ResultComponent & Partial<TextComponentLike> {
 	const existing = component as Partial<FramedResultComponent>;
 	if (existing[RESULT_FRAME]) {
-		existing[RESULT_FRAME].update(theme, isError);
+		existing[RESULT_FRAME].update(theme, isError, section);
 		return component as ResultComponent;
 	}
 	let frameTheme = theme;
 	let failed = isError;
+	let solid = section;
 	const framed: FramedResultComponent & Partial<TextComponentLike> = {
 		[RESULT_FRAME]: {
 			component,
-			update(nextTheme, nextError) {
+			update(nextTheme, nextError, nextSection) {
 				frameTheme = nextTheme;
 				failed = nextError;
+				solid = nextSection;
 			},
 		},
 		wantsKeyRelease: component.wantsKeyRelease,
 		render(width) {
 			const paint = (line: string) => frameTheme.fg(failed ? "error" : "success", line);
-			return ruleFrame(component.render?.(width) ?? [], [], width, paint);
+			const lines = component.render?.(width) ?? [];
+			return solid ? sectionFrame(lines, [], width, paint) : ruleFrame(lines, [], width, paint);
 		},
 		invalidate() {
 			component.invalidate?.();
@@ -602,12 +625,20 @@ export function unframeToolResult<T extends FramableComponent>(component: T): T 
 }
 
 /**
- * Frame tool output the way bash/read/sudo do: a top rule, the body lines, a
- * bottom rule, then any footer lines (e.g. `… +N more`) below the close. The
- * single source of the "rule top, rule bottom" invariant so every tool's result
- * block is framed identically — MCP and the shell tools share this.
+ * Default completed-tool chrome: unchanged body, full-width dashed close, then
+ * footer lines. Existing callers inherit this distro-wide presentation.
  */
 export function ruleFrame(
+	bodyLines: string[],
+	footerLines: string[] = [],
+	width?: number,
+	paint?: RulePaint,
+): string[] {
+	return [...bodyLines, rule(width ?? termW(), paint, "dashed"), ...footerLines];
+}
+
+/** Explicit solid top/bottom frame for sections that need stronger separation. */
+export function sectionFrame(
 	bodyLines: string[],
 	footerLines: string[] = [],
 	width?: number,

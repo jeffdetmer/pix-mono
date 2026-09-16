@@ -138,14 +138,14 @@ describe("read_env tool", () => {
 		const lines = tool
 			.renderResult(result, { isPartial: false }, theme, { isError: false })
 			.render(80);
-		const body = lines.slice(1, -1).join("\n");
+		const body = lines.slice(0, -1).join("\n");
 
 		expect(body).toContain("[accent]ENABLED[/]");
 		expect(body).toContain("[accent]HOST[/]");
 		expect(body).toContain("[accent]PORT[/]");
 		expect(body).toContain("[accent]RATE[/]");
 		expect(body).not.toContain("ENABLED = boolean");
-		expect(new Set(body.match(/[^\s]+(?= \[accent\])/g)).size).toBe(4);
+		expect(body.match(/\[accent\]/g)).toHaveLength(4);
 	});
 
 	test("frames successful results green and errors red", () => {
@@ -157,12 +157,10 @@ describe("read_env tool", () => {
 
 		const successLines = success.render(20);
 		const failureLines = failure.render(20);
-		expect(successLines[0]).toBe(`[success]${"─".repeat(20)}[/]`);
-		expect(successLines[1]?.trimEnd()).toBe("HOST = string");
-		expect(successLines[2]).toBe(`[success]${"─".repeat(20)}[/]`);
-		expect(failureLines[0]).toBe(`[error]${"─".repeat(20)}[/]`);
-		expect(failureLines[1]?.trimEnd()).toBe("HOST = string");
-		expect(failureLines[2]).toBe(`[error]${"─".repeat(20)}[/]`);
+		expect(successLines[0]?.trimEnd()).toBe("HOST = string");
+		expect(successLines[1]).toBe(`[success]${"- ".repeat(10)}[/]`);
+		expect(failureLines[0]?.trimEnd()).toBe("HOST = string");
+		expect(failureLines[1]).toBe(`[error]${"- ".repeat(10)}[/]`);
 	});
 
 	test("read rejects missing names and no-UI disclosure", async () => {

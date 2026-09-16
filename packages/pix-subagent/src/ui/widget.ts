@@ -274,9 +274,7 @@ export class AgentWidget {
 
 		const finishedLines: string[] = [];
 		for (const a of finished) {
-			finishedLines.push(
-				truncate(`${theme.fg("muted", "├─")} ${this.renderFinishedLine(a, theme)}`),
-			);
+			finishedLines.push(truncate(`  ${this.renderFinishedLine(a, theme)}`));
 		}
 
 		const runningLines: string[] = [];
@@ -312,18 +310,14 @@ export class AgentWidget {
 			const dot = (s: string) => theme.fg("muted", s);
 			runningLines.push(
 				truncate(
-					theme.fg("muted", "├─") +
-						` ${dotJoin([`${theme.fg("accent", frame)} ${theme.fg("toolTitle", theme.bold(name))}${modelLabel}${modeTag}`, theme.fg("dim", a.description), theme.fg("muted", statsText), theme.fg("dim", activity)], dot)}`,
+					`  ${dotJoin([`${theme.fg("accent", frame)} ${theme.fg("toolTitle", theme.bold(name))}${modelLabel}${modeTag}`, theme.fg("dim", a.description), theme.fg("muted", statsText), theme.fg("dim", activity)], dot)}`,
 				),
 			);
 		}
 
 		const queuedLine =
 			queued.length > 0
-				? truncate(
-						theme.fg("muted", "├─") +
-							` ${theme.fg("muted", "◦")} ${theme.fg("muted", `${queued.length} queued`)}`,
-					)
+				? truncate(`  ${theme.fg("muted", "◦")} ${theme.fg("muted", `${queued.length} queued`)}`)
 				: undefined;
 
 		const maxBody = MAX_WIDGET_LINES - 1;
@@ -337,12 +331,6 @@ export class AgentWidget {
 			lines.push(...finishedLines);
 			lines.push(...runningLines);
 			if (queuedLine) lines.push(queuedLine);
-
-			// Fix last connector ├─ → └─
-			if (lines.length > 1) {
-				const last = lines.length - 1;
-				lines[last] = (lines[last] ?? "").replace("├─", "└─");
-			}
 		} else {
 			let budget = maxBody - 1;
 			let hiddenRunning = 0;
@@ -374,8 +362,7 @@ export class AgentWidget {
 			if (hiddenFinished > 0) overflowParts.push(`${hiddenFinished} finished`);
 			lines.push(
 				truncate(
-					theme.fg("muted", "└─") +
-						` ${theme.fg("muted", `+${hiddenRunning + hiddenFinished} more (${overflowParts.join(", ")})`)}`,
+					`  ${theme.fg("muted", `+${hiddenRunning + hiddenFinished} more (${overflowParts.join(", ")})`)}`,
 				),
 			);
 		}

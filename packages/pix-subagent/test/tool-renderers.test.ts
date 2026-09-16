@@ -87,13 +87,13 @@ function renderFramed(
 }
 
 function expectFrame(lines: string[], color: "success" | "error") {
-	expect(lines[0]).toBe(`<${color}>${"─".repeat(40)}</${color}>`);
-	expect(lines.at(-1)).toBe(`<${color}>${"─".repeat(40)}</${color}>`);
+	expect(lines.length).toBeGreaterThan(1);
+	expect(lines.at(-1)).toBe(`<${color}>${"- ".repeat(20)}</${color}>`);
 }
 
 function expectUnframed(lines: string[]) {
-	expect(lines[0]).not.toContain("─".repeat(40));
-	expect(lines.at(-1)).not.toContain("─".repeat(40));
+	expect(lines.some((line) => line.trim().length > 0)).toBe(true);
+	expect(lines).not.toContain(`${"- ".repeat(20)}`);
 }
 
 function renderCall(

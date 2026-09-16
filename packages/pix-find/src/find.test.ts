@@ -123,10 +123,10 @@ describe("registerFindTool", () => {
 		};
 		const out =
 			tool.renderResult?.(result, { isPartial: false }, theme, makeRenderCtx())?.getText() ?? "";
-		// Single result is framed just like multi — one shape, no inline row.
-		expect(out).toContain("─");
-		expect(strip(out)).toContain("src/a.ts");
-		expect(strip(out)).not.toContain("file");
+		// Single result uses the same body + dashed-close shape as multi-result output.
+		const lines = strip(out).split("\n");
+		expect(lines[0]).toContain("src/a.ts");
+		expect(lines.at(-1)).toMatch(/^(?:- ){3,}-?$/);
 		const multi = {
 			content: [{ type: "text", text: "a.ts\nb.ts\nc.ts" }],
 			details: {
@@ -138,7 +138,7 @@ describe("registerFindTool", () => {
 		};
 		const multiOut =
 			tool.renderResult?.(multi, { isPartial: false }, theme, makeRenderCtx())?.getText() ?? "";
-		expect(multiOut).toContain("─");
+		expect(strip(multiOut).split("\n").at(-1)).toMatch(/^(?:- ){3,}-?$/);
 	});
 
 	it("collapses structured errors and restores the exact diagnostic on expansion", () => {
@@ -167,7 +167,7 @@ describe("registerFindTool", () => {
 		};
 
 		expect(render({ timer: 1 })).toContain(diagnostic);
-		expect(render({ timer: 1 })).toContain("─");
+		expect(render({ timer: 1 })).toContain("- -");
 		expect(render({ collapsed: true })).toContain("✗  find [ in src · failed");
 		expect(render({ collapsed: true }, true)).toContain(diagnostic);
 	});

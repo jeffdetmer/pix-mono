@@ -216,9 +216,8 @@ export default function registerGraph(pi: ExtensionAPI): void {
 				} else {
 					component = new Text(text, 0, 0);
 				}
-				return options.isPartial || !details
-					? component
-					: frameToolResult(component, theme, isError);
+				if (options.isPartial || !details) return component;
+				return frameToolResult(component, theme, isError);
 			},
 
 			async execute(_id, params, signal, onUpdate) {

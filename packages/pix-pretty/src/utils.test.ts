@@ -8,12 +8,15 @@ import {
 	formatCollapsedToolRow,
 	formatJson,
 	frameToolResult,
+	frameToolSection,
 	hideCollapsedToolCall,
 	padIcon,
 	pluralize,
 	renderCollapsedToolRow,
 	renderDimPreview,
+	rule,
 	ruleFrame,
+	sectionFrame,
 	sectionRule,
 	setResultDetails,
 	termW,
@@ -196,19 +199,15 @@ describe("termW", () => {
 });
 
 describe("frameToolResult", () => {
-	it("wraps a component at render width and forwards invalidation", () => {
+	it("keeps body unchanged, adds a status-colored close, and forwards invalidation", () => {
 		const child = new MockTextComponent();
 		child.setText("result");
 		const theme: FgTheme = { fg: (key, text) => `[${key}]${text}[/${key}]` };
 		const framed = frameToolResult(child, theme, false);
 
-		expect(framed.render(8)).toEqual([
-			"[success]────────[/success]",
-			"result",
-			"[success]────────[/success]",
-		]);
+		expect(framed.render(8)).toEqual(["result", "[success]- - - - [/success]"]);
 		framed.setText("updated");
-		expect(framed.render(8)[1]).toBe("updated");
+		expect(framed.render(8)[0]).toBe("updated");
 		framed.invalidate();
 		expect(child.invalidations).toBe(1);
 	});
@@ -230,9 +229,8 @@ describe("frameToolResult", () => {
 		const theme: FgTheme = { fg: (key, text) => `[${key}]${text}[/${key}]` };
 
 		expect(frameToolResult(child, theme, true).render(4)).toEqual([
-			"[error]────[/error]",
 			"failed",
-			"[error]────[/error]",
+			"[error]- - [/error]",
 		]);
 	});
 
@@ -245,33 +243,52 @@ describe("frameToolResult", () => {
 		const rerendered = frameToolResult(first, nextTheme, true);
 
 		expect(rerendered).toBe(first);
-		expect(rerendered.render(4)).toEqual(["<error>────</error>", "result", "<error>────</error>"]);
+		expect(rerendered.render(4)).toEqual(["result", "<error>- - </error>"]);
+	});
+
+	it("keeps solid top and bottom rules for explicit sections", () => {
+		const child = new MockTextComponent();
+		child.setText("details");
+		const theme: FgTheme = { fg: (key, text) => `[${key}]${text}[/${key}]` };
+
+		expect(frameToolSection(child, theme, false).render(4)).toEqual([
+			"[success]────[/success]",
+			"details",
+			"[success]────[/success]",
+		]);
+	});
+});
+
+describe("rule", () => {
+	it("renders solid and dashed rules at exact width", () => {
+		expect(plain(rule(7))).toBe("───────");
+		expect(plain(rule(7, undefined, "dashed"))).toBe("- - - -");
+		expect(rule(6, (value) => `<rule>${value}</rule>`, "dashed")).toBe("<rule>- - - </rule>");
 	});
 });
 
 describe("ruleFrame", () => {
-	it("wraps body with a rule top and bottom, then footer below the close", () => {
+	it("keeps body unchanged and places footer below the dashed close", () => {
 		const out = ruleFrame(["a", "b"], ["… +3 more"], 10);
-		expect(out).toHaveLength(5);
-		expect(plain(out[0]!)).toBe("─".repeat(10)); // top rule
-		expect(out.slice(1, 3)).toEqual(["a", "b"]); // body
-		expect(plain(out[3]!)).toBe("─".repeat(10)); // bottom rule closes the block
-		expect(plain(out[4]!)).toBe("… +3 more"); // footer after the close
+		expect(out).toHaveLength(4);
+		expect(out[0]).toBe("a");
+		expect(out[1]).toBe("b");
+		expect(plain(out[2]!)).toBe("- - - - - ");
+		expect(out[3]).toBe("… +3 more");
 	});
 
-	it("closes the block even with no footer", () => {
-		const out = ruleFrame(["only"], [], 4);
-		expect(plain(out[0]!)).toBe("────");
-		expect(plain(out.at(-1)!)).toBe("────");
-	});
-
-	it("paints both rules via the supplied paint fn, neutral by default", () => {
+	it("paints only the close via the supplied status paint", () => {
 		const green = (s: string) => `<G>${s}</G>`;
-		const ok = ruleFrame(["x"], [], 4, green);
-		expect(ok[0]).toBe("<G>────</G>");
-		expect(ok.at(-1)).toBe("<G>────</G>"); // both top and bottom rule painted
-		const neutral = ruleFrame(["x"], [], 4);
-		expect(neutral[0]).toContain("50;50;50"); // FG_RULE default tint
+		expect(ruleFrame(["x"], [], 4, green)).toEqual(["x", "<G>- - </G>"]);
+	});
+});
+
+describe("sectionFrame", () => {
+	it("preserves explicit solid top and bottom section rules", () => {
+		const out = sectionFrame(["only"], [], 4);
+		expect(plain(out[0]!)).toBe("────");
+		expect(out[1]).toBe("only");
+		expect(plain(out[2]!)).toBe("────");
 	});
 });
 
@@ -463,31 +480,28 @@ describe("renderDimPreview", () => {
 		expect(out).toContain("body");
 	});
 
-	it("frames the body with a rule top and bottom, dropping the redundant header", () => {
-		const out = plain(renderDimPreview("a\nb", theme, { frame: true, header: "2 files" }));
-		const lines = out.split("\n");
-		// No floating header in framed mode — the collapsed row carries the count.
-		expect(out).not.toContain("2 files");
-		expect(lines[0]).toMatch(/^─+$/); // top rule is the first line
-		expect(lines.at(-1)).toMatch(/^─+$/); // bottom rule closes the block
+	it("keeps the body first and adds one dashed close", () => {
+		const lines = plain(renderDimPreview("a\nb", theme, { frame: true, header: "2 files" })).split(
+			"\n",
+		);
+		expect(lines.slice(0, -1).map((line) => line.trimEnd())).toEqual(["  a", "  b"]);
+		expect(lines.at(-1)).toMatch(/^(?:- ){3,}-?$/);
 	});
 
-	it("paints the frame rules when a paint fn is given", () => {
+	it("paints the dashed close when a paint fn is given", () => {
 		const tag: FgTheme = { fg: (k, v) => `<${k}>${v}` };
-		const out = renderDimPreview("a\nb", tag, {
+		const lines = renderDimPreview("a\nb", tag, {
 			frame: true,
 			paint: (s: string) => tag.fg("success", s),
-		});
-		expect(out).toContain("<success>─");
+		}).split("\n");
+		expect(plain(lines.at(-1) ?? "")).toMatch(/^<success>(?:- ){3,}-?/);
 	});
 
-	it("frames overflow footer below the bottom rule", () => {
+	it("puts overflow metadata below the dashed close", () => {
 		const body = Array.from({ length: MAX_PREVIEW_LINES + 2 }, (_, i) => `L${i}`);
-		const out = plain(renderDimPreview(body.join("\n"), theme, { frame: true }));
-		const lines = out.split("\n");
-		// overflow marker is the LAST line, below the closing rule
+		const lines = plain(renderDimPreview(body.join("\n"), theme, { frame: true })).split("\n");
+		expect(lines.at(-2)).toMatch(/^(?:- ){3,}-?$/);
 		expect(lines.at(-1)).toContain("… 2 more lines");
-		expect(lines.at(-2)).toMatch(/^─+$/); // bottom rule sits above the footer
 	});
 
 	it("highlights matched keyword with non-dim styling", () => {

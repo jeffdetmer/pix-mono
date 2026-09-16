@@ -327,7 +327,8 @@ export default function registerTodo(pi: ExtensionAPI): void {
 				const isPartial = options.isPartial === true;
 				if (context.isError || details?.outcome === "error" || !details) {
 					const component = new Text(resultText, 0, 0);
-					return isPartial ? component : frameToolResult(component, theme, true);
+					if (isPartial) return component;
+					return frameToolResult(component, theme, true);
 				}
 
 				const collapsed = tickCollapse(
@@ -340,7 +341,8 @@ export default function registerTodo(pi: ExtensionAPI): void {
 				if (!collapsed) focusCard(context.state as CollapseState, context.invalidate);
 				const render = collapsed ? renderTodoSummaryLine : renderTodoLines;
 				const component = new Text(render(details.snapshot, theme as TodoTheme), 0, 0);
-				return collapsed || isPartial ? component : frameToolResult(component, theme, false);
+				if (collapsed || isPartial) return component;
+				return frameToolResult(component, theme, false);
 			},
 
 			async execute(_id, params) {

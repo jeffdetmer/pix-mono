@@ -132,7 +132,7 @@ describe("MCP tool call renderer", () => {
 });
 
 describe("MCP tool result renderer", () => {
-	it("starts output with a separator line", () => {
+	it("keeps output first and ends with a dashed separator", () => {
 		const lines = renderMcpToolResult(
 			result([{ type: "text", text: JSON.stringify({ ok: true }) }]),
 			{ expanded: true, isPartial: false },
@@ -141,8 +141,9 @@ describe("MCP tool result renderer", () => {
 			.render(12)
 			.map((l: string) => l.replace(/\x1b\[[0-9;]*m/g, ""));
 
-		expect(lines[0]).toBe("─".repeat(12));
-		expect(lines.slice(1).join("\n")).toContain('"ok"');
+		expect(lines[0]).toContain("{");
+		expect(lines.slice(0, -1).join("\n")).toContain('"ok"');
+		expect(lines.at(-1)).toBe("- ".repeat(6));
 	});
 
 	it("caps collapsed text at the preview limit and notes how many lines were hidden", () => {

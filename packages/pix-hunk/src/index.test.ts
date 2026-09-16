@@ -111,8 +111,8 @@ test("renders a compact colored summary and hides internal ids from expanded UI"
 	expect(compact).toContain("[toolTitle][bold]hunk[/bold][/toolTitle]");
 	expect(compact).toContain("[dim]navigate +1[/dim]");
 	expect(compact).toContain("[muted]2 ops · 1 comment[/muted]");
+	expect(compact.split("\n")).toHaveLength(1);
 	expect(compact).not.toContain("mcp:3681add");
-	expect(compact).not.toContain("─");
 
 	const expanded = rendered(
 		tool.renderResult(
@@ -122,7 +122,7 @@ test("renders a compact colored summary and hides internal ids from expanded UI"
 			renderContext(true, true),
 		),
 	);
-	expect(expanded).toContain("[success]────────────────────────────────");
+	expect(expanded).toContain("[success]- - - - - - - -");
 	expect(expanded).toContain("[dim]src/a.ts:h1[/dim] [muted]· 1 comment[/muted]");
 	expect(expanded).not.toContain("[text]navigate");
 	expect(expanded).not.toContain("[text]comment");
@@ -140,7 +140,9 @@ test("renders a compact colored summary and hides internal ids from expanded UI"
 			renderContext(true, true),
 		),
 	);
-	expect(partial).not.toContain("─");
+	expect(partial.split("\n")).toHaveLength(1);
+	expect(partial).toContain("src/a.ts:h1");
+	expect(partial).toContain("1 comment");
 
 	const failed = await capture(async () => ({
 		stdout: "",
@@ -157,7 +159,7 @@ test("renders a compact colored summary and hides internal ids from expanded UI"
 			renderContext(true, true),
 		),
 	);
-	expect(failedExpanded).toContain("[error]────────────────────────────────");
+	expect(failedExpanded).toContain("[error]- - - - - - - -");
 	expect(failedExpanded).toContain("[error]list: session gone[/error]");
 });
 

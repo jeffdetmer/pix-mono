@@ -165,7 +165,7 @@ describe("registerBashTool", () => {
 		};
 
 		expect(render({ timer: 1 })).toContain(diagnostic);
-		expect(render({ timer: 1 })).toContain("─");
+		expect(render({ timer: 1 })).toContain("- -");
 		expect(render({ collapsed: true })).toContain("✗  bash bun test · exit 1");
 		expect(render({ collapsed: true }, true)).toContain(diagnostic);
 
@@ -173,7 +173,8 @@ describe("registerBashTool", () => {
 			tool
 				.renderResult?.(result, { isPartial: true }, theme, makeRenderCtx({ isError: true }))
 				?.getText() ?? "";
-		expect(partial).not.toContain("─");
+		expect(partial).toContain(diagnostic);
+		expect(partial.split("\n")).toHaveLength(1);
 	});
 
 	it("frames single-line output like multi-line (no inline row)", () => {
@@ -195,15 +196,15 @@ describe("registerBashTool", () => {
 			tool.renderResult?.(single, { isPartial: false }, theme, makeRenderCtx())?.getText() ?? "";
 		// Single-line output is now framed just like multi-line — no inline row,
 		// no "✓ exit 0" header; the rules carry status by color.
-		expect(collapsed).toContain("─");
+		expect(collapsed).toContain("- -");
 		expect(collapsed).toContain("Checked 382 files");
 		expect(strip(collapsed)).not.toContain("✓ exit 0");
 		const expanded =
 			tool
 				.renderResult?.(single, { isPartial: false }, theme, makeRenderCtx({ expanded: true }))
 				?.getText() ?? "";
-		// expanded single-line should still be framed
-		expect(expanded).toContain("─");
+		// expanded single-line should still have the dashed close
+		expect(expanded).toContain("- -");
 		const multi = {
 			content: [{ type: "text", text: "a\nb\nc" }],
 			details: {
@@ -216,7 +217,7 @@ describe("registerBashTool", () => {
 		};
 		const multiOut =
 			tool.renderResult?.(multi, { isPartial: false }, theme, makeRenderCtx())?.getText() ?? "";
-		expect(multiOut).toContain("─");
+		expect(multiOut).toContain("- -");
 		// Framed view drops the `✓ exit 0` header — the collapsed row already carries it.
 		expect(multiOut).not.toContain("✓ exit 0");
 	});
@@ -231,14 +232,16 @@ describe("registerBashTool", () => {
 				{ content: [{ type: "text", text: isError ? "failed" : "done" }], details: undefined },
 				{ isPartial },
 				keyedTheme,
-				makeRenderCtx({ expanded: true, isError }),
+				makeRenderCtx({ isError }),
 			)
 				.render(20)
 				.join("\n");
 
-		expect(render(false, false)).toContain("[success]─");
-		expect(render(true, false)).toContain("[error]─");
-		expect(render(false, true)).not.toContain("[success]─");
+		expect(render(false, false)).toContain("[success]- -");
+		expect(render(false, false)).not.toContain("└─");
+		expect(render(true, false)).toContain("[error]- -");
+		expect(render(true, false)).not.toContain("└─");
+		expect(render(false, true)).not.toContain("[success]- -");
 	});
 
 	it("tints the frame rules green on success and red on failure", () => {
@@ -264,9 +267,11 @@ describe("registerBashTool", () => {
 					makeRenderCtx(),
 				)
 				?.getText() ?? "";
-		expect(render(0)).toContain("[success]─"); // top+bottom rules painted success
-		expect(render(1)).toContain("[error]─"); // non-zero exit → red rules
-		expect(render(null)).toContain("[success]─"); // completed return without a failure is success
+		expect(render(0)).toContain("[success]- -"); // close painted success
+		expect(render(0)).not.toContain("└─");
+		expect(render(1)).toContain("[error]- -"); // non-zero exit → red close
+		expect(render(1)).not.toContain("└─");
+		expect(render(null)).toContain("[success]- -"); // completed return without a failure is success
 	});
 
 	it("collapses a non-zero exit thrown by Pi's built-in bash tool", async () => {

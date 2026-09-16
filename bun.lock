@@ -17,9 +17,9 @@
     },
     "packages/pix-9router": {
       "name": "@xynogen/pix-9router",
-      "version": "0.4.4",
+      "version": "0.4.5",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
         "typebox": "^1.1.38",
       },
@@ -31,9 +31,9 @@
     },
     "packages/pix-ask": {
       "name": "@xynogen/pix-ask",
-      "version": "0.2.29",
+      "version": "0.2.30",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.21.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
         "typebox": "^1.1.38",
       },
@@ -44,9 +44,9 @@
     },
     "packages/pix-bash": {
       "name": "@xynogen/pix-bash",
-      "version": "0.2.5",
+      "version": "0.2.6",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
       },
       "peerDependencies": {
@@ -70,33 +70,33 @@
     },
     "packages/pix-core": {
       "name": "@xynogen/pix-core",
-      "version": "0.5.42",
+      "version": "0.5.44",
       "dependencies": {
-        "@xynogen/pix-ask": "^0.2.29",
-        "@xynogen/pix-bash": "^0.2.5",
+        "@xynogen/pix-ask": "^0.2.30",
+        "@xynogen/pix-bash": "^0.2.6",
         "@xynogen/pix-commands": "^0.6.5",
         "@xynogen/pix-data": "^0.5.1",
         "@xynogen/pix-diagnostics": "^0.2.3",
         "@xynogen/pix-display": "^0.2.1",
-        "@xynogen/pix-edit": "^0.2.4",
+        "@xynogen/pix-edit": "^0.2.5",
         "@xynogen/pix-find": "^0.3.0",
         "@xynogen/pix-footer": "^0.2.4",
         "@xynogen/pix-gate": "^0.2.13",
         "@xynogen/pix-grep": "^0.3.0",
         "@xynogen/pix-ls": "^0.3.0",
-        "@xynogen/pix-models": "^0.2.6",
+        "@xynogen/pix-models": "^0.2.7",
         "@xynogen/pix-nudge": "^0.2.4",
         "@xynogen/pix-optimizer": "^1.1.30",
-        "@xynogen/pix-pretty": "^1.24.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-prompts": "^0.4.6",
-        "@xynogen/pix-read": "^0.3.0",
-        "@xynogen/pix-runtime": "^0.9.0",
-        "@xynogen/pix-skills": "^0.8.5",
-        "@xynogen/pix-subagent": "^0.9.1",
-        "@xynogen/pix-todo": "^0.4.0",
+        "@xynogen/pix-read": "^0.3.1",
+        "@xynogen/pix-runtime": "^0.10.0",
+        "@xynogen/pix-skills": "^0.8.6",
+        "@xynogen/pix-subagent": "^0.9.2",
+        "@xynogen/pix-todo": "^0.4.1",
         "@xynogen/pix-update": "^0.2.2",
         "@xynogen/pix-welcome": "^0.2.3",
-        "@xynogen/pix-write": "^0.2.4",
+        "@xynogen/pix-write": "^0.2.5",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "*",
@@ -137,11 +137,25 @@
         "@earendil-works/pi-tui": "*",
       },
     },
+    "packages/pix-download": {
+      "name": "@xynogen/pix-download",
+      "version": "0.1.0",
+      "dependencies": {
+        "@xynogen/pix-pretty": "^1.25.0",
+        "@xynogen/pix-runtime": "^0.10.0",
+        "maria2": "^0.4.1",
+        "typebox": "^1.1.38",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-tui": "*",
+      },
+    },
     "packages/pix-edit": {
       "name": "@xynogen/pix-edit",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
       },
       "peerDependencies": {
@@ -151,7 +165,7 @@
     },
     "packages/pix-env": {
       "name": "@xynogen/pix-env",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "dependencies": {
         "@xynogen/pix-pretty": "^1.16.0",
         "@xynogen/pix-runtime": "^0.8.0",
@@ -201,12 +215,12 @@
     },
     "packages/pix-graph": {
       "name": "@xynogen/pix-graph",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "bin": {
         "pix-graph": "src/cli.ts",
       },
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
         "typebox": "^1.1.38",
         "typescript": "^5.7.0",
@@ -233,9 +247,9 @@
     },
     "packages/pix-hunk": {
       "name": "@xynogen/pix-hunk",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.1",
         "typebox": "^1.1.38",
       },
@@ -258,14 +272,14 @@
     },
     "packages/pix-mcp": {
       "name": "@xynogen/pix-mcp",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "bin": {
         "pix-mcp": "cli.ts",
       },
       "dependencies": {
         "@modelcontextprotocol/client": "^2.0.0",
         "@modelcontextprotocol/ext-apps": "^1.2.2",
-        "@xynogen/pix-pretty": "^1.24.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
         "open": "^10.2.0",
         "recheck": "^4.5.0",
@@ -287,11 +301,11 @@
     },
     "packages/pix-models": {
       "name": "@xynogen/pix-models",
-      "version": "0.2.6",
+      "version": "0.2.7",
       "dependencies": {
         "@xynogen/pix-data": "^0.5.0",
         "@xynogen/pix-pretty": "^1.11.2",
-        "@xynogen/pix-runtime": "^0.8.0",
+        "@xynogen/pix-runtime": "^0.10.0",
       },
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": "*",
@@ -321,10 +335,10 @@
     },
     "packages/pix-pretty": {
       "name": "@xynogen/pix-pretty",
-      "version": "1.24.0",
+      "version": "1.25.0",
       "dependencies": {
         "@ff-labs/fff-node": "^0.10.6",
-        "@xynogen/pix-runtime": "^0.8.4",
+        "@xynogen/pix-runtime": "^0.10.0",
         "chalk": "^4.1.2",
         "cli-highlight": "^2.1.11",
         "diff": "^8.0.3",
@@ -346,9 +360,9 @@
     },
     "packages/pix-read": {
       "name": "@xynogen/pix-read",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
       },
       "peerDependencies": {
@@ -358,7 +372,7 @@
     },
     "packages/pix-runtime": {
       "name": "@xynogen/pix-runtime",
-      "version": "0.9.0",
+      "version": "0.10.0",
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": "*",
         "@earendil-works/pi-tui": "*",
@@ -378,10 +392,10 @@
     },
     "packages/pix-skills": {
       "name": "@xynogen/pix-skills",
-      "version": "0.8.5",
+      "version": "0.8.6",
       "dependencies": {
         "@xynogen/pix-gate": "^0.2.6",
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
       },
       "peerDependencies": {
@@ -391,9 +405,9 @@
     },
     "packages/pix-ssh": {
       "name": "@xynogen/pix-ssh",
-      "version": "0.4.2",
+      "version": "0.5.1",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
         "typebox": "^1.1.38",
       },
@@ -404,11 +418,11 @@
     },
     "packages/pix-subagent": {
       "name": "@xynogen/pix-subagent",
-      "version": "0.9.0",
+      "version": "0.9.2",
       "dependencies": {
-        "@xynogen/pix-data": "^0.4.3",
-        "@xynogen/pix-pretty": "^1.19.0",
-        "@xynogen/pix-runtime": "^0.8.0",
+        "@xynogen/pix-data": "^0.5.0",
+        "@xynogen/pix-pretty": "^1.25.0",
+        "@xynogen/pix-runtime": "^0.9.0",
         "typebox": "^1.1.38",
       },
       "peerDependencies": {
@@ -436,9 +450,9 @@
     },
     "packages/pix-todo": {
       "name": "@xynogen/pix-todo",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
         "typebox": "^1.1.38",
       },
@@ -484,9 +498,9 @@
     },
     "packages/pix-write": {
       "name": "@xynogen/pix-write",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.19.0",
+        "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
       },
       "peerDependencies": {
@@ -784,6 +798,8 @@
 
     "@xynogen/pix-display": ["@xynogen/pix-display@workspace:packages/pix-display"],
 
+    "@xynogen/pix-download": ["@xynogen/pix-download@workspace:packages/pix-download"],
+
     "@xynogen/pix-edit": ["@xynogen/pix-edit@workspace:packages/pix-edit"],
 
     "@xynogen/pix-env": ["@xynogen/pix-env@workspace:packages/pix-env"],
@@ -1072,6 +1088,8 @@
 
     "lru-cache": ["lru-cache@11.5.2", "", {}, "sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g=="],
 
+    "maria2": ["maria2@0.4.1", "", {}, "sha512-3lr8UeB+R+BN9c7eOBkeH1GlHf7+0Kzt0pcEgsT9xoXIA5gfXAzjd1niYiYDsvb62v5rLPqCqDiyYxtmmhGJ3g=="],
+
     "marked": ["marked@18.0.5", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-S6GcvALHg6K4ohtu4E7x0a1AqhAjp6cV8KhLSyN9qVapnzJkusVBxZRcIU9AeYsbe6P1hKDusSbEOzGyyuce6w=="],
 
     "math-intrinsics": ["math-intrinsics@1.1.0", "", {}, "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g=="],
@@ -1290,11 +1308,7 @@
 
     "@xynogen/pix-mcp/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
 
-    "@xynogen/pix-models/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
-
     "@xynogen/pix-nudge/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
-
-    "@xynogen/pix-pretty/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
 
     "@xynogen/pix-prompts/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
 
@@ -1303,6 +1317,8 @@
     "@xynogen/pix-skills/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
 
     "@xynogen/pix-ssh/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
+
+    "@xynogen/pix-subagent/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.9.0", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-u1t3S2d3mThBD9AQPTF/K/SjlQYraSG5mZTLOL3kO5lriI+6U3BgN0MKe35qRxTMRFqRnge5dkjIhqsREd9FJg=="],
 
     "@xynogen/pix-sudo/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
 

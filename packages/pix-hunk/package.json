@@ -1,6 +1,6 @@
 {
 	"name": "@xynogen/pix-hunk",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Pi tool — drive live Hunk diff reviews with ordered bulk operations",
 	"type": "module",
 	"main": "src/index.ts",
@@ -44,7 +44,7 @@
 		"access": "public"
 	},
 	"dependencies": {
-		"@xynogen/pix-pretty": "^1.19.0",
+		"@xynogen/pix-pretty": "^1.25.0",
 		"@xynogen/pix-runtime": "^0.8.1",
 		"typebox": "^1.1.38"
 	},

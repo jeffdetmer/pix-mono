@@ -19,30 +19,21 @@
  *   3. createRequire against the extension's own node_modules.
  */
 
-import {
-	accessSync,
-	constants,
-	existsSync,
-	readdirSync,
-	readFileSync,
-	realpathSync,
-	writeFileSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { delimiter, join, sep } from "node:path";
+import { join, sep } from "node:path";
+import { findExecutableSync } from "@xynogen/pix-runtime/which";
 
-/** Locate `pi` on PATH (a pure-JS `which`), returning its real (symlink-resolved) path. */
+/** Locate `pi` on PATH, returning its real (symlink-resolved) path. */
 function resolvePiBinary(): string | undefined {
-	for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-		if (!dir) continue;
-		const candidate = join(dir, "pi");
-		try {
-			accessSync(candidate, constants.X_OK);
-			return realpathSync(candidate);
-		} catch {}
+	const found = findExecutableSync("pi");
+	if (!found) return undefined;
+	try {
+		return realpathSync(found);
+	} catch {
+		return found;
 	}
-	return undefined;
 }
 
 // The assignment appears once per build. `\s*=\s*\[` avoids the `.map(...)`

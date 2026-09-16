@@ -64,25 +64,32 @@ describe("registerWriteTool", () => {
 			content: [{ type: "text", text: diagnostic }],
 			details: { _type: "new", lines: 1, content: "value", filePath: "locked.ts" },
 		};
-		const render = (state: Record<string, unknown>, expanded = false, isPartial = false) =>
+		const render = (
+			state: Record<string, unknown>,
+			expanded = false,
+			isPartial = false,
+			width = 80,
+			renderTheme: ThemeLike = theme,
+		) =>
 			tool
 				.renderResult?.(
 					result,
 					{ isPartial },
-					theme,
+					renderTheme,
 					makeRenderCtx({ isError: true, expanded, state }),
 				)
-				?.render(80) ?? [];
+				?.render(width) ?? [];
 
-		expect(render({ timer: 1 })[0]).toBe(`[error]${"─".repeat(80)}[/error]`);
+		expect(render({ timer: 1 })[0]).toContain(diagnostic);
+		expect(render({ timer: 1 }).at(-1)).toBe(`[error]${"- ".repeat(40)}[/error]`);
 		expect(render({ timer: 1 }).join("\n")).toContain(diagnostic);
-		const collapsed = render({ collapsed: true }).join("\n");
+		const collapsed = render({ collapsed: true }, false, false, 80, makeTheme()).join("\n");
 		expect(collapsed).toContain("write");
 		expect(collapsed).toContain("locked.ts");
 		expect(collapsed).toContain("failed");
-		expect(render({ collapsed: true })[0]).not.toContain("────");
+		expect(render({ collapsed: true }, false, false, 80, makeTheme())).toHaveLength(1);
 		expect(render({ collapsed: true }, true).join("\n")).toContain(diagnostic);
-		expect(render({ collapsed: true }, true)[0]).toContain("[error]────");
-		expect(render({}, false, true)[0]).not.toContain("[error]────");
+		expect(render({ collapsed: true }, true).at(-1)).toBe(`[error]${"- ".repeat(40)}[/error]`);
+		expect(render({}, false, true)).toEqual([expect.stringContaining(diagnostic)]);
 	});
 });

@@ -89,7 +89,7 @@ describe("registerReadTool", () => {
 		};
 
 		expect(render({ timer: 1 })).toContain(diagnostic);
-		expect(render({ timer: 1 })).toContain("─");
+		expect(render({ timer: 1 })).toContain("- -");
 		expect(render({ collapsed: true })).toContain("✗  read missing.ts · failed");
 		expect(render({ collapsed: true }, true)).toContain(diagnostic);
 	});
@@ -128,18 +128,20 @@ describe("registerReadTool", () => {
 		} as typeof theme;
 		if (!tool.renderResult) throw new Error("renderResult not registered");
 		const renderResult = tool.renderResult;
-		const render = (result: unknown, isPartial: boolean) =>
-			renderResult(result, { isPartial }, keyedTheme, makeRenderCtx({ expanded: true }))
-				.render(24)
-				.join("\n");
+		const render = (result: unknown, isPartial: boolean, expanded = false) =>
+			renderResult(result, { isPartial }, keyedTheme, makeRenderCtx({ expanded })).render(24);
 		const image = {
 			content: [{ type: "image", data: "AAAA", mimeType: "image/png" }],
 			details: { _type: "readImage", filePath: "image.png", data: "AAAA", mimeType: "image/png" },
 		};
 		const fallback = { content: [{ type: "text", text: "read complete" }], details: undefined };
 
-		expect(render(image, false)).toContain("[success]─");
-		expect(render(fallback, false)).toContain("[success]─");
-		expect(render(fallback, true)).not.toContain("[success]─");
+		const imageLines = render(image, false);
+		expect(imageLines.at(-1)).toBe(`[success]${"- ".repeat(12)}[/]`);
+		const fallbackLines = render(fallback, false);
+		expect(fallbackLines[0]).toContain("read complete");
+		expect(fallbackLines.at(-1)).toBe(`[success]${"- ".repeat(12)}[/]`);
+		expect(render(fallback, false, true).at(-1)).toBe(`[success]${"- ".repeat(12)}[/]`);
+		expect(render(fallback, true)).toEqual([expect.stringContaining("read complete")]);
 	});
 });

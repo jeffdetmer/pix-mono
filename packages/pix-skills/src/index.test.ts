@@ -362,7 +362,7 @@ describe("skill renderer", () => {
 			.render(120)
 			.join("\n");
 
-		expect(rendered.split("\n")[0]).toBe(`[success]${"─".repeat(120)}[/]`);
+		expect(rendered.split("\n").at(-1)).toBe(`[success]${"- ".repeat(60)}[/]`);
 		expect(rendered).toContain("REFERENCE · docx");
 		expect(rendered).toContain("portable guidance");
 		expect(rendered).not.toContain("✓ skill");
@@ -385,7 +385,17 @@ describe("skill renderer", () => {
 			tagTheme,
 			{ expanded: true, isError: true, state: {}, invalidate: () => {} },
 		).render(80);
-		expect(error[0]).toBe(`[error]${"─".repeat(80)}[/]`);
+		expect(error[0]).toContain("Skill not found");
+		expect(error.at(-1)).toBe(`[error]${"- ".repeat(40)}[/]`);
+
+		const completed = renderResult(
+			{ content: [{ type: "text", text: "Skill not found" }], details: undefined },
+			{ isPartial: false },
+			tagTheme,
+			{ expanded: false, isError: true, state: {}, invalidate: () => {} },
+		).render(80);
+		expect(completed[0]).toContain("Skill not found");
+		expect(completed.at(-1)).toBe(`[error]${"- ".repeat(40)}[/]`);
 
 		const partial = renderResult(
 			{ content: [{ type: "text", text: "loading" }], details: undefined },
@@ -393,7 +403,7 @@ describe("skill renderer", () => {
 			tagTheme,
 			{ expanded: true, isError: false, state: {}, invalidate: () => {} },
 		).render(80);
-		expect(partial[0]).not.toContain("────");
+		expect(partial).toEqual([expect.stringContaining("loading")]);
 	});
 });
 

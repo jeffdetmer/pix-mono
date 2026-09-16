@@ -83,6 +83,7 @@ npm:@xynogen/pix-toolbox|/toolbox — fuzzy-search picker to enable/disable tool
 npm:@xynogen/pix-graph|Native-TS code knowledge graph (build/query via CLI); a standalone tool you invoke on demand, not part of the always-on distro.
 npm:@xynogen/pix-hunk|Live Hunk diff-review bridge — requires the external Hunk CLI and an active review session, so enable it explicitly.
 npm:@xynogen/pix-search|Smarter @ file search (fuzzy + git-recency ranking) that overrides Pi's built-in autocomplete, so opt in when you want that ranking.
+npm:@xynogen/pix-download|Fast resumable downloads via an auto-managed aria2 daemon — requires the external aria2c binary, so enable it explicitly.
 "
 
 # Opt-in community extensions — third-party packages, not part of the pix distro.

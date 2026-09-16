@@ -328,8 +328,8 @@ describe("registerAsk", () => {
 				{ expanded: true, state, invalidate: () => {}, isError: false },
 			)
 			.render(40);
-		expect(expanded[0]).toBe("─".repeat(40));
-		expect(expanded.at(-1)).toBe("─".repeat(40));
+		expect(expanded[0]?.trimEnd()).toBe("✓ ask_user");
+		expect(expanded.at(-1)).toBe("- ".repeat(20));
 
 		const partial = tool
 			.renderResult(
@@ -367,7 +367,19 @@ describe("registerAsk", () => {
 				{ expanded: true, state: {}, invalidate: () => {}, isError: true },
 			)
 			.render(40);
-		expect(error[0]).toBe(`[error]${"─".repeat(40)}[/error]`);
+		expect(error[0]?.trimEnd()).toBe("At least one question is required.");
+		expect(error.at(-1)).toBe(`[error]${"- ".repeat(20)}[/error]`);
+
+		const completed = tool
+			.renderResult(
+				{ content: [{ type: "text", text: "At least one question is required." }] },
+				{ expanded: false, isPartial: false },
+				theme,
+				{ expanded: false, state: {}, invalidate: () => {}, isError: true },
+			)
+			.render(40);
+		expect(completed[0]?.trimEnd()).toBe("At least one question is required.");
+		expect(completed.at(-1)).toBe(`[error]${"- ".repeat(20)}[/error]`);
 
 		const noColorTheme = {
 			fg: (_color: string, text: string) => text,

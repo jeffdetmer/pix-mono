@@ -367,12 +367,16 @@ function blockToLines(block: McpToolContentBlock): string[] {
 // single fat value blows past the row cap into a tall blob. Used for the preview
 // only — expanded uses plain Text so it wraps and shows everything.
 class ClippedLines {
-	constructor(private readonly text: string) {}
+	constructor(
+		private readonly text: string,
+		private readonly frameIndent = 0,
+	) {}
 	invalidate(): void {}
 	render(width: number): string[] {
 		const lines = this.text.split("\n");
 		if (width <= 0) return lines;
-		return lines.map((line) => truncateToWidth(line, width, "›"));
+		const contentWidth = Math.max(0, width - this.frameIndent);
+		return lines.map((line) => truncateToWidth(line, contentWidth, "›"));
 	}
 }
 
@@ -441,6 +445,9 @@ export function renderMcpToolResult(
 	}
 
 	const display = formatMcpToolResultLines(result, options.expanded || isError);
+	const frame = frameToolResult;
+	const content = (styled: string) =>
+		options.expanded ? new Text(styled, 0, 0) : new ClippedLines(styled, 3);
 	const hint =
 		display.truncated && !options.expanded ? `\n${theme.fg("muted", "(Ctrl+O to expand)")}` : "";
 
@@ -470,11 +477,7 @@ export function renderMcpToolResult(
 			const footerLine = footer ? `\n${theme.fg("muted", footer)}` : "";
 			const styled = `${hl}${footerLine}${hint}`;
 			// Preview clips each line to one row; expanded wraps to show everything.
-			return frameToolResult(
-				options.expanded ? new Text(styled, 0, 0) : new ClippedLines(styled),
-				theme,
-				isError,
-			);
+			return frame(content(styled), theme, isError);
 		}
 	}
 
@@ -487,9 +490,5 @@ export function renderMcpToolResult(
 		.join("\n");
 
 	const styled = `${output}${hint}`;
-	return frameToolResult(
-		options.expanded ? new Text(styled, 0, 0) : new ClippedLines(styled),
-		theme,
-		isError,
-	);
+	return frame(content(styled), theme, isError);
 }

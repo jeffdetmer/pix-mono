@@ -111,10 +111,9 @@ test("expanded mode restores full joined text", () => {
 	);
 	expect(stub.get()).toBe("  [dim]first\n  [dim]second");
 	expect(component.render(20)).toEqual([
-		"[success]────────────────────",
 		"  [dim]first",
 		"  [dim]second",
-		"[success]────────────────────",
+		"[success]- - - - - - - - - - ",
 	]);
 });
 
@@ -130,7 +129,7 @@ test("structured errors get red open frames but collapsed summaries stay unframe
 		theme,
 		context(open),
 	);
-	expect(openComponent.render(20)[0]).toBe("[error]────────────────────");
+	expect(openComponent.render(20)).toEqual(["  [dim]failed body", "[error]- - - - - - - - - - "]);
 
 	const collapsed = stubComponent();
 	const collapsedComponent = rr(
@@ -142,7 +141,11 @@ test("structured errors get red open frames but collapsed summaries stay unframe
 		theme,
 		context(collapsed, { state: { collapsed: true } }),
 	);
-	expect(collapsedComponent.render(20).join("\n")).not.toContain("────");
+	const collapsedLines = collapsedComponent.render(20);
+	expect(collapsedLines).toHaveLength(1);
+	expect(collapsedLines[0]).toContain("fetch");
+	expect(collapsedLines[0]).toContain("https://example.com");
+	expect(collapsedLines[0]).toContain("11 chars");
 });
 
 test("terminal error body gets an error frame", () => {
@@ -153,11 +156,7 @@ test("terminal error body gets an error frame", () => {
 		theme,
 		context(stub, { isError: true, expanded: true }),
 	);
-	expect(component.render(20)).toEqual([
-		"[error]────────────────────",
-		"  [error]boom",
-		"[error]────────────────────",
-	]);
+	expect(component.render(20)).toEqual(["  [error]boom", "[error]- - - - - - - - - - "]);
 });
 
 test("renderResult caps the normal preview", () => {

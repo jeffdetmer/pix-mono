@@ -80,24 +80,27 @@ describe("graph tool", () => {
 		const render = (
 			outcome: "success" | "error" | "running" | undefined,
 			isPartial = false,
+			expanded = false,
 		): string =>
 			renderResult(
 				{
 					content: [{ type: "text", text: "result" }],
 					...(outcome ? { details: { _type: "graphResult", action: "build", outcome } } : {}),
 				},
-				{ expanded: false, isPartial },
+				{ expanded, isPartial },
 				theme,
 				{ isError: outcome === "error" },
 			)
 				.render(20)
 				.join("\n");
 
-		expect(render("success")).toContain("[success]────────────────────[/success]");
-		expect(render("error")).toContain("[error]────────────────────[/error]");
-		expect(render("running")).not.toContain("────────────────────");
-		expect(render("success", true)).not.toContain("────────────────────");
-		expect(render(undefined)).not.toContain("────────────────────");
+		expect(render("success")).toContain("[success]- - - - - - - - - - [/success]");
+		expect(render("success")).not.toContain("└─");
+		expect(render("error")).toContain("[error]- - - - - - - - - - [/error]");
+		expect(render("success", false, true)).toContain("[success]- - - - - - - - - - [/success]");
+		expect(render("running")).not.toContain("- -");
+		expect(render("success", true)).not.toContain("- -");
+		expect(render(undefined)).not.toContain("- -");
 	});
 
 	test("build mode writes the graph and reports counts", async () => {

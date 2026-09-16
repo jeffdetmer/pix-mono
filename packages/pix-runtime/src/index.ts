@@ -68,3 +68,8 @@ export {
 	type PrettyConfig,
 	prettySection,
 } from "./sections/index.ts";
+export {
+	type FindExecutableOptions,
+	findExecutable,
+	findExecutableSync,
+} from "./which.ts";
