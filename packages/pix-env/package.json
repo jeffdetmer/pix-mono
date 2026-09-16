@@ -38,9 +38,11 @@
 	},
 	"dependencies": {
 		"@xynogen/pix-pretty": "^1.16.0",
-		"@xynogen/pix-runtime": "^0.8.0"
+		"@xynogen/pix-runtime": "^0.8.0",
+		"typebox": "^1.1.38"
 	},
 	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
 		"@earendil-works/pi-coding-agent": "*",
 		"@earendil-works/pi-tui": "*"
 	}

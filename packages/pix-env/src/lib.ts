@@ -74,6 +74,25 @@ export function loadRegistry(cwd: string): Map<string, string> {
 	return reg;
 }
 
+export type EnvValueType = "boolean" | "int" | "float" | "string";
+
+/** Infer a compact value type without exposing the value itself. */
+export function valueType(value: string): EnvValueType {
+	if (/^(?:true|false)$/i.test(value)) return "boolean";
+	if (/^[+-]?\d+$/.test(value)) return "int";
+	if (/^[+-]?(?:\d+\.\d*|\d*\.\d+)(?:e[+-]?\d+)?$/i.test(value)) return "float";
+	return "string";
+}
+
+/** Return sorted env names and inferred types; values never leave the registry. */
+export function describeRegistry(reg: Map<string, string>): Record<string, EnvValueType> {
+	return Object.fromEntries(
+		[...reg.entries()]
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([key, value]) => [key, valueType(value)]),
+	);
+}
+
 /** Match `$KEY` or `${KEY}` where KEY is a valid env name. */
 const REF_RE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
 

@@ -1,8 +1,15 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createEventBus } from "@earendil-works/pi-coding-agent";
+import registerEnv from "./extension.ts";
 import {
 	allRefsIn,
 	collectRefs,
 	collectUnsupported,
+	describeRegistry,
 	parseEnv,
 	refsIn,
 	resolveInput,
@@ -17,6 +24,174 @@ import {
 const L = String.fromCharCode(36, 123); // "${"
 const R = String.fromCharCode(125); // "}"
 const braced = (k: string) => L + k + R;
+
+type EnvReadTool = {
+	execute: (
+		id: string,
+		params: { action: "info" | "read"; names?: string[]; reason: string },
+		signal: AbortSignal | undefined,
+		onUpdate: undefined,
+		ctx: unknown,
+	) => Promise<{
+		content: Array<{ type: string; text: string }>;
+		details?: unknown;
+		isError?: boolean;
+	}>;
+	renderResult: (
+		result: { content: Array<{ type: string; text: string }>; details?: unknown },
+		options: { isPartial: boolean },
+		theme: { fg: (color: string, text: string) => string },
+		ctx: { isError: boolean },
+	) => { render: (width: number) => string[] };
+};
+
+function captureEnvRead(): EnvReadTool {
+	let tool: EnvReadTool | undefined;
+	registerEnv({
+		events: createEventBus(),
+		on() {},
+		registerTool(definition: EnvReadTool & { name: string }) {
+			if (definition.name === "read_env") tool = definition;
+		},
+	} as unknown as ExtensionAPI);
+	if (!tool) throw new Error("read_env not registered");
+	return tool;
+}
+
+describe("read_env tool", () => {
+	let cwd: string;
+	let oldFiles: string | undefined;
+
+	beforeEach(() => {
+		cwd = mkdtempSync(join(tmpdir(), "pix-env-"));
+		writeFileSync(join(cwd, ".env"), "PORT=3000\nHOST=api.example.com\nTOKEN=secret-value\n");
+		oldFiles = process.env.PIX_ENV_FILES;
+		delete process.env.PIX_ENV_FILES;
+	});
+
+	afterEach(() => {
+		rmSync(cwd, { recursive: true, force: true });
+		if (oldFiles === undefined) delete process.env.PIX_ENV_FILES;
+		else process.env.PIX_ENV_FILES = oldFiles;
+	});
+
+	test("info returns names and shapes without approval or values", async () => {
+		const tool = captureEnvRead();
+		const result = await tool.execute("1", { action: "info", reason: "" }, undefined, undefined, {
+			cwd,
+			hasUI: false,
+			ui: {},
+		});
+		expect(result.content[0]?.text).toBe("HOST = string\nPORT = int\nTOKEN = string");
+		expect(result.content[0]?.text).not.toContain("secret-value");
+	});
+
+	test("read reveals only requested values after approval", async () => {
+		const tool = captureEnvRead();
+		const result = await tool.execute(
+			"1",
+			{ action: "read", names: ["TOKEN"], reason: "Authenticate test request" },
+			undefined,
+			undefined,
+			{
+				cwd,
+				hasUI: true,
+				ui: {
+					custom: async <T>(build: (...args: any[]) => unknown) => {
+						let answer: T | undefined;
+						const component = build(
+							{ requestRender() {} },
+							{
+								fg: (_c: string, text: string) => text,
+								bg: (_c: string, text: string) => text,
+								bold: (text: string) => text,
+							},
+							undefined,
+							(value: T) => {
+								answer = value;
+							},
+						) as { render(width: number): string[]; handleInput(data: string): void };
+						component.render(80);
+						component.handleInput("\x1b[B");
+						component.handleInput("\r");
+						return answer;
+					},
+				},
+			},
+		);
+		expect(result.content[0]?.text).toBe("TOKEN=secret-value");
+		expect(result.content[0]?.text).not.toContain("api.example.com");
+	});
+
+	test("renders info with type icons and accent-colored names", () => {
+		const tool = captureEnvRead();
+		const theme = { fg: (color: string, text: string) => `[${color}]${text}[/]` };
+		const result = {
+			content: [
+				{ type: "text", text: "ENABLED = boolean\nHOST = string\nPORT = int\nRATE = float" },
+			],
+			details: {
+				action: "info",
+				types: { ENABLED: "boolean", HOST: "string", PORT: "int", RATE: "float" },
+			},
+		};
+		const lines = tool
+			.renderResult(result, { isPartial: false }, theme, { isError: false })
+			.render(80);
+		const body = lines.slice(1, -1).join("\n");
+
+		expect(body).toContain("[accent]ENABLED[/]");
+		expect(body).toContain("[accent]HOST[/]");
+		expect(body).toContain("[accent]PORT[/]");
+		expect(body).toContain("[accent]RATE[/]");
+		expect(body).not.toContain("ENABLED = boolean");
+		expect(new Set(body.match(/[^\s]+(?= \[accent\])/g)).size).toBe(4);
+	});
+
+	test("frames successful results green and errors red", () => {
+		const tool = captureEnvRead();
+		const theme = { fg: (color: string, text: string) => `[${color}]${text}[/]` };
+		const result = { content: [{ type: "text", text: "HOST = string" }] };
+		const success = tool.renderResult(result, { isPartial: false }, theme, { isError: false });
+		const failure = tool.renderResult(result, { isPartial: false }, theme, { isError: true });
+
+		const successLines = success.render(20);
+		const failureLines = failure.render(20);
+		expect(successLines[0]).toBe(`[success]${"─".repeat(20)}[/]`);
+		expect(successLines[1]?.trimEnd()).toBe("HOST = string");
+		expect(successLines[2]).toBe(`[success]${"─".repeat(20)}[/]`);
+		expect(failureLines[0]).toBe(`[error]${"─".repeat(20)}[/]`);
+		expect(failureLines[1]?.trimEnd()).toBe("HOST = string");
+		expect(failureLines[2]).toBe(`[error]${"─".repeat(20)}[/]`);
+	});
+
+	test("read rejects missing names and no-UI disclosure", async () => {
+		const tool = captureEnvRead();
+		const missing = await tool.execute(
+			"1",
+			{ action: "read", reason: "Test validation" },
+			undefined,
+			undefined,
+			{
+				cwd,
+				hasUI: true,
+				ui: {},
+			},
+		);
+		expect(missing.isError).toBe(true);
+		expect(missing.content[0]?.text).toContain("names is required");
+
+		const noUi = await tool.execute(
+			"2",
+			{ action: "read", names: ["TOKEN"], reason: "Test no-UI denial" },
+			undefined,
+			undefined,
+			{ cwd, hasUI: false, ui: {} },
+		);
+		expect(noUi.isError).toBe(true);
+		expect(noUi.content[0]?.text).not.toContain("secret-value");
+	});
+});
 
 describe("parseEnv", () => {
 	test("handles export, comments, quotes, inline comments", () => {
@@ -42,6 +217,23 @@ describe("parseEnv", () => {
 
 	test("ignores malformed lines", () => {
 		expect(parseEnv("not a var\n=missingkey\n123=bad")).toEqual({});
+	});
+});
+
+describe("describeRegistry", () => {
+	test("reports value shapes without exposing values", () => {
+		const reg = new Map([
+			["PORT", "3000"],
+			["RATE", "1.5"],
+			["ENABLED", "true"],
+			["HOST", "api.example.com"],
+		]);
+		expect(describeRegistry(reg)).toEqual({
+			ENABLED: "boolean",
+			HOST: "string",
+			PORT: "int",
+			RATE: "float",
+		});
 	});
 });
 

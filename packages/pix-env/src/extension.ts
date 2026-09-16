@@ -15,15 +15,20 @@
  * stays a placeholder until the gated injection — it does not scrub output.
  */
 
+import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { showOverlay } from "@xynogen/pix-pretty/gate-overlay";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
+import { frameToolResult, getTextContent } from "@xynogen/pix-pretty/utils";
 import { getUnattendedMode, withAgentBlock } from "@xynogen/pix-runtime";
 import { once } from "@xynogen/pix-runtime/once";
+import { Type } from "typebox";
 import {
 	allRefsIn,
 	collectRefs,
 	collectUnsupported,
+	describeRegistry,
 	loadRegistry,
 	resolveInput,
 	shellPrelude,
@@ -46,6 +51,130 @@ export default function pixEnvExtension(pi: ExtensionAPI): void {
 			}
 			return reg;
 		};
+
+		pi.registerTool({
+			name: "read_env",
+			label: "Read Environment",
+			description:
+				'Read loaded .env data with minimal disclosure. action="info" returns variable names and inferred shapes only, without approval. action="read" returns only requested names after explicit user approval. Never request unrelated variables.',
+			promptSnippet: "Inspect env names/shapes or request specific values with user approval",
+			parameters: Type.Object({
+				action: StringEnum(["info", "read"] as const, {
+					description:
+						'"info" lists names and inferred shapes; "read" reveals requested values after approval.',
+				}),
+				names: Type.Optional(
+					Type.Array(Type.String(), {
+						description: 'Exact variable names to reveal. Required for action="read".',
+						minItems: 1,
+					}),
+				),
+				reason: Type.String({
+					description:
+						'Why these values are needed. Required for action="read" and shown in the approval prompt.',
+				}),
+			}),
+			renderResult(result, _options, theme, renderCtx) {
+				const details = result.details as
+					| { action?: string; types?: Record<string, "boolean" | "int" | "float" | "string"> }
+					| undefined;
+				const body =
+					details?.action === "info" && details.types
+						? Object.entries(details.types)
+								.map(
+									([name, type]) =>
+										`${icon(`data.${type}`)} ${theme.fg("accent", name)} ${theme.fg("muted", type)}`,
+								)
+								.join("\n")
+						: getTextContent(result) || "No env variables loaded.";
+				return frameToolResult(new Text(body, 0, 0), theme, renderCtx.isError);
+			},
+			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+				const reg = loadRegistry(ctx.cwd);
+				if (params.action === "info") {
+					const types = describeRegistry(reg);
+					const text = Object.entries(types)
+						.map(([key, type]) => `${key} = ${type}`)
+						.join("\n");
+					return {
+						content: [{ type: "text", text: text || "No env variables loaded." }],
+						details: { action: "info", count: Object.keys(types).length, types },
+					};
+				}
+
+				const names = [...new Set(params.names?.map((name) => name.trim()).filter(Boolean) ?? [])];
+				if (names.length === 0) {
+					return {
+						content: [
+							{ type: "text", text: 'read_env failed: names is required for action="read"' },
+						],
+						details: { action: "read", revealed: [] },
+						isError: true,
+					};
+				}
+				const unknown = names.filter((name) => !reg.has(name));
+				if (unknown.length > 0) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `read_env failed: unknown env variable(s): ${unknown.join(", ")}`,
+							},
+						],
+						details: { action: "read", revealed: [] },
+						isError: true,
+					};
+				}
+				if (!ctx.hasUI) {
+					return {
+						content: [{ type: "text", text: "read_env requires interactive user approval." }],
+						details: { action: "read", revealed: [] },
+						isError: true,
+					};
+				}
+
+				const list = names.sort((a, b) => a.localeCompare(b)).join(", ");
+				const result = await withAgentBlock(
+					pi.events,
+					"read_env",
+					"secret disclosure approval",
+					() =>
+						showOverlay(ctx.ui, {
+							mode: "confirm",
+							icon: icon("secret"),
+							title: `Reveal Environment Value${names.length > 1 ? "s" : ""}`,
+							body: [
+								`Variables: ${list}`,
+								`Intent: ${params.reason.trim() || "No reason provided by AI"}`,
+								"Warning: approved values enter model context and session transcript.",
+							],
+							accent: "error",
+							timeoutMs: 30_000,
+							choices: [
+								{ value: "no", label: "Deny", description: "Keep values hidden" },
+								{ value: "yes", label: "Reveal", description: `Expose only ${list}` },
+							],
+							approveValue: "yes",
+						}),
+				);
+				if (result.action !== "approved") {
+					return {
+						content: [{ type: "text", text: `read_env ${result.action}: ${list}` }],
+						details: { action: "read", revealed: [] },
+					};
+				}
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: names.map((name) => `${name}=${reg.get(name) as string}`).join("\n"),
+						},
+					],
+					details: { action: "read", revealed: names },
+				};
+			},
+		});
 
 		// ── Advertise key NAMES only (values stay in the registry) ──────────
 		pi.on("before_agent_start", (event) => {

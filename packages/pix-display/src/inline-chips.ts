@@ -5,9 +5,9 @@
  *   /tmp/shot.png           →  buffer: [paste #2 13 chars]      display: 󰋩 image #2
  *   <path>src/a.ts</path>   →  buffer: [paste #3 8 chars]       display: 󰉿 @a.ts
  *
- * `<path>…</path>` is the only contract with other extensions: pix-search
- * inserts it as text, display promotes it to an atomic Pi paste marker (one
- * backspace deletes the whole chip) and expands it back verbatim for the model.
+ * `<path>…</path>` from pix-search and Pi's `<paste>…</paste>` payloads are
+ * promoted to atomic paste markers (one backspace deletes the whole chip) and
+ * expanded back verbatim for the model.
  */
 import { basename } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -32,6 +32,7 @@ const MARKER = /\[paste #(\d+)( (\+\d+ lines|\d+ chars))?\]/g;
 const SGR = "(?:\\x1b\\[[0-9;]*m|\\x1b_pi:c\\x07)*";
 const PASTE_SPAN = new RegExp(`${SGR}\\[${SGR}paste #(?:[^\\]]|${SGR})*\\]`, "g");
 const PATH_TAG = /<path>([^<]+)<\/path>/g;
+const PASTE_TAG = /<paste>([\s\S]*?)<\/paste>/g;
 const CODES = /\x1b\[[0-9;]*m|\x1b_pi:c\x07/g;
 const IMAGE_PATH =
 	/(^|[^\w/@])((?:~|\/)[^\s,;'"(){}[\]]+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif))(?=$|[\s,;'"(){}[\]])/gi;
@@ -136,6 +137,10 @@ export function installChips(editor: CustomEditor): void {
 	pi.expandPasteMarkers = (text) => expandChips(text, pi.pastes);
 	const handlePaste = pi.handlePaste.bind(editor);
 	pi.handlePaste = (text) => {
+		if (IMAGE_FILE.test(text)) {
+			editor.insertTextAtCursor(`<paste>${text}</paste>`);
+			return;
+		}
 		const before = pi.pasteCounter;
 		handlePaste(text);
 		// Land the cursor after the chip, not glued to it.
@@ -145,14 +150,21 @@ export function installChips(editor: CustomEditor): void {
 	editor.insertTextAtCursor = (text: string) => {
 		if (!text) return;
 		// SAFETY: Pi snapshots and renumbers registry values without interpreting them.
-		const chip = (kind: Chip["kind"], path: string) => {
+		const chip = (value: string | Chip, length: number) => {
 			const id = ++pi.pasteCounter;
-			pi.pastes.set(id, { kind, path });
-			return `[paste #${id} ${path.length} chars]`;
+			pi.pastes.set(id, value);
+			return `[paste #${id} ${length} chars]`;
 		};
 		const replaced = text
-			.replace(PATH_TAG, (_match, path: string) => chip("path", path))
-			.replace(IMAGE_PATH, (_match, prefix: string, path: string) => prefix + chip("image", path));
+			.replace(PATH_TAG, (_match, path: string) => chip({ kind: "path", path }, path.length))
+			.replace(PASTE_TAG, (_match, body: string) =>
+				chip(IMAGE_FILE.test(body) ? { kind: "image", path: body } : body, body.length),
+			)
+			.replace(
+				IMAGE_PATH,
+				(_match, prefix: string, path: string) =>
+					prefix + chip({ kind: "image", path }, path.length),
+			);
 		insertTextAtCursor(/\[paste #\d+[^\]]*\]$/.test(replaced) ? `${replaced} ` : replaced);
 	};
 	const render = editor.render.bind(editor);

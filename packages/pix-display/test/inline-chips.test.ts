@@ -99,6 +99,24 @@ test("renderHistoryChips collapses sent-message tags into inline-code chips", ()
 	expect(renderHistoryChips("<paste>has ` tick</paste>")).not.toContain("` tick");
 });
 
+test("installChips renders <paste> image tags as image chips and preserves payload", () => {
+	const e = editor();
+	e.insertTextAtCursor("look <paste>/tmp/from-tag.png</paste> now");
+	expect(e.getExpandedText()).toBe("look <paste>/tmp/from-tag.png</paste> now");
+	const rendered = e.render(100).join("\n");
+	expect(rendered).toContain("image");
+	expect(rendered).not.toContain("<paste>");
+});
+
+test("installChips renders pasted image paths as image chips", () => {
+	const e = editor();
+	e.handleInput("\x1b[200~/tmp/from-clipboard.png\x1b[201~");
+	expect(e.getExpandedText()).toBe("<paste>/tmp/from-clipboard.png</paste> ");
+	const rendered = e.render(100).join("\n");
+	expect(rendered).toContain("image");
+	expect(rendered).not.toContain("text");
+});
+
 test("installChips: paste, image path and <path> round-trip on a real editor", () => {
 	const e = editor();
 	const big = "x".repeat(1001);

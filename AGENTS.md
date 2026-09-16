@@ -172,7 +172,8 @@ icon("cwd")           // resolves glyph for active mode (nerd/unicode/ascii)
 
 - Keys are semantic roles (`"model"`, `"cwd"`, `"paste.image"`), never glyph names.
 - `PRETTY_ICONS` env seeds default; `/pix` settings command switches live (persisted to `~/.pi/agent/pix.json`).
-- New icons → add to `CATALOG` in `packages/pix-pretty/src/icon-catalog.ts` with all three variants.
+- New icons → add to the underlying `CATALOG` in `packages/pix-runtime/src/icon-catalog.ts` with all three variants; `pix-pretty/icon-catalog` is the public re-export.
+- Typed data lists use `<semantic type icon> <identifier> <type>`: icon from the catalog, identifier in `accent` (blue in the default theme), and type metadata in `muted`. Never color identifiers with raw ANSI or a fixed palette value.
 
 ---
 
@@ -203,6 +204,15 @@ The required visual ramp is **primary → dim → muted**. `dim` must be brighte
 | CLI output, browser DevTools, or explicit debug logging | `console.*`; never let extension runtime logs write into active TUI |
 
 Transient diagnostics use one shared above-editor slot: one bounded line, newest wins, 30-second TTL. Levels are `error`, `warning`, and `info`; use `showTransientError()` only as the error convenience wrapper. Do not route structured tool errors or actionable multi-line notices through this slot.
+
+Pix tool result renderers must frame open or expanded terminal output with status-colored horizontal rules.
+
+- Use `frameToolResult()` from `@xynogen/pix-pretty/utils`; do not hand-build rules or duplicate frame logic.
+- Successful completed results use the `success` theme role; failed results (`isError`) use `error`.
+- Frame both the top and bottom at the current render width. Keep result content between them unchanged except for tool-specific highlighting.
+- Partial/streaming output may remain unframed until completion to avoid moving terminal chrome.
+- Collapsed one-line summaries stay unframed; they must include a status glyph or text label so status is not conveyed by color alone.
+- Renderer tests must assert both success and error frame roles; avoid pixel snapshots beyond stable text and semantic theme tags.
 
 ```ts
 import {

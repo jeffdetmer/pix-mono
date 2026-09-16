@@ -65,6 +65,10 @@ const CATALOG = {
 	// presentation, ascii = tofu-free token.
 	lock: { nerd: "\u{F0341}", unicode: `\u{1F512}${VS}`, ascii: "[!]" },
 	secret: { nerd: "\u{F0306}", unicode: `\u{1F511}${VS}`, ascii: "[key]" },
+	"data.boolean": { nerd: "\u25C6", unicode: `\u25C6${VS}`, ascii: "bool" },
+	"data.int": { nerd: "#", unicode: "#", ascii: "int" },
+	"data.float": { nerd: "\u2248", unicode: `\u2248${VS}`, ascii: "float" },
+	"data.string": { nerd: "\u201C", unicode: `\u201C${VS}`, ascii: "str" },
 	settings: { nerd: "\u{F0493}", unicode: `\u2699${VS}`, ascii: "[*]" },
 	update: { nerd: "\u{F01DA}", unicode: `\u2193${VS}`, ascii: "[v]" },
 
