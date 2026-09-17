@@ -19,8 +19,10 @@ Intercepts every tool call and classifies it against severity rules before it ru
 | Tier | Examples | Behavior |
 |---|---|---|
 | `critical` | force-push to main, recursive delete, `dd` to disk | hard-block (non-interactive) / 15s auto-deny dialog (TUI) |
-| `dangerous` | any `sudo` (hard-redirected to `sudo_run`, no bypass) | 30s auto-deny confirmation |
+| `dangerous` | destructive git, `chmod 777`, `curl … \| sh` | 30s auto-deny confirmation |
 | `risky` | — | 60s allow-first dialog; silently passes non-interactive |
+
+**Privileged auth redirect** — bash `sudo`/`ssh` can't have their password/passphrase auto-typed, so they are hard-blocked and redirected to the dedicated tool (`sudo_run`/`ssh_run`) with no bypass — but *only when that tool is installed* (pix-sudo/pix-ssh are opt-in; without them the bash form is the only path and passes through). This is **guarding** (stop + redirect); the softer **steering** of non-privileged stand-ins (`cat`→`read`, `grep`→`grep`, …) lives in [`pix-nudge`](../pix-nudge).
 
 Auto-approve patterns and extra rules go in the `gate` section of `~/.pi/agent/pix.json`; set `guardrails: "off"` to disable built-in rules entirely.
 

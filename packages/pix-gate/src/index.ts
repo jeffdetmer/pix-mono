@@ -25,6 +25,7 @@ import {
 	classifyPath,
 	extractPathsFromBash,
 	isCircuitBreaker,
+	isSshCommand,
 	isSudoCommand,
 	loadUserConfig,
 	unattendedGateDecision,
@@ -41,6 +42,26 @@ import {
 
 export default function (pi: ExtensionAPI): void {
 	const { rules, autoApprove, pathRules } = buildRules(loadUserConfig());
+
+	// Is a tool registered (active or gated)? ssh_run/sudo_run are opt-in and
+	// absent when pix-ssh/pix-sudo aren't installed — only redirect toward a
+	// tool that actually exists, else the bash form is the only path.
+	const isRegistered = (name: string): boolean => {
+		try {
+			return (pi.getAllTools?.() ?? []).some((t) => t.name === name);
+		} catch {
+			return false;
+		}
+	};
+
+	// Privileged auth tools that must not run raw in bash (interactive password /
+	// passphrase can't be auto-typed there). Each redirects to its dedicated tool
+	// ONLY when that tool is installed. pix-nudge handles the non-privileged
+	// read/ls/grep/find/edit stand-ins.
+	const AUTH_REDIRECTS = [
+		{ match: isSudoCommand, tool: "sudo_run", label: "sudo" },
+		{ match: isSshCommand, tool: "ssh_run", label: "ssh" },
+	] as const;
 
 	// ── Path protection (read/write/edit tools only — bash handled below) ───
 	pi.on("tool_call", async (event, ctx) => {
@@ -157,18 +178,19 @@ export default function (pi: ExtensionAPI): void {
 
 		const highest = concerns.reduce((a, b) => (a.tier > b.tier ? a : b));
 
-		// sudo: hard redirect — no prompt, no bypass. Even YOLO cannot run bare
-		// `sudo` in bash (the password can't be auto-typed); it must use sudo_run.
-		if (isSudoCommand(command)) {
+		// Privileged auth redirect — hard block, no prompt, no bypass. Even YOLO
+		// cannot run bare sudo/ssh in bash (password/passphrase can't be auto-typed);
+		// it must use the dedicated tool. Only fires when that tool is installed.
+		for (const redirect of AUTH_REDIRECTS) {
+			if (!redirect.match(command) || !isRegistered(redirect.tool)) continue;
 			if (unattendedGateDecision(pi.events, highest.tier) === "deny") {
-				return { block: true, reason: "[AFK] sudo is denied while user is away." };
+				return { block: true, reason: `[AFK] ${redirect.label} is denied while user is away.` };
 			}
 			// One surface only: the block reason renders as the tool-error card and
-			// reaches the model. A separate notify here duplicated the warning.
+			// reaches the model. A separate notify would duplicate the warning.
 			return {
 				block: true,
-				reason:
-					"DANGEROUS — use the sudo_run tool instead of sudo in bash (it handles auth securely).",
+				reason: `DANGEROUS — use the ${redirect.tool} tool instead of ${redirect.label} in bash (it handles auth securely).`,
 			};
 		}
 

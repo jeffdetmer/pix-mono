@@ -298,6 +298,16 @@ export function isSudoCommand(command: string): boolean {
 	return /(^|[\s;|&])sudo\b/i.test(command);
 }
 
+/**
+ * True when a command invokes the `ssh` remote shell as a token. Requires
+ * trailing whitespace/end so it does NOT match `ssh-keygen`, `ssh-add`,
+ * `ssh-copy-id`, or `sshpass` (a later real ` ssh ` in the same line still
+ * matches, e.g. `sshpass -p x ssh host`).
+ */
+export function isSshCommand(command: string): boolean {
+	return /(^|[\s;|&])ssh(\s|$)/i.test(command);
+}
+
 // Non-lifting circuit breaker: catastrophic, unrecoverable commands that NO
 // mode (not even YOLO) may auto-approve. Mirrors Claude Code's bypassPermissions
 // floor, which still prompts on root/home wipes. These always fall through to

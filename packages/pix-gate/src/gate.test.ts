@@ -9,6 +9,7 @@ import {
 	DEFAULT_RULES,
 	extractPathsFromBash,
 	isCircuitBreaker,
+	isSshCommand,
 	isSudoCommand,
 	unattendedGateDecision,
 } from "./lib.ts";
@@ -62,6 +63,31 @@ describe("isSudoCommand", () => {
 	test("does NOT match sudoer or pseudo", () => {
 		expect(isSudoCommand("cat /etc/sudoers")).toBe(false);
 		expect(isSudoCommand("echo pseudo")).toBe(false);
+	});
+});
+
+// ── isSshCommand ────────────────────────────────────────────────────────
+
+describe("isSshCommand", () => {
+	test("matches bare ssh and ssh after operators", () => {
+		expect(isSshCommand("ssh deploy@host uptime")).toBe(true);
+		expect(isSshCommand("cd /tmp && ssh host")).toBe(true);
+		expect(isSshCommand("pwd; ssh host")).toBe(true);
+	});
+
+	test("matches a real ssh token even after sshpass", () => {
+		expect(isSshCommand("sshpass -p x ssh host uptime")).toBe(true);
+	});
+
+	test("does NOT match ssh-* helper commands", () => {
+		expect(isSshCommand("ssh-keygen -t ed25519")).toBe(false);
+		expect(isSshCommand("ssh-add ~/.ssh/id_ed25519")).toBe(false);
+		expect(isSshCommand("ssh-copy-id host")).toBe(false);
+		expect(isSshCommand("sshpass -p x scp f host:/tmp")).toBe(false);
+	});
+
+	test("does NOT match pix-ssh in a path", () => {
+		expect(isSshCommand("cd packages/pix-ssh && npm publish")).toBe(false);
 	});
 });
 
