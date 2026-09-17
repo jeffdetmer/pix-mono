@@ -163,13 +163,12 @@ export default function (pi: ExtensionAPI): void {
 			if (unattendedGateDecision(pi.events, highest.tier) === "deny") {
 				return { block: true, reason: "[AFK] sudo is denied while user is away." };
 			}
-			ctx.ui.notify(
-				`⚠️  ${ctx.ui.theme.fg("warning", "DANGEROUS")} — use sudo_run tool instead (handles auth securely)`,
-				"warning",
-			);
+			// One surface only: the block reason renders as the tool-error card and
+			// reaches the model. A separate notify here duplicated the warning.
 			return {
 				block: true,
-				reason: "Use sudo_run tool instead of sudo in bash.",
+				reason:
+					"DANGEROUS — use the sudo_run tool instead of sudo in bash (it handles auth securely).",
 			};
 		}
 
