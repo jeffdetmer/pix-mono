@@ -11,6 +11,7 @@
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { COLLAPSED_TOOL_GLYPH, dotJoin, padIcon } from "@xynogen/pix-pretty/utils";
+import { collapseDelayMs } from "@xynogen/pix-runtime/collapse";
 import type { AgentManager } from "../agent-manager.ts";
 import { getConfig } from "../agent-types.ts";
 import type { AgentActivity, AgentDetails, Theme } from "../tools.ts";
@@ -44,6 +45,24 @@ export {
 const MAX_WIDGET_LINES = 12;
 
 export const ERROR_STATUSES = new Set(["error", "aborted", "stopped"]);
+
+// Finished rows linger before dropping. Both windows scale off the shared
+// collapse delay (config `collapse.delaySec`, default 10s) so the one knob that
+// tunes tool-card collapse also tunes the widget — no second hardcoded timer:
+//   ok linger    = base       (10s at default)
+//   error linger = base × 3    (30s at default)
+// The transcript notification is the permanent record; these only govern the
+// transient above-editor row.
+const OK_LINGER_SCALE = 1;
+const ERROR_LINGER_SCALE = 3;
+/** Fallback base when config resolves non-positive (never collapse to 0). */
+const DEFAULT_LINGER_BASE_MS = 10_000;
+
+/** Resolve the ok/error linger windows from the shared collapse delay. */
+export function lingerWindows(baseMs: number = collapseDelayMs()): { ok: number; error: number } {
+	const base = baseMs > 0 ? baseMs : DEFAULT_LINGER_BASE_MS;
+	return { ok: base * OK_LINGER_SCALE, error: base * ERROR_LINGER_SCALE };
+}
 
 // ── UICtx type ────────────────────────────────────────────────────────────────
 
@@ -125,8 +144,6 @@ export class AgentWidget {
 	private widgetFrame = 0;
 	private widgetInterval: ReturnType<typeof setInterval> | undefined;
 	private lingerTimeout: ReturnType<typeof setTimeout> | undefined;
-	private static readonly FINISHED_LINGER_MS = 5_000;
-	private static readonly ERROR_LINGER_MS = 15_000;
 	private widgetRegistered = false;
 	private tui: unknown = undefined;
 	private lastStatusText: string | undefined;
@@ -164,11 +181,10 @@ export class AgentWidget {
 		// Foreground agents show their result inline in the transcript — no need
 		// to linger in the widget. Only background agents get the finished line.
 		if (!isBackground) return false;
-		// Linger a few seconds after finish, then drop. The notification is the
-		// permanent record; errors stay longer so failures are noticed.
-		const linger = ERROR_STATUSES.has(status)
-			? AgentWidget.ERROR_LINGER_MS
-			: AgentWidget.FINISHED_LINGER_MS;
+		// Linger after finish, then drop — windows derive from config collapse.delaySec
+		// so one knob tunes both tool cards and this widget. Errors stay longer.
+		const windows = lingerWindows();
+		const linger = ERROR_STATUSES.has(status) ? windows.error : windows.ok;
 		return Date.now() - completedAt < linger;
 	}
 
@@ -211,8 +227,10 @@ export class AgentWidget {
 			icon = theme.fg("success", padIcon("✓"));
 			statusText = "";
 		} else if (a.status === "steered") {
+			// steered = wrapped up at the soft turn limit but finished fine — it's a
+			// successful completion, so render it exactly like `completed`.
 			icon = theme.fg("success", padIcon("✓"));
-			statusText = theme.fg("muted", " (turn limit)");
+			statusText = "";
 		} else if (a.status === "stopped") {
 			icon = theme.fg("muted", padIcon("■"));
 			statusText = theme.fg("muted", " stopped");
@@ -416,13 +434,12 @@ export class AgentWidget {
 			}
 			if (!this.lingerTimeout) {
 				// Find earliest linger expiry across all finished agents
+				const windows = lingerWindows();
 				let earliest = Number.POSITIVE_INFINITY;
 				for (const a of allAgents) {
 					if (a.status === "running" || a.status === "queued") continue;
 					if (a.completedAt == null || !a.isBackground) continue;
-					const linger = ERROR_STATUSES.has(a.status)
-						? AgentWidget.ERROR_LINGER_MS
-						: AgentWidget.FINISHED_LINGER_MS;
+					const linger = ERROR_STATUSES.has(a.status) ? windows.error : windows.ok;
 					const expiry = a.completedAt + linger;
 					if (expiry < earliest) earliest = expiry;
 				}

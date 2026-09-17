@@ -14,7 +14,7 @@
  */
 
 import { expect, test } from "bun:test";
-import { AgentWidget, type UICtx } from "../src/ui/widget.ts";
+import { AgentWidget, lingerWindows, type UICtx } from "../src/ui/widget.ts";
 
 type Theme = UICtx["theme"];
 
@@ -97,6 +97,32 @@ test("widget rows align under the heading without tree connectors", () => {
 	const component = ctx.widgetContent({ terminal: { columns: 160 } }, ctx.theme);
 	const lines = component.render();
 	expect(lines[1]).toMatch(/^ {2}\S.*Agent.*long job/);
+	widget.dispose();
+});
+
+test("linger windows scale off the shared collapse delay (config-driven)", () => {
+	// One knob (config collapse.delaySec) tunes both tool-card collapse and the
+	// widget: ok = base, error = base×3. A non-positive base falls back so a
+	// misconfigured 0 never collapses the linger to nothing.
+	expect(lingerWindows(30_000)).toEqual({ ok: 30_000, error: 90_000 });
+	expect(lingerWindows(4_000)).toEqual({ ok: 4_000, error: 12_000 });
+	expect(lingerWindows(0)).toEqual({ ok: 10_000, error: 30_000 });
+});
+
+test("a steered agent renders as a plain completed row (no turn-limit tag)", () => {
+	// steered = wrapped up at the soft turn limit but finished fine == completed.
+	const steered = { ...runningBg, status: "steered", completedAt: Date.now() };
+	const widget = new AgentWidget(makeManager([steered]), new Map());
+	const ctx = makeSpyCtx();
+	widget.setUICtx(ctx);
+	widget.update();
+	if (typeof ctx.widgetContent !== "function") throw new Error("steered finished row not shown");
+	const rendered = ctx
+		.widgetContent({ terminal: { columns: 160 } }, ctx.theme)
+		.render()
+		.join("\n");
+	expect(rendered).toContain("long job");
+	expect(rendered).not.toContain("turn limit");
 	widget.dispose();
 });
 
