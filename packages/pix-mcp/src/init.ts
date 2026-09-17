@@ -188,7 +188,7 @@ export async function initializeMcp(
 			failedCount > 0
 				? `MCP: ${connectedCount}/${startupServers.length} servers connected (${totalTools} tools)`
 				: `MCP: ${connectedCount} servers connected (${totalTools} tools)`;
-		ctx.ui.notify(msg, "info");
+		showTransientMessage(ctx.ui, msg, "info");
 	}
 
 	const envDirect = process.env.MCP_DIRECT_TOOLS;
@@ -226,7 +226,8 @@ export async function initializeMcp(
 			);
 			const bootstrapped = bootstrapResults.filter((r) => r.ok).map((r) => r.name);
 			if (bootstrapped.length > 0 && ctx.hasUI) {
-				ctx.ui.notify(
+				showTransientMessage(
+					ctx.ui,
 					`MCP: direct tools for ${bootstrapped.join(", ")} will be available after restart`,
 					"info",
 				);

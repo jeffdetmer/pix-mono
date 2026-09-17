@@ -7,6 +7,7 @@
  */
 
 import { CustomEditor, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { attachPicker } from "./editor.ts";
 import { FilePicker } from "./picker.ts";
 import { withDirectories } from "./rank.ts";
@@ -58,9 +59,12 @@ export default function (pi: ExtensionAPI): void {
 			// ponytail: cursor access requires CustomEditor. Keep other editors intact;
 			// add a public cursor adapter if a non-CustomEditor integration is needed.
 			if (editor instanceof CustomEditor) {
-				attachPicker(editor, tui, openPicker, (message) => ctx.ui.notify(message, "error"));
+				attachPicker(editor, tui, openPicker, (message) =>
+					showTransientMessage(ctx.ui, message, "error"),
+				);
 			} else {
-				ctx.ui.notify(
+				showTransientMessage(
+					ctx.ui,
 					"pix-search: @ picker requires a CustomEditor; existing editor kept.",
 					"warning",
 				);

@@ -16,6 +16,7 @@ import {
 	fffState,
 	getPiPrettyFffDir,
 } from "@xynogen/pix-pretty/fff";
+import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import type {
 	OptionalFffModule,
 	PiPrettyApi,
@@ -81,14 +82,16 @@ export default function pixGrepExtension(pi: ExtensionAPI): void {
 
 			try {
 				await fffEnsureFinder(ctx.cwd);
-				if (fffState.partialIndex) {
-					ctx.ui?.notify?.(
+				if (fffState.partialIndex && ctx.ui) {
+					showTransientMessage(
+						ctx.ui,
 						"FFF: scan timed out — using partial index. Run /fff-rescan when ready.",
 						"warning",
 					);
 				}
 			} catch (error: unknown) {
-				ctx.ui?.notify?.(`FFF init failed: ${getErrorMessage(error)}`, "error");
+				if (ctx.ui)
+					showTransientMessage(ctx.ui, `FFF init failed: ${getErrorMessage(error)}`, "error");
 			}
 		});
 

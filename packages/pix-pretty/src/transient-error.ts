@@ -1,11 +1,12 @@
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { rule } from "./utils.ts";
 
 export const TRANSIENT_ERROR_TTL_MS = 30_000;
 const WIDGET_KEY = "pix-transient-error";
 const timers = new WeakMap<object, ReturnType<typeof setTimeout>>();
 
 type TransientMessageTheme = {
-	fg(color: "error" | "warning" | "accent" | "muted", text: string): string;
+	fg(color: "error" | "warning" | "accent" | "muted" | "borderMuted", text: string): string;
 };
 
 export type TransientMessageLevel = "error" | "warning" | "info";
@@ -19,11 +20,11 @@ export type TransientErrorUI = {
 	setWidget(
 		key: string,
 		content: WidgetFactory | undefined,
-		options?: { placement?: "aboveEditor" },
+		options?: { placement?: "aboveEditor" | "belowEditor" },
 	): void;
 };
 
-/** Show newest runtime message above the editor, then remove it after 30 seconds. */
+/** Show newest runtime message above the editor (on top of the prompt bar), then remove it after 30 seconds. */
 export function showTransientMessage(
 	ui: TransientErrorUI,
 	message: string,
@@ -41,7 +42,10 @@ export function showTransientMessage(
 					const color = level === "info" ? "accent" : level;
 					const prefix = theme.fg(color, `${level} `);
 					text.setText(prefix + theme.fg("muted", message.replace(/\s+/g, " ").trim()));
-					return [truncateToWidth(text.render(width)[0] ?? "", width)];
+					return [
+						rule(width, (glyphs) => theme.fg("borderMuted", glyphs)),
+						truncateToWidth(text.render(width)[0] ?? "", width),
+					];
 				},
 				invalidate: () => text.invalidate(),
 			};

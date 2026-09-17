@@ -29,7 +29,7 @@ function makeUi() {
 }
 
 describe("showTransientError", () => {
-	test("renders one bounded error row above the editor", () => {
+	test("renders a top rule and one bounded error row above the editor", () => {
 		jest.useFakeTimers();
 		try {
 			const { ui, calls } = makeUi();
@@ -39,9 +39,12 @@ describe("showTransientError", () => {
 			expect(calls[0]?.options).toEqual({ placement: "aboveEditor" });
 			const component = calls[0]?.content?.({}, { fg: (_color, text) => text });
 			const lines = component?.render(24) ?? [];
-			expect(lines).toHaveLength(1);
-			expect(lines[0]).toContain("cache");
-			expect(Bun.stringWidth(lines[0] ?? "")).toBeLessThanOrEqual(24);
+			expect(lines).toHaveLength(2);
+			expect(lines[0]).toMatch(/^[─-]/); // top rule
+			expect(lines[1]).toContain("cache");
+			for (const line of lines) {
+				expect(Bun.stringWidth(line)).toBeLessThanOrEqual(24);
+			}
 		} finally {
 			jest.useRealTimers();
 		}
@@ -62,7 +65,7 @@ describe("showTransientError", () => {
 					},
 				},
 			);
-			expect(warning?.render(80)[0]).toContain("warning using cached metadata");
+			expect(warning?.render(80)[1]).toContain("warning using cached metadata");
 			expect(warningColors).toContain("warning");
 
 			showTransientMessage(ui, "configuration reloaded", "info");
@@ -76,7 +79,7 @@ describe("showTransientError", () => {
 					},
 				},
 			);
-			expect(info?.render(80)[0]).toContain("info configuration reloaded");
+			expect(info?.render(80)[1]).toContain("info configuration reloaded");
 			expect(infoColors).toContain("accent");
 		} finally {
 			jest.useRealTimers();
