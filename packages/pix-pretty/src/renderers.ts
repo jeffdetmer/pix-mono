@@ -1,14 +1,26 @@
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { config } from "@xynogen/pix-runtime/config";
 import { prettySection } from "@xynogen/pix-runtime/sections";
 
-import { FG_DIM, FG_RULE, RST } from "./ansi.js";
+import { FG_DIM, FG_LNUM, FG_RULE, RST } from "./ansi.js";
 import { MAX_PREVIEW_LINES } from "./config.js";
 import { hlBlock } from "./highlight.js";
 import { dirIcon, fileColor, fileIcon } from "./icons.js";
 import { lang } from "./lang.js";
 import type { FgTheme } from "./types.js";
 import { lnum, normalizeLineEndings, pluralize, rule, termW } from "./utils.js";
+
+/** Layout controls for {@link renderFileContent}. */
+export interface RenderFileContentOptions {
+	/** Total render width. Defaults to the live terminal width (`termW()`). */
+	width?: number;
+	/**
+	 * Wrap over-wide code lines onto continuation rows instead of clipping the
+	 * tail with `›`. Off by default (compact preview stays one row per line);
+	 * expanded views pass `true` so no source text is hidden.
+	 */
+	wrapLongLines?: boolean;
+}
 
 /** Render syntax-highlighted file content with line numbers. */
 export async function renderFileContent(
@@ -17,6 +29,7 @@ export async function renderFileContent(
 	offset = 1,
 	maxLines = MAX_PREVIEW_LINES,
 	theme?: FgTheme,
+	options: RenderFileContentOptions = {},
 ): Promise<string> {
 	const normalizedContent = normalizeLineEndings(content);
 	const lines = normalizedContent.split("\n");
@@ -25,7 +38,7 @@ export async function renderFileContent(
 	const lg = lang(filePath);
 	const hl = await hlBlock(show.join("\n"), lg, theme);
 
-	const tw = termW();
+	const tw = options.width ?? termW();
 	const startLine = offset;
 	const endLine = startLine + show.length - 1;
 	const nw = Math.max(3, String(endLine).length);
@@ -38,6 +51,17 @@ export async function renderFileContent(
 	for (let i = 0; i < hl.length; i++) {
 		const ln = startLine + i;
 		const code = hl[i] ?? show[i] ?? "";
+		if (options.wrapLongLines && visibleWidth(code) > cw) {
+			// Expanded view: no tail is hidden. First row carries the line number,
+			// continuation rows indent under the gutter so the code column aligns.
+			const rows = wrapTextWithAnsi(code, cw);
+			const pad = " ".repeat(nw);
+			rows.forEach((rowText, r) => {
+				const gutter = r === 0 ? lnum(ln, nw) : `${FG_LNUM}${pad}${RST}`;
+				out.push(`${gutter} ${FG_RULE}│${RST} ${rowText}${RST}`);
+			});
+			continue;
+		}
 		const display = truncateToWidth(code, cw, `${FG_DIM}›`);
 		out.push(`${lnum(ln, nw)} ${FG_RULE}│${RST} ${display}${RST}`);
 	}

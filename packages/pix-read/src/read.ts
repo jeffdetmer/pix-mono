@@ -377,6 +377,8 @@ export function registerReadTool(
 						d.offset as number,
 						maxShow,
 						theme,
+						// Expanded view wraps long lines so no source tail is hidden behind ›.
+						{ wrapLongLines: renderCtx.expanded },
 					)
 						.then((rendered: string) => {
 							if (renderCtx.state._rk !== key) return;
