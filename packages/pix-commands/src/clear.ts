@@ -7,12 +7,13 @@ async function clearCache(_pi: ExtensionAPI, ctx: ExtensionCommandContext) {
 	ctx.ui.notify("Clearing ~/.cache/pi", "info");
 	try {
 		await rm(join(homedir(), ".cache", "pi"), { recursive: true, force: true });
+		if (process.env.TMPDIR) await rm(process.env.TMPDIR, { recursive: true, force: true });
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		ctx.ui.notify(`Cache clear failed. ${msg}`, "error");
 		return;
 	}
-	ctx.ui.notify("~/.cache/pi cleared. Run /reload to apply changes.", "warning");
+	ctx.ui.notify("~/.cache/pi and $TMPDIR cleared. Run /reload to apply changes.", "warning");
 }
 
 export default function (pi: ExtensionAPI) {
