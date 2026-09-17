@@ -24,7 +24,12 @@ export type BundledTheme = string;
 // Config
 // ---------------------------------------------------------------------------
 
-export type BgTheme = { getBgAnsi?: (key: string) => string };
+export type BgTheme = {
+	getBgAnsi?: (key: string) => string;
+	// Semantic background wrapper exposed by Pi's theme (e.g. modal fills). Optional
+	// so mock/partial themes remain assignable; real runtime themes provide it.
+	bg?: (key: string, text: string) => string;
+};
 
 export type FgTheme = {
 	fg: (key: string, text: string) => string;

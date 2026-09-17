@@ -233,6 +233,9 @@ export class FilePicker {
 			lines: rows,
 			color: (s) => theme.fg("accent", s),
 			fg: (s) => theme.fg("text", s),
+			// Solid modal fill so the terminal doesn't bleed through, matching the
+			// gate/confirm/ask overlays. Skipped when the theme lacks bg (mock themes).
+			bg: theme.bg ? (s) => theme.bg?.("customMessageBg", s) ?? s : undefined,
 		});
 		this.cachedWidth = width;
 		return this.cachedLines;
