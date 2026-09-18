@@ -14,6 +14,9 @@
 #   scripts/dev-link.sh --unlink pix-bash  # restore only the named package(s)
 #
 # Package names match with or without the @xynogen/ scope (pix-bash == @xynogen/pix-bash).
+# Linking installs the frozen workspace lockfile first, then includes each selected
+# package's transitive @xynogen/* dependencies so local packages and third-party
+# runtime dependencies resolve from the workspace root.
 #
 # After (un)linking, restart your Pi session so the extension host reloads.
 #
@@ -39,15 +42,39 @@ unlink=false
 [ "${1:-}" = "--unlink" ] && { unlink=true; shift; }
 
 # Remaining args = explicit package filter (bare or @xynogen/-scoped names).
-# Empty filter ($# == 0) means "all packages".
+# Empty filter ($# == 0) means "all packages". A filtered link includes the
+# selected packages' transitive local dependency closure.
 want_pkgs=("$@")
+LINK_CLOSURE=""
+compute_link_closure() {
+	[ ${#want_pkgs[@]} -eq 0 ] && return
+	LINK_CLOSURE=$(PACKAGES_DIR="$packages_dir" node - "${want_pkgs[@]}" <<'NODE'
+const fs = require("fs");
+const path = require("path");
+const packagesDir = process.env.PACKAGES_DIR;
+const pending = process.argv.slice(2).map((name) =>
+	name.startsWith("@xynogen/") ? name : `@xynogen/${name}`,
+);
+const seen = new Set();
+while (pending.length > 0) {
+	const name = pending.pop();
+	if (!name || seen.has(name)) continue;
+	seen.add(name);
+	const packageJson = path.join(packagesDir, name.replace(/^@xynogen\//, ""), "package.json");
+	if (!fs.existsSync(packageJson)) continue;
+	const dependencies = JSON.parse(fs.readFileSync(packageJson, "utf8")).dependencies || {};
+	for (const dependency of Object.keys(dependencies)) {
+		if (dependency.startsWith("@xynogen/")) pending.push(dependency);
+	}
+}
+process.stdout.write([...seen].join("\n"));
+NODE
+)
+}
+
 wants() {
 	[ ${#want_pkgs[@]} -eq 0 ] && return 0
-	local name="$1" short="${1#@xynogen/}"
-	for w in "${want_pkgs[@]}"; do
-		[ "$w" = "$name" ] || [ "$w" = "$short" ] || [ "@xynogen/$w" = "$name" ] && return 0
-	done
-	return 1
+	printf '%s\n' "$LINK_CLOSURE" | grep -qx "$1"
 }
 
 linked=0
@@ -151,6 +178,12 @@ process.exit(1);
 REPO_NM_DIR="${repo_root}/node_modules/@xynogen"
 mkdir -p "$REPO_NM_DIR"
 
+if [ "$unlink" = false ]; then
+	echo "Installing workspace dependencies from frozen lockfile..."
+	(cd "$repo_root" && bun install --frozen-lockfile)
+fi
+
+compute_link_closure
 compute_core_closure
 
 for dir in "$packages_dir"/*/; do
