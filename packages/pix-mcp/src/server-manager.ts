@@ -426,6 +426,10 @@ export class McpServerManager {
 	}
 
 	private async fetchAllTools(client: Client, requestOptions?: RequestOptions): Promise<McpTool[]> {
+		// Skip when the server does not advertise the capability: the SDK would
+		// otherwise console.debug a "does not advertise ... capability" line into
+		// the active TUI, and the request is wasted.
+		if (!client.getServerCapabilities()?.tools) return [];
 		return (await client.listTools(undefined, requestOptions)).tools ?? [];
 	}
 
@@ -433,6 +437,7 @@ export class McpServerManager {
 		client: Client,
 		requestOptions?: RequestOptions,
 	): Promise<McpResource[]> {
+		if (!client.getServerCapabilities()?.resources) return [];
 		return (await client.listResources(undefined, requestOptions)).resources ?? [];
 	}
 

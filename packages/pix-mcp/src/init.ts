@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
+import { showTransientError, showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 import { throwIfAborted } from "./abort.ts";
 import { loadMcpConfig } from "./config.ts";
@@ -38,6 +38,17 @@ export async function initializeMcp(
 ): Promise<McpExtensionState> {
 	const configPath = pi.getFlag("mcp-config") as string | undefined;
 	const config = loadMcpConfig(configPath, ctx.cwd);
+
+	// In TUI mode, raw console.* from the logger corrupts the screen. Mute it and
+	// route warn/error to the shared transient slot; debug/info are dropped.
+	if (isTuiMode(ctx) && ctx.hasUI) {
+		logger.setConsoleOutput(false);
+		const tui = ctx.ui;
+		logger.addHandler((entry) => {
+			if (entry.level === "error") showTransientError(tui, entry.message);
+			else if (entry.level === "warn") showTransientMessage(tui, entry.message, "warning");
+		});
+	}
 
 	const manager = new McpServerManager(ctx.cwd);
 	// requestTimeoutMs overrides the shared Pix I/O timeout when set; both bound

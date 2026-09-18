@@ -123,6 +123,25 @@ describe("Logger", () => {
 		});
 	});
 
+	describe("console output switch", () => {
+		it("stops writing to console when disabled but still calls handlers", () => {
+			const entries: LogEntry[] = [];
+			logger.addHandler((entry) => entries.push(entry));
+			logger.setConsoleOutput(false);
+
+			logger.info("i");
+			logger.warn("w");
+			logger.error("e");
+
+			expect(entries).toHaveLength(3);
+			expect(console.log).not.toHaveBeenCalled();
+			expect(console.warn).not.toHaveBeenCalled();
+			expect(console.error).not.toHaveBeenCalled();
+
+			logger.setConsoleOutput(true); // restore for other tests
+		});
+	});
+
 	describe("error logging", () => {
 		it("includes error object", () => {
 			const entries: LogEntry[] = [];

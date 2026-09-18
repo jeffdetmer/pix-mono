@@ -45,9 +45,16 @@ class Logger {
 	private minLevel: LogLevel = "info";
 	private handlers: LogHandler[] = [];
 	private defaultContext: LogContext = {};
+	// Raw console output bleeds into the active TUI. init.ts turns it off in TUI
+	// mode and routes warn/error to the transient slot instead.
+	private consoleOutput = true;
 
 	setLevel(level: LogLevel): void {
 		this.minLevel = level;
+	}
+
+	setConsoleOutput(enabled: boolean): void {
+		this.consoleOutput = enabled;
 	}
 
 	setDefaultContext(context: LogContext): void {
@@ -78,18 +85,22 @@ class Logger {
 		};
 
 		// Default console output
-		const prefix = LEVEL_PREFIX[level];
-		const contextStr = formatContext(entry.context);
-		const fullMessage = contextStr ? `${prefix} ${message} ${contextStr}` : `${prefix} ${message}`;
+		if (this.consoleOutput) {
+			const prefix = LEVEL_PREFIX[level];
+			const contextStr = formatContext(entry.context);
+			const fullMessage = contextStr
+				? `${prefix} ${message} ${contextStr}`
+				: `${prefix} ${message}`;
 
-		if (level === "error") {
-			console.error(fullMessage, error ?? "");
-		} else if (level === "warn") {
-			console.warn(fullMessage);
-		} else if (level === "debug") {
-			console.debug(fullMessage);
-		} else {
-			console.log(fullMessage);
+			if (level === "error") {
+				console.error(fullMessage, error ?? "");
+			} else if (level === "warn") {
+				console.warn(fullMessage);
+			} else if (level === "debug") {
+				console.debug(fullMessage);
+			} else {
+				console.log(fullMessage);
+			}
 		}
 
 		// Custom handlers
