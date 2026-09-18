@@ -159,6 +159,7 @@ describe("AbortSignal propagation", () => {
 	it("server-manager resource discovery does not swallow host aborts", async () => {
 		const controller = new AbortController();
 		const client = {
+			getServerCapabilities: () => ({ resources: {} }),
 			listResources: mock(async (_params: any, options?: { signal?: AbortSignal }) => {
 				options?.signal?.throwIfAborted();
 				return { resources: [] };

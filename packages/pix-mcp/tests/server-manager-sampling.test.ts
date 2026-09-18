@@ -26,8 +26,10 @@ mock.module("@modelcontextprotocol/client", () => ({
 			setRequestHandler: mock(),
 			setNotificationHandler: mock(),
 			connect: mock(async () => undefined),
+			getServerCapabilities: mock(() => ({ tools: {}, resources: {} })),
 			listTools: mock(async () => ({ tools: [] })),
 			listResources: mock(async () => ({ resources: [] })),
+			readResource: mock(async () => ({ contents: [] })),
 			close: mock(async () => undefined),
 		};
 		mocks.clients.push(client);

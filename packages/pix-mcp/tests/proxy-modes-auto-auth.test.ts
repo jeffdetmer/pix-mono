@@ -48,6 +48,7 @@ mock.module("@modelcontextprotocol/client", () => ({
 			connect: mock((transport: unknown, requestOptions: unknown) =>
 				mocks.connectImpl(transport, requestOptions),
 			),
+			getServerCapabilities: mock(() => ({ tools: {}, resources: {} })),
 			listTools: mock((params: unknown, requestOptions: unknown) =>
 				mocks.listToolsImpl(params, requestOptions),
 			),
