@@ -15,7 +15,7 @@ import { aria2 } from "maria2";
 import { type DaemonHandle, startDaemon } from "./daemon.ts";
 
 const hasAria2 = Boolean(findExecutableSync("aria2c"));
-const PAYLOAD = Buffer.from("pix-download e2e payload ".repeat(1000)); // ~25 KiB
+const PAYLOAD = Buffer.from("pix-aria2 e2e payload ".repeat(1000)); // ~25 KiB
 
 let fileServer: Server;
 let fileUrl: string;

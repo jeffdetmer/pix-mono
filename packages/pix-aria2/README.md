@@ -1,4 +1,4 @@
-# @xynogen/pix-download
+# @xynogen/pix-aria2
 
 Pi tool for direct, resumable downloads through a private [aria2](https://aria2.github.io/) RPC daemon. It gives the agent short `dl-*` handles for controlling transfers and shows active progress in the TUI.
 
@@ -29,10 +29,10 @@ brew install aria2
 Install the extension from npm:
 
 ```bash
-pi install npm:@xynogen/pix-download
+pi install npm:@xynogen/pix-aria2
 ```
 
-`pix-download` is standalone and opt-in. It is not bundled by `@xynogen/pix-core` because it requires the external `aria2c` binary and starts a local daemon.
+`pix-aria2` is standalone and opt-in. It is not bundled by `@xynogen/pix-core` because it requires the external `aria2c` binary and starts a local daemon.
 
 ## Tool
 
@@ -101,7 +101,7 @@ Quitting or fully restarting Pi stops the private daemon and discards handle map
 Run focused package checks from the repository root:
 
 ```bash
-bun test packages/pix-download
+bun test packages/pix-aria2
 bun run check
 bun run typecheck
 ```

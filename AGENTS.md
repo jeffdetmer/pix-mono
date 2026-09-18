@@ -66,7 +66,7 @@ Per-package catalog (names, descriptions, bundled vs standalone, dependency tree
 
 - **Bundled by `pix-core`** (Pi built-in replacements + UI/UX + behaviour): tool suite (`pix-bash/read/write/edit/find/grep/ls/ask/todo`), UI (`pix-welcome/footer/models/update/commands/nudge/diagnostics/display/prompts/skills`), behaviour (`pix-optimizer/gate/subagent`).
 - **Shared layers** (see Package Independence): `pix-runtime`, `pix-data`, `pix-pretty`, `pix-core`.
-- **Standalone, opt-in, NOT bundled:** `pix-9router`, `pix-sudo`, `pix-ssh`, `pix-toolbox`, `pix-graph`, `pix-hunk`, `pix-mcp`.
+- **Standalone, opt-in, NOT bundled:** `pix-9router`, `pix-sudo`, `pix-ssh`, `pix-toolbox`, `pix-graph`, `pix-hunk`, `pix-mcp`, `pix-aria2`.
 
 ```
 scripts/

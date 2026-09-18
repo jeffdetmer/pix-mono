@@ -1,5 +1,5 @@
 /**
- * pix-download — fast, resumable downloads through an auto-managed aria2 daemon.
+ * pix-aria2 — fast, resumable downloads through an auto-managed aria2 daemon.
  *
  * Why aria2: segmented multi-connection speed, control-file resume, and built-in
  * retry live in the aria2c process. We spawn a private loopback RPC daemon on
@@ -23,7 +23,7 @@ import { Type } from "typebox";
 import { Aria2MissingError, type DaemonHandle, startDaemon } from "./daemon.ts";
 import { type DlStatus, downloadName, fraction, progressLine } from "./format.ts";
 
-const WIDGET_KEY = "pix-download:progress";
+const WIDGET_KEY = "pix-aria2:progress";
 const POLL_MS = 1000;
 
 /** Lazy per-session daemon + LFID↔GID map + progress polling. One instance per extension load. */

@@ -89,6 +89,7 @@ Not bundled by `pix-core`. Install each one only if you want it. Each one stays 
 | [`@xynogen/pix-mcp`](packages/pix-mcp) | Token-efficient MCP gateway — external servers can execute commands or reach sensitive services |
 | [`@xynogen/pix-graph`](packages/pix-graph) | `graph` tool — native-TS code knowledge graph (build/query, no Python); TS/JS only |
 | [`@xynogen/pix-hunk`](packages/pix-hunk) | `hunk` tool — live Hunk diff-review bridge; needs the external Hunk CLI and an active review session |
+| [`@xynogen/pix-aria2`](packages/pix-aria2) | `download` tool — fast, resumable downloads via an auto-managed aria2 RPC daemon; needs the external `aria2c` binary |
 
 ### Roadmap — third-party extensions
 

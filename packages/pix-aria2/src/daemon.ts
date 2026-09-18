@@ -22,7 +22,7 @@ import { type Conn, createWebSocket, open } from "maria2/dist/index.js";
 
 export class Aria2MissingError extends Error {
 	constructor() {
-		super("aria2c not found on PATH. Install aria2 to use pix-download.");
+		super("aria2c not found on PATH. Install aria2 to use pix-aria2.");
 		this.name = "Aria2MissingError";
 	}
 }
