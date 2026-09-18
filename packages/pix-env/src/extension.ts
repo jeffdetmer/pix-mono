@@ -29,6 +29,7 @@ import {
 	collectRefs,
 	collectUnsupported,
 	describeRegistry,
+	loadPath,
 	loadRegistry,
 	resolveInput,
 	shellPrelude,
@@ -63,16 +64,18 @@ export default function pixEnvExtension(pi: ExtensionAPI): void {
 					description:
 						'"info" lists names and inferred shapes; "read" reveals requested values after approval.',
 				}),
+				path: Type.Optional(
+					Type.String({
+						description:
+							"Optional .env file or directory to load. Defaults to the configured files under the current directory.",
+					}),
+				),
 				names: Type.Optional(
 					Type.Array(Type.String(), {
 						description: 'Exact variable names to reveal. Required for action="read".',
 						minItems: 1,
 					}),
 				),
-				reason: Type.String({
-					description:
-						'Why these values are needed. Required for action="read" and shown in the approval prompt.',
-				}),
 			}),
 			renderResult(result, _options, theme, renderCtx) {
 				const details = result.details as
@@ -90,7 +93,7 @@ export default function pixEnvExtension(pi: ExtensionAPI): void {
 				return frameToolResult(new Text(body, 0, 0), theme, renderCtx.isError);
 			},
 			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-				const reg = loadRegistry(ctx.cwd);
+				const reg = params.path ? loadPath(params.path) : loadRegistry(ctx.cwd);
 				if (params.action === "info") {
 					const types = describeRegistry(reg);
 					const text = Object.entries(types)
@@ -145,7 +148,6 @@ export default function pixEnvExtension(pi: ExtensionAPI): void {
 							title: `Reveal Environment Value${names.length > 1 ? "s" : ""}`,
 							body: [
 								`Variables: ${list}`,
-								`Intent: ${params.reason.trim() || "No reason provided by AI"}`,
 								"Warning: approved values enter model context and session transcript.",
 							],
 							accent: "error",

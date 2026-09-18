@@ -28,7 +28,7 @@ const braced = (k: string) => L + k + R;
 type EnvReadTool = {
 	execute: (
 		id: string,
-		params: { action: "info" | "read"; names?: string[]; reason: string },
+		params: { action: "info" | "read"; path?: string; names?: string[] },
 		signal: AbortSignal | undefined,
 		onUpdate: undefined,
 		ctx: unknown,
@@ -75,9 +75,9 @@ describe("read_env tool", () => {
 		else process.env.PIX_ENV_FILES = oldFiles;
 	});
 
-	test("info returns names and shapes without approval or values", async () => {
+	test("info returns names and shapes without approval, values, or a reason", async () => {
 		const tool = captureEnvRead();
-		const result = await tool.execute("1", { action: "info", reason: "" }, undefined, undefined, {
+		const result = await tool.execute("1", { action: "info" }, undefined, undefined, {
 			cwd,
 			hasUI: false,
 			ui: {},
@@ -86,11 +86,23 @@ describe("read_env tool", () => {
 		expect(result.content[0]?.text).not.toContain("secret-value");
 	});
 
+	test("info honors an explicit path override", async () => {
+		const tool = captureEnvRead();
+		const alt = join(cwd, "other.env");
+		writeFileSync(alt, "ALPHA=1\nBETA=two\n");
+		const result = await tool.execute("1", { action: "info", path: alt }, undefined, undefined, {
+			cwd,
+			hasUI: false,
+			ui: {},
+		});
+		expect(result.content[0]?.text).toBe("ALPHA = int\nBETA = string");
+	});
+
 	test("read reveals only requested values after approval", async () => {
 		const tool = captureEnvRead();
 		const result = await tool.execute(
 			"1",
-			{ action: "read", names: ["TOKEN"], reason: "Authenticate test request" },
+			{ action: "read", names: ["TOKEN"] },
 			undefined,
 			undefined,
 			{
@@ -165,23 +177,17 @@ describe("read_env tool", () => {
 
 	test("read rejects missing names and no-UI disclosure", async () => {
 		const tool = captureEnvRead();
-		const missing = await tool.execute(
-			"1",
-			{ action: "read", reason: "Test validation" },
-			undefined,
-			undefined,
-			{
-				cwd,
-				hasUI: true,
-				ui: {},
-			},
-		);
+		const missing = await tool.execute("1", { action: "read" }, undefined, undefined, {
+			cwd,
+			hasUI: true,
+			ui: {},
+		});
 		expect(missing.isError).toBe(true);
 		expect(missing.content[0]?.text).toContain("names is required");
 
 		const noUi = await tool.execute(
 			"2",
-			{ action: "read", names: ["TOKEN"], reason: "Test no-UI denial" },
+			{ action: "read", names: ["TOKEN"] },
 			undefined,
 			undefined,
 			{ cwd, hasUI: false, ui: {} },

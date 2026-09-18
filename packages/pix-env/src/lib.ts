@@ -13,7 +13,7 @@
  * ponytail: upgrade path is a tool_result redactor that masks known values.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /** Default files scanned at the repo root, later entries override earlier. */
@@ -55,6 +55,23 @@ export function envFileList(): readonly string[] {
 			.map((s) => s.trim())
 			.filter(Boolean);
 	return DEFAULT_FILES;
+}
+
+/**
+ * Load a registry from an explicit path: a single `.env` file is parsed
+ * directly; a directory is scanned via {@link loadRegistry}. Missing paths
+ * yield an empty registry.
+ */
+export function loadPath(path: string): Map<string, string> {
+	if (!existsSync(path)) return new Map();
+	if (statSync(path).isDirectory()) return loadRegistry(path);
+	const reg = new Map<string, string>();
+	try {
+		for (const [k, v] of Object.entries(parseEnv(readFileSync(path, "utf-8")))) reg.set(k, v);
+	} catch {
+		// unreadable file — skip silently
+	}
+	return reg;
 }
 
 /** Load + merge the configured env files under `cwd` into one registry. */
