@@ -181,7 +181,7 @@ describe("buildPrompt", () => {
 
 	it("includes SAFETY clause for all active levels", () => {
 		for (const l of ["lite", "full", "ultra"] as Level[]) {
-			expect(buildPrompt(l)).toContain("When NOT to be lazy");
+			expect(buildPrompt(l)).toContain("When not to be lazy");
 		}
 	});
 

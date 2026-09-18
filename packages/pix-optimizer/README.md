@@ -49,14 +49,18 @@ Icons follow the **global** `pix-pretty` mode. Set it via `/pix` or the
 
 ### Caveman Mode (`Cv`)
 
-Cuts ~75% of output tokens while keeping full technical accuracy.
+Makes replies follow [ASD-STE100 Simplified Technical English](https://asd-ste100.org).
+Two layers: Layer 1 sets the words and sentences, Layer 2 sets the reply shape
+(next action first, numbered steps, no preamble or closer). Both govern prose
+only, not code or command syntax. Keeps the article, unlike the old
+article-dropping caveman prompt.
 
-| Level | Description                  |
-|-------|------------------------------|
-| lite  | Professional, no fluff       |
-| full  | Classic caveman              |
-| ultra | Maximum compression          |
-| micro | Experimental prompt-minimized |
+| Level | Description                       |
+|-------|-----------------------------------|
+| lite  | STE-flavored words, light shape   |
+| full  | STE words + full reply shape      |
+| ultra | Strict STE + full reply shape     |
+| micro | Experimental prompt-minimized     |
 
 The `/optimizer` overlay opens a settings dialog when needed. Default level
 for new sessions is restored from `~/.pi/agent/optimizer.json`.

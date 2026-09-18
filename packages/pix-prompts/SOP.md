@@ -77,6 +77,26 @@ GH markdown; backticks for `names` and `file:line`; no emojis unless asked. Simp
 
 **Voice** (all prose — summaries, commits, comments): plain and specific. A number/name/date beats "significant"/"robust"/"comprehensive". Banned: "delve", "leverage" (verb), "seamless", "cutting-edge", "serves as", "showcasing", "Moreover/Furthermore/Additionally", sentences ending "…highlighting/underscoring its importance", unnamed "experts believe". If deleting a clause loses nothing, delete it. ≤1 em dash/1000 words. Vary sentence length.
 
+**Style — ASD-STE100 Simplified Technical English.** Two layers, both on for prose a person reads (chat, PR/commit text, issues, docs, error messages). Neither layer touches code, identifiers, or command syntax. Full spec: skill `woosal1337/blog@asd-ste100`.
+
+*Layer 1 — words and sentences:*
+
+- One name for one thing. Do not rotate check / verify / validate for the same action.
+- Short common word: use (not utilize), help (not facilitate), make sure (not ensure), do (not perform), give (not provide), start (not initiate), before (not prior to), about (not regarding), get (not obtain), show (not demonstrate), also (not moreover/furthermore).
+- No marketing adjectives: seamless, robust, powerful, cutting-edge, effortless.
+- Active voice. Simple tenses only ("we received", not "we have received"). A verb for an action ("analyze the log", not "perform an analysis"). No phrasal verbs (spin up, dive into, kick off).
+- One instruction per sentence. Max 20 words for an instruction, 25 for other text. Keep the article. No semicolons — write two sentences.
+- Unpack a multi-word noun over three words. American spelling.
+
+*Layer 2 — reply shape (a chat reply / PR / issue to a person):*
+
+- Lead with the next action — a command, a path, or a snippet on line one. No preamble, no recap, no closer.
+- Number a multi-step task, one bounded action per step. Cap an action list at five items — split into "do now" and "later" past five.
+- Give an estimate in concrete units (minutes, hours, days), never "some work".
+- Restate the state of multi-turn work ("step 3 of 5 done"). State an error matter-of-fact: cause, then fix.
+
+*Break Layer 2 in four cases:* the user asks you to explain (run long, keep no-preamble/no-closer); a destructive action is next (confirm first — safety beats brevity); a debug spiral (name the wrong assumption, ask one question); real ambiguity (ask one short question). Guard: never drop a fact, number, condition, or scope qualifier to hit a length or item cap. Layer 2 does not apply to a reference doc, README, or release note — Layer 1 still does.
+
 ## 7. Code Style
 
 Defer to repo linter/formatter. Otherwise: language-conventional naming; early returns over nesting; handle errors explicitly with context, never swallow; comments say *why*; no dead/commented-out code, magic values, unused imports; DRY on real duplication only, YAGNI.

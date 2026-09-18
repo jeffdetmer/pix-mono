@@ -4,25 +4,25 @@ Monorepo of Pix, a distro of [Pi Coding Agent](https://github.com/badlogic/pi-mo
 
 ## What to install
 
-**Just want the distro?** One package — `pix-core` pulls the rest:
+**Do you want the distro?** One package. `pix-core` installs the rest:
 
 ```bash
 pi install npm:@xynogen/pix-core
 ```
 
-Or use the [one-shot installer](#install) to set up Pi, a theme, and the distro in one go. [Package breakdown](#packages) and [what's opt-in](#standalone-extensions-opt-in) below.
+Or use the [one-shot installer](#install). It installs Pi, a theme, and the distro together. See the [package breakdown](#packages) and [what is opt-in](#standalone-extensions-opt-in) below.
 
-> **🎨 Opinionated** — visual choices are intentional; style PRs may be declined. See [CONTRIBUTING.md](CONTRIBUTING.md).
+> **🎨 Opinionated** — the visual choices are intentional. A style PR may be declined. See [CONTRIBUTING.md](CONTRIBUTING.md).
 >
-> **⚠ Breaking changes** — upgrade via [uninstall + reinstall](#upgrade--clean-reinstall), not incremental updates.
+> **⚠ Breaking changes** — upgrade through [uninstall + reinstall](#upgrade--clean-reinstall), not an incremental update.
 >
-> **🐧 Linux/macOS** tested; Windows not.
+> **🐧 Linux/macOS** tested. Windows not tested.
 
 ## Packages
 
 ### Core bundle
 
-One `pi install npm:@xynogen/pix-core` pulls and activates everything below. Each package installs the [foundation libraries](#foundation-layer) it depends on.
+One `pi install npm:@xynogen/pix-core` installs and activates every package below. Each package installs the [foundation libraries](#foundation-layer) it needs.
 
 ### Theme
 
@@ -34,7 +34,7 @@ Standalone, zero deps.
 
 ### UI / UX extensions
 
-Widgets, slash commands, and display improvements for the TUI.
+Widgets, slash commands, and display changes for the TUI.
 
 | Package | Description |
 | --- | --- |
@@ -46,12 +46,12 @@ Widgets, slash commands, and display improvements for the TUI.
 | [`@xynogen/pix-nudge`](packages/pix-nudge) | Tools nudge + capability nudge hooks to steer model toward correct tools |
 | [`@xynogen/pix-diagnostics`](packages/pix-diagnostics) | Compact LSP diagnostic widget — recent files list, overrides pi-lens |
 | [`@xynogen/pix-display`](packages/pix-display) | Paste chip rendering (`[paste image #1]`) + leaked `<think>` tag → native thinking blocks |
-| [`@xynogen/pix-prompts`](packages/pix-prompts) | System-prompt injection — bundled `AGENT.md` baseline + repo directive files |
+| [`@xynogen/pix-prompts`](packages/pix-prompts) | System-prompt injection — bundled `SOP.md` baseline + repo directive files |
 | [`@xynogen/pix-skills`](packages/pix-skills) | `read_skills` discovery and loading — includes references, bundled resources, and on-demand TOON guidance |
 
 ### Tool suite
 
-These replace Pi's built-in tools under the same names, so model calls stay unchanged. [`pix-pretty`](packages/pix-pretty) improves their output: highlighting, diffs, icon trees, FFF search.
+These packages replace Pi's built-in tools under the same names. So model calls stay unchanged. [`pix-pretty`](packages/pix-pretty) improves their output: highlighting, diffs, icon trees, and FFF search.
 
 | Package | Description |
 | --- | --- |
@@ -67,7 +67,7 @@ These replace Pi's built-in tools under the same names, so model calls stay unch
 
 ### Behaviour
 
-How the agent acts — output optimization, permission gating, sub-agents.
+How the agent acts — output optimization, permission gate, and sub-agents.
 
 | Package | Description |
 | --- | --- |
@@ -77,7 +77,7 @@ How the agent acts — output optimization, permission gating, sub-agents.
 
 ### Standalone extensions (opt-in)
 
-Not bundled by `pix-core` — install each only if you want it. These are deliberately kept out of the default distro because each carries a setup cost or a sensitive capability: a provider API key, root execution, or a manual tool-toggling UI. Install with `pi install npm:@xynogen/<name>`.
+Not bundled by `pix-core`. Install each one only if you want it. Each one stays out of the default distro because it has a setup cost or a sensitive capability: a provider API key, root execution, or a manual tool-toggle UI. Install with `pi install npm:@xynogen/<name>`.
 
 | Package | Why it's opt-in |
 | --- | --- |
@@ -92,7 +92,7 @@ Not bundled by `pix-core` — install each only if you want it. These are delibe
 
 ### Roadmap — third-party extensions
 
-Upstream Pi extensions Pix currently uses. We plan to replace these with maintained `@xynogen/pix-*` packages.
+Upstream Pi extensions that Pix uses now. We plan to replace each one with a maintained `@xynogen/pix-*` package.
 
 | Package | Description |
 | --- | --- |
@@ -100,7 +100,7 @@ Upstream Pi extensions Pix currently uses. We plan to replace these with maintai
 
 ### Foundation layer
 
-Auto-installed with any feature package. Install one directly only when building your own extension against it — the `Depends on` column shows the full tree.
+Installed with any feature package. Install one directly only when you build your own extension against it. The `Depends on` column shows the full tree.
 
 | Package | Depends on | Description |
 | --- | --- | --- |
@@ -110,9 +110,9 @@ Auto-installed with any feature package. Install one directly only when building
 
 ## Install
 
-The installer sets up Pi, configures its theme and tools, and installs Pix.
+The installer installs Pi, configures its theme and tools, and installs Pix.
 
-Straight from GitHub (no clone needed):
+Direct from GitHub (no clone needed):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
@@ -126,7 +126,7 @@ sh scripts/install.sh   # or: bun run distro:install
 
 ## Uninstall
 
-Removes all `@xynogen/pix-*` packages from Pi. Also cleans up sub-packages from older installs that listed them individually.
+Removes every `@xynogen/pix-*` package from Pi. It also removes sub-packages from an older install that listed them one by one.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/uninstall.sh | sh
@@ -140,7 +140,7 @@ sh scripts/uninstall.sh   # or: bun run distro:uninstall
 
 ### Upgrade / clean reinstall
 
-When upgrading across breaking changes, uninstall first:
+Before you upgrade across breaking changes, uninstall first:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/uninstall.sh | sh
@@ -163,11 +163,11 @@ bun run publish:dry      # run the gate, then verify what would be published
 bun run publish:all      # run the gate, then publish every new package version
 ```
 
-Before publishing, the gate runs Biome, TypeScript, dependency-policy tests, and a high-severity dependency audit. On failure it preserves the analyzer output and prints the failed check, exit code, and reproduction command for humans and CI agents.
+Before a publish, the gate runs Biome, TypeScript, the dependency-policy tests, and a high-severity dependency audit. On a failure it keeps the analyzer output. It prints the failed check, the exit code, and the reproduction command for a human or a CI agent.
 
 ## Lineage
 
-Several packages here originated as forks or merges of community Pi packages:
+Several packages here started as a fork or a merge of a community Pi package:
 
 | Upstream | Disposition |
 |---|---|
@@ -181,7 +181,7 @@ Several packages here originated as forks or merges of community Pi packages:
 | [`nicobailon/pi-subagents`](https://github.com/nicobailon/pi-subagents) | work-splitting design adapted in `pix-subagent` |
 | [`nicobailon/pi-mcp-adapter`](https://github.com/nicobailon/pi-mcp-adapter) | v2.11.0 (`82724dc`) adopted as `@xynogen/pix-mcp`; MIT license retained, with bounded on-demand discovery and lazy startup behavior |
 
-Previous standalone repos migrated into this monorepo: `pix-optimizer`, `pix-themes`, `pix-pretty`, `pix-core`, `pix-9router`, `pix-data`.
+These standalone repos moved into this monorepo before: `pix-optimizer`, `pix-themes`, `pix-pretty`, `pix-core`, `pix-9router`, `pix-data`.
 
 ## License
 

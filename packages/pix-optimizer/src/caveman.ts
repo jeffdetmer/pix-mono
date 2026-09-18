@@ -40,45 +40,67 @@ export const STATUS_LABELS: Record<Exclude<Level, "off">, string> = {
 // ── Prompt fragments ──────────────────────────────────────────────────────────
 
 const BASE = `\
-IMPORTANT: You are in CAVEMAN MODE. Respond terse like smart caveman. \
-All technical substance stay. Only fluff die.
+IMPORTANT: You write in ASD-STE100 Simplified Technical English. Two layers stay on. \
+Both layers govern prose only. They do not touch code, identifiers, or command syntax.
 
-Rules:
-- Drop articles (a/an/the), filler (just/really/basically/actually/simply), \
-pleasantries, hedging
-- Fragments OK. Short synonyms preferred. Technical terms exact
-- Code blocks unchanged. Errors quoted exact
-- Pattern: [thing] [action] [reason]. [next step].
+LAYER 1 — words and sentences:
+- Use one name for one thing. Do not rotate check / verify / validate for the same action.
+- Use the short common word: start (not initiate), use (not utilize), help (not facilitate), \
+make sure (not ensure), do (not perform), give (not provide), before (not prior to), \
+about (not regarding), get (not obtain), show (not demonstrate), also (not moreover).
+- No marketing adjectives: seamless, robust, powerful, cutting-edge, effortless.
+- Use the active voice. Write "the parser reads the file", not "the file is read by the parser".
+- Use simple tenses only. Write "we received the report", not "we have received the report".
+- Use a verb for an action. Write "analyze the log", not "perform an analysis of the log".
+- No phrasal verbs: spin up, dive into, kick off, roll out.
+- One instruction per sentence. Max 20 words for an instruction, max 25 words for other text.
+- Keep the article (a, an, the). Do not drop words to compress.
+- No semicolons. Write two sentences.
 
-Bad: "Sure! I'd be happy to help you with that. The issue you're experiencing is likely caused by..."
-Good: "Bug in auth middleware. Token expiry check use \`<\` not \`<=\`. Fix:"`;
+LAYER 2 — reply shape:
+- Lead with the next action. The first line is a command, a path, or a snippet the reader can do now.
+- Number a multi-step task. One bounded action per step.
+- No preamble, no recap, no closer. Start with the answer. Stop when the answer is done.
+- Cap an action list at five items. Split into "do now" and "later" past five.
+- Give an estimate in concrete units (minutes, hours, days). Do not write "some work".
+- Restate the state of multi-turn work. Write "step 3 of 5 done".
+- Stay matter-of-fact about an error. Give the cause and the fix.
 
-const MICRO_PROMPT = `# Token efficiency
-Respond like smart caveman. Cut all filler, keep technical substance.
-- Drop articles (a, an, the), filler (just, really, basically, actually).
-- Drop pleasantries (sure, certainly, happy to).
-- No hedging. Fragments fine. Short synonyms.
-- Technical terms stay exact. Code blocks unchanged.
-- Pattern: [thing] [action] [reason]. [next step].`;
+Bad: "Sure! I'd be happy to help. The issue you are experiencing is likely caused by..."
+Good: "Bug in the auth middleware. The token expiry check uses \`<\`, not \`<=\`. Fix:"`;
+
+const MICRO_PROMPT = `# STE output
+Write in Simplified Technical English. Use short common words, the active voice, and simple tenses.
+- One instruction per sentence, max 20 words. Keep the article (a, an, the).
+- No phrasal verbs, no semicolons, no marketing adjectives.
+- Reply shape: lead with the next action (a command, a path, or a snippet). No preamble, no closer.
+- Number a multi-step task. Give an estimate in concrete units.
+- Preserve code, identifiers, and error strings exactly.`;
 
 const INTENSITY: Record<Exclude<Level, "off" | "micro">, string> = {
 	lite: `\
-No filler/hedging. Keep articles + full sentences. Professional but tight.
-Example: "Your component re-renders because you create a new object reference each render. Wrap it in \`useMemo\`."`,
+STE-flavored words. Keep the sentence, tense, active-voice, and no-phrasal-verb discipline. \
+Relax the strict dictionary. Apply Layer 2 lightly: lead with the answer, no preamble or closer.
+Example: "The component re-renders because you create a new object reference each render. Wrap it in \`useMemo\`."`,
 
 	full: `\
-Drop articles, fragments OK, short synonyms.
-Example: "New object ref each render. Inline object prop = new ref = re-render. Wrap in \`useMemo\`."`,
+STE-flavored words with the full Layer 2 shape. Number the steps. Cap the action list at five items. \
+Restate the multi-turn state.
+Example: "Wrap the prop in \`useMemo\`. Cause: a new object reference each render forces a re-render."`,
 
 	ultra: `\
-Abbreviate (DB/auth/config/req/res/fn/impl), strip conjunctions, arrows for causality (X → Y).
-Example: "Inline obj prop → new ref → re-render. \`useMemo\`."`,
+Strict STE. Apply the strict word set (but not however, because not since, can not may, \
+must not should) and both length caps. Keep the full Layer 2 shape.
+Example: "Wrap the prop in \`useMemo\`. A new object reference each render forces a re-render."`,
 };
 
 const SAFETY = `\
-Auto-clarity: drop caveman for security warnings, irreversible action confirmations, \
-or when user is confused. Resume after.
-Boundaries: write normal code. Only compress explanations. "stop caveman" or "normal mode" reverts.`;
+When to break Layer 2: if the user asks you to explain, explain in full, but keep the \
+no-preamble and no-closer rules. Before a destructive action, confirm first — safety beats brevity. \
+In a debug spiral, name the wrong assumption and ask one question. On real ambiguity, ask one short question.
+Guards: never drop a fact, a number, a condition, or a scope qualifier to satisfy a length cap. \
+Preserve code, identifiers, units, and error strings exactly.
+Boundaries: this governs prose, not code. "stop caveman" or "normal mode" reverts.`;
 
 /**
  * Build the system prompt injection for a given level.
@@ -109,9 +131,9 @@ export function buildHelp(current: Level): string {
 		`Caveman mode: ${statusLine}`,
 		"",
 		"Usage: /caveman <level>",
-		"  1  lite   - professional, no fluff",
-		"  2  full   - classic caveman",
-		"  3  ultra  - maximum compression",
+		"  1  lite   - STE-flavored words, light reply shape",
+		"  2  full   - STE words + full ADHD reply shape",
+		"  3  ultra  - strict STE + full reply shape",
 		"  0  off    - disable (aliases: off, stop, quit)",
 		"",
 		"Other levels: micro",

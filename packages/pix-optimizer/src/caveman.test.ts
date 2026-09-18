@@ -175,29 +175,43 @@ describe("buildPrompt", () => {
 
 	it("returns MICRO_PROMPT for micro (no BASE)", () => {
 		const p = buildPrompt("micro");
-		expect(p).toContain("Token efficiency");
-		expect(p).not.toContain("CAVEMAN MODE");
+		expect(p).toContain("STE output");
+		expect(p).not.toContain("LAYER 1");
 	});
 
 	it("includes BASE for all standard levels", () => {
 		const standard = ["lite", "full", "ultra"] as Level[];
 		for (const l of standard) {
-			expect(buildPrompt(l)).toContain("CAVEMAN MODE");
+			expect(buildPrompt(l)).toContain("Simplified Technical English");
+		}
+	});
+
+	it("includes both STE layers for all standard levels", () => {
+		const standard = ["lite", "full", "ultra"] as Level[];
+		for (const l of standard) {
+			expect(buildPrompt(l)).toContain("LAYER 1");
+			expect(buildPrompt(l)).toContain("LAYER 2");
 		}
 	});
 
 	it("includes SAFETY clause for all standard levels", () => {
 		const standard = ["lite", "full", "ultra"] as Level[];
 		for (const l of standard) {
-			expect(buildPrompt(l)).toContain("Auto-clarity");
+			expect(buildPrompt(l)).toContain("When to break Layer 2");
+		}
+	});
+
+	it("keeps articles (STE 4.5) instead of dropping them", () => {
+		for (const l of ["lite", "full", "ultra"] as Level[]) {
+			expect(buildPrompt(l)).toContain("Keep the article");
 		}
 	});
 
 	it("each level has distinct intensity instructions", () => {
 		const lite = buildPrompt("lite");
 		const ultra = buildPrompt("ultra");
-		expect(lite).toContain("Keep articles");
-		expect(ultra).toContain("Abbreviate");
-		expect(lite).not.toContain("Abbreviate");
+		expect(lite).toContain("Relax the strict dictionary");
+		expect(ultra).toContain("Strict STE");
+		expect(lite).not.toContain("Strict STE");
 	});
 });
