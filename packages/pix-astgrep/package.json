@@ -1,0 +1,58 @@
+{
+	"name": "@xynogen/pix-astgrep",
+	"version": "0.1.0",
+	"description": "Pi extension — AST-aware structural search and symbol reads (ast-grep, opt-in)",
+	"type": "module",
+	"main": "src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./extension": "./src/extension.ts"
+	},
+	"scripts": {
+		"test": "bun test"
+	},
+	"files": [
+		"src",
+		"!src/**/*.test.*",
+		"!src/**/*.fixture.*",
+		"README.md",
+		"LICENSE"
+	],
+	"pi": {
+		"extensions": [
+			"src/extension.ts"
+		]
+	},
+	"keywords": [
+		"pi",
+		"pi-package",
+		"pi-extension",
+		"pix",
+		"ast-grep"
+	],
+	"author": "xynogen",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/xynogen/pix-mono.git",
+		"directory": "packages/pix-astgrep"
+	},
+	"homepage": "https://github.com/xynogen/pix-mono/tree/main/packages/pix-astgrep#readme",
+	"bugs": {
+		"url": "https://github.com/xynogen/pix-mono/issues"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*"
+	},
+	"dependencies": {
+		"@ast-grep/napi": "^0.45.0",
+		"@xynogen/pix-pretty": "^1.26.0",
+		"@xynogen/pix-runtime": "^0.10.1",
+		"typebox": "^1.1.38"
+	}
+}
