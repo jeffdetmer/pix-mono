@@ -4,6 +4,7 @@ import registerSsh, { validatorFor } from "./index.ts";
 import {
 	baseScpArgs,
 	baseSshArgs,
+	buildRunSshArgs,
 	commandEscalatesPrivilege,
 	controlPathFor,
 	detectSshFailure,
@@ -150,6 +151,26 @@ describe("baseSshArgs", () => {
 		const withPort = baseSshArgs({ host: "h", port: 2222 }, "s");
 		expect(withPort).toContain("-p");
 		expect(withPort).toContain("2222");
+	});
+});
+
+describe("buildRunSshArgs", () => {
+	// Regression: a run without a login password must be non-interactive so ssh
+	// never opens its own /dev/tty prompt (which leaked `host's password:` into
+	// the TUI). All password entry goes through the overlay + sshpass instead.
+	it("forces BatchMode=yes when no password is in hand", () => {
+		const { bin, args } = buildRunSshArgs({ host: "h" }, "whoami", { controlPath: "s" });
+		expect(bin).toBe("ssh");
+		expect(args).toContain("BatchMode=yes");
+	});
+	it("keeps BatchMode off on the sshpass path so it can answer the prompt", () => {
+		const { bin, args } = buildRunSshArgs({ host: "h" }, "whoami", {
+			controlPath: "s",
+			loginPassword: "pw",
+		});
+		expect(bin).toBe("sshpass");
+		expect(args).not.toContain("BatchMode=yes");
+		expect(args.slice(0, 2)).toEqual(["-e", "ssh"]);
 	});
 });
 

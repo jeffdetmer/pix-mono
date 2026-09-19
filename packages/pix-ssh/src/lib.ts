@@ -569,29 +569,42 @@ export function runTransfer(
 	recursive: boolean,
 	opts: Pick<RunOptions, "controlPath" | "loginPassword" | "signal">,
 ): Promise<SshResult> {
-	const scpArgs = [
-		...baseScpArgs(spec, opts.controlPath, recursive),
-		"--",
-		...transferArgs(spec, direction, source, destination),
-	];
+	const endpoint = ["--", ...transferArgs(spec, direction, source, destination)];
 	const bin = opts.loginPassword ? "sshpass" : "scp";
-	const args = opts.loginPassword ? ["-e", "scp", ...scpArgs] : scpArgs;
+	// Same rule as runSsh: without a password in hand, force BatchMode so scp
+	// never opens its own /dev/tty prompt. sshpass path keeps prompts on.
+	const args = opts.loginPassword
+		? ["-e", "scp", ...baseScpArgs(spec, opts.controlPath, recursive), ...endpoint]
+		: [...baseScpArgs(spec, opts.controlPath, recursive), "-o", "BatchMode=yes", ...endpoint];
 	const env = opts.loginPassword ? { ...process.env, SSHPASS: opts.loginPassword } : process.env;
 	return spawnResult(bin, args, env, opts.signal);
 }
 
-export function runSsh(spec: HostSpec, command: string, opts: RunOptions): Promise<SshResult> {
+/**
+ * Build the ssh/sshpass argv for a run.
+ *
+ * Without a login password, force `BatchMode=yes` so ssh NEVER falls back to a
+ * `/dev/tty` password prompt (which leaks into the TUI). A run-time auth failure
+ * then returns a clean error the caller surfaces — all interactive password
+ * entry goes through the overlay + `sshpass`. With a password, BatchMode stays
+ * off so sshpass can answer ssh's own prompt.
+ */
+export function buildRunSshArgs(
+	spec: HostSpec,
+	command: string,
+	opts: Pick<RunOptions, "controlPath" | "loginPassword" | "sudo">,
+): { bin: string; args: string[] } {
 	const remote = remoteCommand(command, opts.sudo === true);
-	const sshArgs = [...baseSshArgs(spec, opts.controlPath), hostTarget(spec), remote];
-
-	let bin = "ssh";
-	let args = sshArgs;
-	let env = process.env;
+	const base = baseSshArgs(spec, opts.controlPath);
 	if (opts.loginPassword) {
-		bin = "sshpass";
-		args = ["-e", "ssh", ...sshArgs];
-		env = { ...process.env, SSHPASS: opts.loginPassword };
+		return { bin: "sshpass", args: ["-e", "ssh", ...base, hostTarget(spec), remote] };
 	}
+	return { bin: "ssh", args: [...base, "-o", "BatchMode=yes", hostTarget(spec), remote] };
+}
+
+export function runSsh(spec: HostSpec, command: string, opts: RunOptions): Promise<SshResult> {
+	const { bin, args } = buildRunSshArgs(spec, command, opts);
+	const env = opts.loginPassword ? { ...process.env, SSHPASS: opts.loginPassword } : process.env;
 
 	// Remote sudo reads its password from stdin (first line); anything else
 	// closes stdin so the remote command sees EOF.
