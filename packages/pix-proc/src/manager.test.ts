@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { RunnerManager } from "./manager.ts";
+import { ProcManager } from "./manager.ts";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -9,14 +9,14 @@ async function until(pred: () => boolean, timeoutMs = 3000): Promise<void> {
 	while (!pred() && Date.now() - start < timeoutMs) await wait(25);
 }
 
-describe("RunnerManager lifecycle", () => {
-	let mgr: RunnerManager;
+describe("ProcManager lifecycle", () => {
+	let mgr: ProcManager;
 	afterEach(async () => {
 		await mgr?.shutdown();
 	});
 
 	test("start returns a running proc-* handle and unique handles", () => {
-		mgr = new RunnerManager();
+		mgr = new ProcManager();
 		const a = mgr.start("sleep 5", process.cwd());
 		const b = mgr.start("sleep 5", process.cwd());
 		expect(a.handle).toMatch(/^proc-[a-z]+-[a-z]+-\d{2}$/);
@@ -26,7 +26,7 @@ describe("RunnerManager lifecycle", () => {
 	});
 
 	test("captures output and the cursor advances between reads", async () => {
-		mgr = new RunnerManager();
+		mgr = new ProcManager();
 		const m = mgr.start("printf 'one\\ntwo\\n'; sleep 2", process.cwd());
 		await until(() => false, 400); // let output flush
 		const first = await mgr.logsSince(m.handle);
@@ -36,7 +36,7 @@ describe("RunnerManager lifecycle", () => {
 	});
 
 	test("logsTail returns the last n and never moves the model cursor", async () => {
-		mgr = new RunnerManager();
+		mgr = new ProcManager();
 		const m = mgr.start("printf 'a\\nb\\nc\\n'; sleep 2", process.cwd());
 		await until(() => false, 400);
 		const tail = await mgr.logsTail(m.handle, 2);
@@ -46,7 +46,7 @@ describe("RunnerManager lifecycle", () => {
 	});
 
 	test("exit is recorded with code", async () => {
-		mgr = new RunnerManager();
+		mgr = new ProcManager();
 		const m = mgr.start("exit 3", process.cwd());
 		await until(() => m.status !== "running");
 		expect(m.status).toBe("exited");
@@ -54,7 +54,7 @@ describe("RunnerManager lifecycle", () => {
 	});
 
 	test("stop kills the whole process group (child + grandchild)", async () => {
-		mgr = new RunnerManager();
+		mgr = new ProcManager();
 		// parent sh forks a child sleep; killing only the sh pid would orphan it.
 		const m = mgr.start("sleep 30 & sleep 30", process.cwd());
 		await until(() => false, 200);
@@ -73,7 +73,7 @@ describe("RunnerManager lifecycle", () => {
 	});
 
 	test("rm refuses while running, removes once stopped", async () => {
-		mgr = new RunnerManager();
+		mgr = new ProcManager();
 		const m = mgr.start("sleep 30", process.cwd());
 		await until(() => false, 150);
 		expect(mgr.rm(m.handle)).toEqual({
@@ -90,7 +90,7 @@ describe("RunnerManager lifecycle", () => {
 	});
 
 	test("stop on an already-exited process is a no-op success", async () => {
-		mgr = new RunnerManager();
+		mgr = new ProcManager();
 		const m = mgr.start("exit 0", process.cwd());
 		await until(() => m.status !== "running");
 		const r = await mgr.stop(m.handle, 100);
@@ -99,7 +99,7 @@ describe("RunnerManager lifecycle", () => {
 	});
 
 	test("unknown handle fails cleanly", async () => {
-		mgr = new RunnerManager();
+		mgr = new ProcManager();
 		expect(await mgr.logsSince("proc-nope-nope-00")).toBeUndefined();
 		expect((await mgr.stop("proc-nope-nope-00")).ok).toBe(false);
 		expect(mgr.rm("proc-nope-nope-00").ok).toBe(false);

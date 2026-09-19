@@ -84,7 +84,7 @@
     },
     "packages/pix-core": {
       "name": "@xynogen/pix-core",
-      "version": "0.5.47",
+      "version": "0.5.49",
       "dependencies": {
         "@xynogen/pix-ask": "^0.2.30",
         "@xynogen/pix-bash": "^0.2.6",
@@ -203,7 +203,7 @@
     },
     "packages/pix-gate": {
       "name": "@xynogen/pix-gate",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "dependencies": {
         "@xynogen/pix-pretty": "^1.11.2",
         "@xynogen/pix-runtime": "^0.8.0",
@@ -348,6 +348,19 @@
         "@earendil-works/pi-tui": "*",
       },
     },
+    "packages/pix-proc": {
+      "name": "@xynogen/pix-proc",
+      "version": "0.1.0",
+      "dependencies": {
+        "@xynogen/pix-pretty": "^1.26.0",
+        "@xynogen/pix-runtime": "^0.10.1",
+        "typebox": "^1.1.38",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-tui": "*",
+      },
+    },
     "packages/pix-prompts": {
       "name": "@xynogen/pix-prompts",
       "version": "0.5.0",
@@ -364,19 +377,6 @@
       "dependencies": {
         "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-coding-agent": "*",
-        "@earendil-works/pi-tui": "*",
-      },
-    },
-    "packages/pix-runner": {
-      "name": "@xynogen/pix-runner",
-      "version": "0.1.0",
-      "dependencies": {
-        "@xynogen/pix-pretty": "^1.26.0",
-        "@xynogen/pix-runtime": "^0.11.0",
-        "typebox": "^1.1.38",
       },
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": "*",
@@ -418,7 +418,7 @@
     },
     "packages/pix-ssh": {
       "name": "@xynogen/pix-ssh",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "dependencies": {
         "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.8.0",
@@ -841,11 +841,11 @@
 
     "@xynogen/pix-pretty": ["@xynogen/pix-pretty@workspace:packages/pix-pretty"],
 
+    "@xynogen/pix-proc": ["@xynogen/pix-proc@workspace:packages/pix-proc"],
+
     "@xynogen/pix-prompts": ["@xynogen/pix-prompts@workspace:packages/pix-prompts"],
 
     "@xynogen/pix-read": ["@xynogen/pix-read@workspace:packages/pix-read"],
-
-    "@xynogen/pix-runner": ["@xynogen/pix-runner@workspace:packages/pix-runner"],
 
     "@xynogen/pix-runtime": ["@xynogen/pix-runtime@workspace:packages/pix-runtime"],
 

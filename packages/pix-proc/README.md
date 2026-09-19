@@ -1,4 +1,4 @@
-# @xynogen/pix-runner
+# @xynogen/pix-proc
 
 Pi tool to run and manage long-lived processes that must outlive a single agent
 turn — `npm run dev`, `vite`, `python main.py`, or a test watcher. The `proc`
@@ -16,10 +16,10 @@ exits fast.
 ## Install
 
 ```bash
-pi install npm:@xynogen/pix-runner
+pi install npm:@xynogen/pix-proc
 ```
 
-`pix-runner` is standalone and opt-in. It is not bundled by `@xynogen/pix-core`
+`pix-proc` is standalone and opt-in. It is not bundled by `@xynogen/pix-core`
 because it spawns background processes.
 
 Install `@xynogen/pix-gate` for command gating on `proc`, the same gate that
@@ -54,7 +54,7 @@ proc({ action: "rm", handle: "proc-swift-otter-42" });
 
 ## Log model
 
-- The whole stdout+stderr is kept on disk at `~/.cache/pi/runner/<handle>.log`.
+- The whole stdout+stderr is kept on disk at `~/.cache/pi/proc/<handle>.log`.
   The complete output stays available for a human to read directly.
 - `logs` never dumps the whole file. By default it returns only the lines added
   since your last `logs` call for that handle (a per-handle cursor), capped at
@@ -73,9 +73,9 @@ cap. The process keeps running. `logs`, `list`, and the widget report `capped`.
   kills the whole group (`kill -pgid`), so `vite`/`esbuild` children do not
   survive as orphans holding a port.
 - Every running process writes a pidfile with its process-group id and start
-  time. On the next session start, pix-runner finds orphaned groups left by a
+  time. On the next session start, pix-proc finds orphaned groups left by a
   crashed session, lists them, and asks before killing — never silently.
-- On a clean session shutdown, pix-runner stops every process it owns.
+- On a clean session shutdown, pix-proc stops every process it owns.
 
 ## User command
 
@@ -94,7 +94,7 @@ stdin/TTY passthrough for watchers that need a PTY are outside current scope.
 ## Development
 
 ```bash
-bun test packages/pix-runner
+bun test packages/pix-proc
 bun run check
 bun run typecheck
 ```

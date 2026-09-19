@@ -1,5 +1,5 @@
 {
-	"name": "@xynogen/pix-runner",
+	"name": "@xynogen/pix-proc",
 	"version": "0.1.0",
 	"description": "Pi tool — run and manage long-lived processes (npm run dev, vite, python) that outlive a turn",
 	"type": "module",
@@ -26,6 +26,7 @@
 		"pi-package",
 		"pi-extension",
 		"process",
+		"proc",
 		"runner",
 		"background"
 	],
@@ -34,9 +35,9 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/xynogen/pix-mono.git",
-		"directory": "packages/pix-runner"
+		"directory": "packages/pix-proc"
 	},
-	"homepage": "https://github.com/xynogen/pix-mono/tree/main/packages/pix-runner#readme",
+	"homepage": "https://github.com/xynogen/pix-mono/tree/main/packages/pix-proc#readme",
 	"bugs": {
 		"url": "https://github.com/xynogen/pix-mono/issues"
 	},

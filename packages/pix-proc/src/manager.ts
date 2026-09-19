@@ -1,5 +1,5 @@
 /**
- * RunnerManager — owns spawned long-lived processes for one Pi session.
+ * ProcManager — owns spawned long-lived processes for one Pi session.
  *
  * Spawn shape (settled by design review):
  *   detached: true       → child leads its own process group (pgid === pid),
@@ -36,7 +36,7 @@ import { join } from "node:path";
 import { generateLfid } from "@xynogen/pix-runtime/lfid";
 import { type LogView, logSince, MAX_LOG_LINES, type ProcMeta, tailLines } from "./format.ts";
 
-export const RUNNER_DIR = join(homedir(), ".cache", "pi", "runner");
+export const PROC_DIR = join(homedir(), ".cache", "pi", "proc");
 export const MAX_LOG_BYTES = 50 * 1024 * 1024; // 50 MiB
 
 /** Best-effort cleanup: a failed fd close / file unlink / signal is not fatal here. */
@@ -84,27 +84,27 @@ export interface Orphan {
 	command: string;
 }
 
-export class RunnerManager {
+export class ProcManager {
 	private readonly procs = new Map<string, LiveProc>();
 
 	constructor() {
-		mkdirSync(RUNNER_DIR, { recursive: true });
+		mkdirSync(PROC_DIR, { recursive: true });
 	}
 
 	/** Unique handle across the cache dir — a crashed session's handle is never reissued. */
 	private freshHandle(): string {
 		for (let i = 0; i < 64; i++) {
 			const h = generateLfid({ prefix: "proc" });
-			if (!this.procs.has(h) && !existsSync(join(RUNNER_DIR, `${h}.log`))) return h;
+			if (!this.procs.has(h) && !existsSync(join(PROC_DIR, `${h}.log`))) return h;
 		}
 		throw new Error("runner: handle namespace exhausted");
 	}
 
 	private pidPath(handle: string): string {
-		return join(RUNNER_DIR, `${handle}.pid`);
+		return join(PROC_DIR, `${handle}.pid`);
 	}
 	private logPathFor(handle: string): string {
-		return join(RUNNER_DIR, `${handle}.log`);
+		return join(PROC_DIR, `${handle}.log`);
 	}
 
 	list(): ProcMeta[] {
@@ -257,7 +257,7 @@ export class RunnerManager {
 	async findOrphans(): Promise<Orphan[]> {
 		let files: string[];
 		try {
-			files = await readdir(RUNNER_DIR);
+			files = await readdir(PROC_DIR);
 		} catch {
 			return [];
 		}
@@ -267,19 +267,19 @@ export class RunnerManager {
 			const handle = f.slice(0, -4);
 			if (this.procs.has(handle)) continue; // ours, this session
 			try {
-				const raw = JSON.parse(await readFile(join(RUNNER_DIR, f), "utf8")) as {
+				const raw = JSON.parse(await readFile(join(PROC_DIR, f), "utf8")) as {
 					pgid: number;
 					startTicks?: string;
 					command: string;
 				};
 				if (!pgidAlive(raw.pgid)) {
-					rmSync(join(RUNNER_DIR, f), { force: true }); // stale pidfile, group gone
+					rmSync(join(PROC_DIR, f), { force: true }); // stale pidfile, group gone
 					continue;
 				}
 				// PID-reuse guard: the leader's current start ticks must match.
 				const nowTicks = readStartTicks(raw.pgid);
 				if (raw.startTicks && nowTicks && raw.startTicks !== nowTicks) {
-					rmSync(join(RUNNER_DIR, f), { force: true }); // pgid recycled — not ours
+					rmSync(join(PROC_DIR, f), { force: true }); // pgid recycled — not ours
 					continue;
 				}
 				orphans.push({ handle, pgid: raw.pgid, command: raw.command });

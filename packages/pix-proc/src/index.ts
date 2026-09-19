@@ -1,11 +1,11 @@
 /**
- * pix-runner — run and manage long-lived processes (`npm run dev`, `vite`,
+ * pix-proc — run and manage long-lived processes (`npm run dev`, `vite`,
  * `python main.py`, watchers) that must outlive a single agent turn.
  *
  * Why a tool, not bash: bash blocks until exit and cannot supervise a running
  * process. `proc` starts a detached process, the child writes its own output to
  * a log file, and the tool manages it by handle — the same lifecycle shape as
- * the `download` tool in pix-aria2. See .pi/plans/pix-runner.md for the design.
+ * the `download` tool in pix-aria2. See .pi/plans/pix-proc.md for the design.
  *
  * Gate: `proc start`'s command flows through pix-gate's unified command gate
  * (pix-gate adds `proc` to its tool set + reads `event.input.command`). Install
@@ -19,9 +19,9 @@ import { COLLAPSED_TOOL_GLYPH, frameToolResult, rule } from "@xynogen/pix-pretty
 import { collapseDelayMs } from "@xynogen/pix-runtime/collapse";
 import { Type } from "typebox";
 import { MAX_LOG_LINES, statusLine, statusWord } from "./format.ts";
-import { RunnerManager } from "./manager.ts";
+import { ProcManager } from "./manager.ts";
 
-const WIDGET_KEY = "pix-runner:procs";
+const WIDGET_KEY = "pix-proc:procs";
 const POLL_MS = 1000;
 
 const ActionSchema = Type.Enum(["start", "list", "logs", "stop", "rm"] as const, {
@@ -59,7 +59,7 @@ const fail = (action: string, error: string): ProcResultDetails => ({
 });
 
 export default function registerRunner(pi: ExtensionAPI): void {
-	const mgr = new RunnerManager();
+	const mgr = new ProcManager();
 	let ui: ExtensionContext["ui"] | undefined;
 	let pollTimer: ReturnType<typeof setInterval> | undefined;
 	const lastCleared = new Map<string, number>(); // handle → time it left "running"
@@ -121,7 +121,7 @@ export default function registerRunner(pi: ExtensionAPI): void {
 		const list = orphans.map((o) => `${o.handle} (${o.command})`).join(", ");
 		// Never kill silently (§3): show, then ask.
 		const choice = await ctx.ui.select(
-			`pix-runner: ${orphans.length} orphaned process group(s) from a previous session — ${list}`,
+			`pix-proc: ${orphans.length} orphaned process group(s) from a previous session — ${list}`,
 			["Kill all", "Keep all"],
 		);
 		if (choice === "Kill all") {
@@ -288,7 +288,7 @@ export default function registerRunner(pi: ExtensionAPI): void {
 
 	// ── /proc user command — inspect + stop without the model ────────────────
 	pi.registerCommand("proc", {
-		description: "List, read logs, or stop long-lived processes (pix-runner)",
+		description: "List, read logs, or stop long-lived processes (pix-proc)",
 		handler: async (args, ctx) => {
 			const [sub, handle] = args.trim().split(/\s+/);
 			if (sub === "stop" && handle) {
