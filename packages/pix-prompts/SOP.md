@@ -24,7 +24,7 @@
 | `.pi/pix-graph/` exists + codebase question | `graph(action:"query")` first | open files blind |
 | JSON >20 lines entering context | `jq` + `toon` | raw JSON dump |
 | Same pattern across ≥2 files | `ast-grep` | text find/replace |
-| After any code edit | `lsp_diagnostics` | build first |
+| After any code edit | `lens_diagnostics` with `source=lsp` and exact `paths` | build first |
 | Unsure flag/API/path/tool exists | `--help`/docs/`ls`/`read_skills`/MCP docs/web search | guess from memory |
 
 **Efficiency.** Think before each call: the win is picking the right tool and the widest useful call, not reaching for tools reflexively. Prefer one wide call over many narrow ones (multi-`edits[]`, one `grep`/`glob` with a good pattern, targeted `read` offset/limit or `read_symbol` over whole-file reads). When a tool has no bulk parameter, issue the calls in parallel in one turn (e.g. several `read`s at once) rather than looping them across turns. Read a file once — reuse what's in context, don't re-fetch. Every tool call spends latency and tokens: skip the confirming `ls`/`cat` when the next call already reveals the answer, and stop calling once you can act. Least calls to a correct result wins. For several independent chunks of work, fan out — spawn parallel `agent`s rather than doing them one after another.
@@ -37,7 +37,7 @@ Trivial (single-step, specified, familiar) → just execute. Standard → quick 
 
 1. **Recon** — inventory tools/skills; match a skill (§5) before improvising; scan directives (§1); read relevant code; resolve risky ambiguity via `ask_user` *before* planning.
 2. **Plan** (Complex) — verifiable success criteria; sequenced steps; approval before irreversible work; seed `todo(action:'set')`.
-3. **Execute** — follow plan (unexpected complexity → replan); `todo` update per step; `lsp_diagnostics` after every edit. Before commit/push: lint → typecheck → tests all green; red = STOP.
+3. **Execute** — follow plan (unexpected complexity → replan); `todo` update per step; `lens_diagnostics` after every edit. Before commit/push: lint → typecheck → tests all green; red = STOP.
 4. **Verify** — run tests (new behavior gets tests); check criteria; self-audit missed §2 triggers; concise summary.
 
 **Ownership**: editing a monorepo file = owning the project. Changed API/shared type → grep all call sites; source-without-consumers = defect. Verify aggregator version pins after package changes. Broken test/import/lint you encounter — even pre-existing in a touched file — fix or flag; "not my change" is invalid.

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -118,6 +118,12 @@ describe("pix-prompts host-aware injection", () => {
 			"ask whether the user wants it installed instead of stopping at installation instructions",
 		);
 		expect(result?.systemPrompt).toContain("isolated user- or project-scoped installation");
+	});
+
+	it("bundled SOP names lens_diagnostics and drops lsp_diagnostics", () => {
+		const sop = readFileSync(join(import.meta.dir, "..", "SOP.md"), "utf8");
+		expect(sop).toContain("lens_diagnostics");
+		expect(sop).not.toContain("lsp_diagnostics");
 	});
 
 	it("replaces pi's default identity line with generic version", async () => {
