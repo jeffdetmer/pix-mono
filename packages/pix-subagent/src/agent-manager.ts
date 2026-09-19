@@ -112,7 +112,10 @@ interface SpawnOptions {
 	/** Called at the end of each agentic turn with the cumulative count. */
 	onTurnEnd?: (turnCount: number) => void;
 	/** Called once per assistant message_end with that message's usage delta. */
-	onAssistantUsage?: (usage: { input: number; output: number; cacheWrite: number }) => void;
+	onAssistantUsage?: (
+		usage: { input: number; output: number; cacheWrite: number },
+		generationMs: number,
+	) => void;
 	/** Called when the session successfully compacts. */
 	onCompaction?: (info: CompactionInfo) => void;
 	/** Caller-supplied tool-name subset — intersected (never widens). Omit → type default. */
@@ -313,9 +316,10 @@ export class AgentManager {
 				options.onTurnEnd?.(turnCount);
 			},
 			onTextDelta: options.onTextDelta,
-			onAssistantUsage: (usage) => {
+			onAssistantUsage: (usage, generationMs) => {
 				addUsage(record.lifetimeUsage, usage);
-				options.onAssistantUsage?.(usage);
+				record.streamingMs += generationMs;
+				options.onAssistantUsage?.(usage, generationMs);
 			},
 			onCompaction: (info) => {
 				record.compactionCount++;
@@ -426,8 +430,9 @@ export class AgentManager {
 				onToolActivity: (activity) => {
 					if (activity.type === "end") record.toolUses++;
 				},
-				onAssistantUsage: (usage) => {
+				onAssistantUsage: (usage, generationMs) => {
 					addUsage(record.lifetimeUsage, usage);
+					record.streamingMs += generationMs;
 				},
 				onCompaction: (info) => {
 					record.compactionCount++;

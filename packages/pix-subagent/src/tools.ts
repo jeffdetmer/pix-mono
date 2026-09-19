@@ -1609,7 +1609,6 @@ function createActivityTracker(maxTurns?: number, onStreamUpdate?: () => void) {
 		warnings: [],
 	};
 	const startedAt = Date.now();
-	let streamStart: number | null = null;
 
 	const callbacks = {
 		onWarning: (message: string) => {
@@ -1631,7 +1630,6 @@ function createActivityTracker(maxTurns?: number, onStreamUpdate?: () => void) {
 			onStreamUpdate?.();
 		},
 		onTextDelta: (_delta: string, fullText: string) => {
-			if (streamStart === null) streamStart = Date.now();
 			state.responseText = fullText;
 			state.durationMs = Date.now() - startedAt;
 			onStreamUpdate?.();
@@ -1643,12 +1641,15 @@ function createActivityTracker(maxTurns?: number, onStreamUpdate?: () => void) {
 		onSessionCreated: (session: unknown) => {
 			state.session = session as AgentActivity["session"];
 		},
-		onAssistantUsage: (usage: { input: number; output: number; cacheWrite: number }) => {
-			// Finalize the streaming window for this turn.
-			if (streamStart !== null) {
-				state.streamingMs += Date.now() - streamStart;
-				streamStart = null;
-			}
+		onAssistantUsage: (
+			usage: { input: number; output: number; cacheWrite: number },
+			generationMs: number,
+		) => {
+			// generationMs is the full message_start→message_end window, so t/s
+			// (output / streamingMs) includes the reasoning phase. A text-delta-only
+			// window made t/s wildly high for thinking models (usage.output counts
+			// reasoning tokens).
+			state.streamingMs += generationMs;
 			state.lifetimeUsage.input += usage.input;
 			state.lifetimeUsage.output += usage.output;
 			state.lifetimeUsage.cacheWrite += usage.cacheWrite;

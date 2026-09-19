@@ -390,6 +390,36 @@ describe("attachTurnLimit", () => {
 		expect(turnCounts).toEqual([1]);
 	});
 
+	test("onAssistantUsage generationMs spans message_start→message_end (covers reasoning)", async () => {
+		const { session, emit } = createFakeSession();
+		let generationMs = 0;
+
+		const handle = attachTurnLimit(session, {
+			onAssistantUsage: (_usage, ms) => {
+				generationMs = ms;
+			},
+		});
+
+		// A thinking model reasons for a while BEFORE any visible text. The window
+		// must start at message_start so t/s isn't computed over a tiny text-only
+		// slice (which made it wildly high).
+		emit({ type: "message_start" } as AgentSessionEvent);
+		await new Promise((r) => setTimeout(r, 20));
+		emit({
+			type: "message_update",
+			assistantMessageEvent: { type: "text_delta", delta: "answer" },
+		} as unknown as AgentSessionEvent);
+		emit({
+			type: "message_end",
+			message: { role: "assistant", usage: { input: 1, output: 100, cacheWrite: 0 } },
+		} as unknown as AgentSessionEvent);
+
+		// Window includes the ~20ms reasoning gap, not just the near-zero text slice.
+		expect(generationMs).toBeGreaterThanOrEqual(15);
+
+		handle.unsubscribe();
+	});
+
 	test("message_start resets currentMessageText for onTextDelta", () => {
 		const { session, emit } = createFakeSession();
 		const fullTexts: string[] = [];

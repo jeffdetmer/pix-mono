@@ -215,7 +215,10 @@ export interface RunOptions {
 	 * Lets callers maintain a lifetime accumulator that survives compaction
 	 * (which replaces session.state.messages and resets stats-derived sums).
 	 */
-	onAssistantUsage?: (usage: { input: number; output: number; cacheWrite: number }) => void;
+	onAssistantUsage?: (
+		usage: { input: number; output: number; cacheWrite: number },
+		generationMs: number,
+	) => void;
 	/**
 	 * Called when the session successfully compacts. `tokensBefore` is upstream's
 	 * pre-compaction context size estimate. Aborted compactions don't fire.
@@ -290,7 +293,10 @@ export function attachTurnLimit(
 		onTurnEnd?: (turnCount: number) => void;
 		onTextDelta?: (delta: string, fullText: string) => void;
 		onToolActivity?: (activity: ToolActivity) => void;
-		onAssistantUsage?: (usage: { input: number; output: number; cacheWrite: number }) => void;
+		onAssistantUsage?: (
+			usage: { input: number; output: number; cacheWrite: number },
+			generationMs: number,
+		) => void;
 		onCompaction?: (info: {
 			reason: "manual" | "threshold" | "overflow";
 			tokensBefore: number;
@@ -301,6 +307,10 @@ export function attachTurnLimit(
 	let softLimitReached = false;
 	let aborted = false;
 	let currentMessageText = "";
+	// Start of the current assistant generation. Set at message_start so the t/s
+	// window covers the reasoning phase too (usage.output includes reasoning
+	// tokens; a text-delta-only window makes t/s wildly high for thinking models).
+	let messageStartAt = 0;
 	const effectiveGrace = options.graceTurns ?? graceTurns;
 
 	const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
@@ -321,6 +331,7 @@ export function attachTurnLimit(
 		}
 		if (event.type === "message_start") {
 			currentMessageText = "";
+			messageStartAt = Date.now();
 		}
 		if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
 			currentMessageText += event.assistantMessageEvent.delta;
@@ -335,11 +346,14 @@ export function attachTurnLimit(
 		if (event.type === "message_end" && event.message.role === "assistant") {
 			const u = (event.message as AssistantMessage).usage;
 			if (u)
-				options.onAssistantUsage?.({
-					input: u.input ?? 0,
-					output: u.output ?? 0,
-					cacheWrite: u.cacheWrite ?? 0,
-				});
+				options.onAssistantUsage?.(
+					{
+						input: u.input ?? 0,
+						output: u.output ?? 0,
+						cacheWrite: u.cacheWrite ?? 0,
+					},
+					messageStartAt > 0 ? Date.now() - messageStartAt : 0,
+				);
 		}
 		if (event.type === "compaction_end" && !event.aborted && event.result) {
 			options.onCompaction?.({
@@ -737,7 +751,10 @@ export async function resumeAgent(
 		onTurnEnd?: (turnCount: number) => void;
 		onTextDelta?: (delta: string, fullText: string) => void;
 		onToolActivity?: (activity: ToolActivity) => void;
-		onAssistantUsage?: (usage: { input: number; output: number; cacheWrite: number }) => void;
+		onAssistantUsage?: (
+			usage: { input: number; output: number; cacheWrite: number },
+			generationMs: number,
+		) => void;
 		onCompaction?: (info: {
 			reason: "manual" | "threshold" | "overflow";
 			tokensBefore: number;
