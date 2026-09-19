@@ -86,6 +86,11 @@ describe("package onboarding", () => {
 		expect(violations).toEqual([]);
 	});
 
+	test("does not recommend the replaced pi-lens package", () => {
+		const installer = readFileSync(join(import.meta.dir, "install.sh"), "utf8");
+		expect(installer).not.toContain("npm:pi-lens");
+	});
+
 	test("uninstaller covers every package except its documented updater exception", () => {
 		const uninstaller = readFileSync(join(import.meta.dir, "uninstall.sh"), "utf8");
 		const violations = pkgs

@@ -44,7 +44,7 @@ Widgets, slash commands, and display changes for the TUI.
 | [`@xynogen/pix-update`](packages/pix-update) | `/update` — self-update Pi + all extensions, detects install method |
 | [`@xynogen/pix-commands`](packages/pix-commands) | `/clear` slash command (flushes `~/.cache/pi`) |
 | [`@xynogen/pix-nudge`](packages/pix-nudge) | Tools nudge + capability nudge hooks to steer model toward correct tools |
-| [`@xynogen/pix-diagnostics`](packages/pix-diagnostics) | Compact LSP diagnostic widget — recent files list, overrides pi-lens |
+| [`@xynogen/pix-diagnostics`](packages/pix-diagnostics) | Lazy LSP diagnostics, navigation, and a compact session widget — replaces the pi-lens LSP core |
 | [`@xynogen/pix-display`](packages/pix-display) | Paste chip rendering (`[paste image #1]`) + leaked `<think>` tag → native thinking blocks |
 | [`@xynogen/pix-prompts`](packages/pix-prompts) | System-prompt injection — bundled `SOP.md` baseline + repo directive files |
 | [`@xynogen/pix-skills`](packages/pix-skills) | `read_skills` discovery and loading — includes references, bundled resources, and on-demand TOON guidance |
@@ -88,6 +88,7 @@ Not bundled by `pix-core`. Install each one only if you want it. Each one stays 
 | [`@xynogen/pix-toolbox`](packages/pix-toolbox) | `/toolbox` — fuzzy-search picker to enable/disable tools at runtime |
 | [`@xynogen/pix-mcp`](packages/pix-mcp) | Token-efficient MCP gateway — external servers can execute commands or reach sensitive services |
 | [`@xynogen/pix-graph`](packages/pix-graph) | `graph` tool — native-TS code knowledge graph (build/query, no Python); TS/JS only |
+| [`@xynogen/pix-astgrep`](packages/pix-astgrep) | `ast_grep_search` / `read_symbol` / `symbol_search` — structural code search and symbol reads; needs the `@ast-grep/napi` native addon |
 | [`@xynogen/pix-hunk`](packages/pix-hunk) | `hunk` tool — live Hunk diff-review bridge; needs the external Hunk CLI and an active review session |
 | [`@xynogen/pix-aria2`](packages/pix-aria2) | `download` tool — fast, resumable downloads via an auto-managed aria2 RPC daemon; needs the external `aria2c` binary |
 | [`@xynogen/pix-proc`](packages/pix-proc) | `proc` tool — run and manage long-lived processes (`npm run dev`, `vite`, `python`) that outlive a turn; spawns background processes |
@@ -98,7 +99,7 @@ Upstream Pi extensions that Pix uses now. We plan to replace each one with a mai
 
 | Package | Description |
 | --- | --- |
-| [`pi-lens`](https://github.com/apmantza/pi-lens) | Real-time code feedback — LSP navigation/diagnostics, linters, formatters, type-checking, structural (ast-grep) analysis |
+| [`pi-lens`](https://github.com/apmantza/pi-lens) | LSP core merged into `pix-diagnostics`. Still upstream: linters, formatters, structural (ast-grep) analysis, security/dependency scans |
 
 ### Foundation layer
 
@@ -182,6 +183,7 @@ Several packages here started as a fork or a merge of a community Pi package:
 | [`tintinweb/pi-subagents`](https://github.com/tintinweb/pi-subagents) | spawn engine ported into `pix-subagent` |
 | [`nicobailon/pi-subagents`](https://github.com/nicobailon/pi-subagents) | work-splitting design adapted in `pix-subagent` |
 | [`nicobailon/pi-mcp-adapter`](https://github.com/nicobailon/pi-mcp-adapter) | v2.11.0 (`82724dc`) adopted as `@xynogen/pix-mcp`; MIT license retained, with bounded on-demand discovery and lazy startup behavior |
+| [`apmantza/pi-lens`](https://github.com/apmantza/pi-lens) | LSP engine (server registry, transport, lazy manager) adapted into `@xynogen/pix-diagnostics`; MIT license retained in `packages/pix-diagnostics/LICENSE.pi-lens` |
 
 These standalone repos moved into this monorepo before: `pix-optimizer`, `pix-themes`, `pix-pretty`, `pix-core`, `pix-9router`, `pix-data`.
 

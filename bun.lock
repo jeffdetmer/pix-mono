@@ -56,6 +56,21 @@
         "@earendil-works/pi-tui": "*",
       },
     },
+    "packages/pix-astgrep": {
+      "name": "@xynogen/pix-astgrep",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ast-grep/napi": "^0.45.0",
+        "@xynogen/pix-pretty": "^1.26.0",
+        "@xynogen/pix-runtime": "^0.10.1",
+        "typebox": "^1.1.38",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-ai": "*",
+        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-tui": "*",
+      },
+    },
     "packages/pix-bash": {
       "name": "@xynogen/pix-bash",
       "version": "0.2.6",
@@ -84,7 +99,7 @@
     },
     "packages/pix-core": {
       "name": "@xynogen/pix-core",
-      "version": "0.5.49",
+      "version": "0.5.50",
       "dependencies": {
         "@xynogen/pix-ask": "^0.2.30",
         "@xynogen/pix-bash": "^0.2.6",
@@ -131,11 +146,15 @@
     },
     "packages/pix-diagnostics": {
       "name": "@xynogen/pix-diagnostics",
-      "version": "0.2.3",
+      "version": "0.3.0",
       "dependencies": {
-        "@xynogen/pix-runtime": "^0.8.0",
+        "@xynogen/pix-pretty": "^1.26.0",
+        "@xynogen/pix-runtime": "^0.10.1",
+        "typebox": "^1.1.38",
+        "vscode-jsonrpc": "^9.0.0",
       },
       "peerDependencies": {
+        "@earendil-works/pi-ai": "*",
         "@earendil-works/pi-coding-agent": "*",
         "@earendil-works/pi-tui": "*",
       },
@@ -350,7 +369,7 @@
     },
     "packages/pix-proc": {
       "name": "@xynogen/pix-proc",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@xynogen/pix-pretty": "^1.26.0",
         "@xynogen/pix-runtime": "^0.10.1",
@@ -363,7 +382,7 @@
     },
     "packages/pix-prompts": {
       "name": "@xynogen/pix-prompts",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "@xynogen/pix-runtime": "^0.8.0",
       },
@@ -530,6 +549,26 @@
   },
   "packages": {
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.123.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-Y9oX9mPNGZClHQOFqrWRk43Srcu/UHuPq3rfxxOq7JgW0gi+lJA2MAOK4Ul3k/+AUrwRWFJvd0tK3oC0Pw25dw=="],
+
+    "@ast-grep/napi": ["@ast-grep/napi@0.45.3", "", { "optionalDependencies": { "@ast-grep/napi-darwin-arm64": "0.45.3", "@ast-grep/napi-darwin-x64": "0.45.3", "@ast-grep/napi-linux-arm64-gnu": "0.45.3", "@ast-grep/napi-linux-arm64-musl": "0.45.3", "@ast-grep/napi-linux-x64-gnu": "0.45.3", "@ast-grep/napi-linux-x64-musl": "0.45.3", "@ast-grep/napi-win32-arm64-msvc": "0.45.3", "@ast-grep/napi-win32-ia32-msvc": "0.45.3", "@ast-grep/napi-win32-x64-msvc": "0.45.3" } }, "sha512-bjJsUt0g3UCwbn9bjv7MnoR15rszSm79yPCXn4DWWK0NuYUUqBU/srtNMR4WnpfR7TnfBRdYFoqSNx0pGCNWJg=="],
+
+    "@ast-grep/napi-darwin-arm64": ["@ast-grep/napi-darwin-arm64@0.45.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-rMZJ6frSpR/xSbeV4hiA9WR5hHqk3rVYX8lOqEoUCaUnjEuFXvHdGN4WawJ8pVDq/IqM1UnTtsDSYgUdVmO5DA=="],
+
+    "@ast-grep/napi-darwin-x64": ["@ast-grep/napi-darwin-x64@0.45.3", "", { "os": "darwin", "cpu": "x64" }, "sha512-tIclZ5pM+YSgk8NNTBoTkaclbS39cU5lbVfSrFWX4LUnxXfUPG+F+ppxyFjKwJTBELsGHEO4LdX3/Lc+FDwPNA=="],
+
+    "@ast-grep/napi-linux-arm64-gnu": ["@ast-grep/napi-linux-arm64-gnu@0.45.3", "", { "os": "linux", "cpu": "arm64" }, "sha512-Bm8F7/oRHQkDXbjH+gBi9oB5huJ0q12r/AIOMIypf5PWlAVvh206Tsw468phw4Oh6kd4Ad1Z+gflNW1MutgK2g=="],
+
+    "@ast-grep/napi-linux-arm64-musl": ["@ast-grep/napi-linux-arm64-musl@0.45.3", "", { "os": "linux", "cpu": "arm64" }, "sha512-yr5xcRerV41GeRxmZ8SKbfGeyZRhQePoNNCgTAb4OrWMelWwbMI80aY7/IlF2bo1sN40BSW4hZdGIO/akTd1RQ=="],
+
+    "@ast-grep/napi-linux-x64-gnu": ["@ast-grep/napi-linux-x64-gnu@0.45.3", "", { "os": "linux", "cpu": "x64" }, "sha512-lluRK3hxfHMQdFuVID6seAKVx4FH0kEwF6rCh5/I40Sf3EtNR2UCBXAqd6RBA6hqlSckktvBxCfw+h4aescDmg=="],
+
+    "@ast-grep/napi-linux-x64-musl": ["@ast-grep/napi-linux-x64-musl@0.45.3", "", { "os": "linux", "cpu": "x64" }, "sha512-09wJQKq86LqILqQtw0+X09SzhcPwUnMVFKyia7S3XLbLqSeQpAMF55Y+zll53JRQ1dCzFEZJyvTT/7j9vwfE3w=="],
+
+    "@ast-grep/napi-win32-arm64-msvc": ["@ast-grep/napi-win32-arm64-msvc@0.45.3", "", { "os": "win32", "cpu": "arm64" }, "sha512-/HiVgw2cdtzXLDLoG4eBBcauekNXewfagy7qiVbjkVu/KcCH8dJ9lpj8DzeWwuBNtZxuD8jpiwP0M1pz3Bc3uw=="],
+
+    "@ast-grep/napi-win32-ia32-msvc": ["@ast-grep/napi-win32-ia32-msvc@0.45.3", "", { "os": "win32", "cpu": "ia32" }, "sha512-/gwJrJQUw65uNtAFcG2rtSTr117Gqqy3bfjaljCPKsa65dTeRcMMnjKLlZ6V9/g8z+4Xf78kdhp5ECbir4yfSw=="],
+
+    "@ast-grep/napi-win32-x64-msvc": ["@ast-grep/napi-win32-x64-msvc@0.45.3", "", { "os": "win32", "cpu": "x64" }, "sha512-CEZAMAsaDoQoVE3MT2c/ry3/ydfyaqlTjxv8DK5PG355SrdAYPgevGC2Me6tz4dhphJin89Y20VsnrS5UrYV5Q=="],
 
     "@aws-crypto/sha256-browser": ["@aws-crypto/sha256-browser@5.2.0", "", { "dependencies": { "@aws-crypto/sha256-js": "^5.2.0", "@aws-crypto/supports-web-crypto": "^5.2.0", "@aws-crypto/util": "^5.2.0", "@aws-sdk/types": "^3.222.0", "@aws-sdk/util-locate-window": "^3.0.0", "@smithy/util-utf8": "^2.0.0", "tslib": "^2.6.2" } }, "sha512-AXfN/lGotSQwu6HNcEsIASo7kWXZ5HYWvfOmSNKDsEqC4OashTp8alTmaz+F7TC2L083SFv5RdB+qU3Vs1kZqw=="],
 
@@ -800,6 +839,8 @@
     "@xynogen/pix-aria2": ["@xynogen/pix-aria2@workspace:packages/pix-aria2"],
 
     "@xynogen/pix-ask": ["@xynogen/pix-ask@workspace:packages/pix-ask"],
+
+    "@xynogen/pix-astgrep": ["@xynogen/pix-astgrep@workspace:packages/pix-astgrep"],
 
     "@xynogen/pix-bash": ["@xynogen/pix-bash@workspace:packages/pix-bash"],
 
@@ -1253,6 +1294,8 @@
 
     "vary": ["vary@1.1.2", "", {}, "sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg=="],
 
+    "vscode-jsonrpc": ["vscode-jsonrpc@9.0.2", "", {}, "sha512-SbQSV9yRemARxeXw6LU5sS6Zq0e9/DgCCX5yelH263ZQWukbTk8EF8fjTrr1dziasf4GwlJbvTwFnTrnQFWZXQ=="],
+
     "web-streams-polyfill": ["web-streams-polyfill@3.3.3", "", {}, "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="],
 
     "which": ["which@2.0.2", "", { "dependencies": { "isexe": "^2.0.0" }, "bin": { "node-which": "./bin/node-which" } }, "sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA=="],
@@ -1300,8 +1343,6 @@
     "@xynogen/pix-commands/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
 
     "@xynogen/pix-data/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
-
-    "@xynogen/pix-diagnostics/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
 
     "@xynogen/pix-edit/@xynogen/pix-runtime": ["@xynogen/pix-runtime@0.8.4", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-lTtqGx+1DDKNhZPp1e0NX11s3i89Mqk0s3uAFT/9fF7NaFmFJqx+8xH+YWoVSrDbJ7RoqDViA++R8tabejynnA=="],
 
