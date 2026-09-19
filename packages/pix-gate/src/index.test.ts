@@ -35,4 +35,71 @@ describe("gate agent state", () => {
 		expect(states).toContain("blocked");
 		expect(states.at(-1)).toBe("idle");
 	});
+
+	test("steers a denied ~/.ssh/config read toward the ssh info tool", async () => {
+		const events = createEventBus();
+		const handlers: Array<(event: any, ctx: any) => Promise<unknown>> = [];
+		const pi = {
+			events,
+			getAllTools: () => [{ name: "ssh_run" }],
+			on(event: string, handler: (event: any, ctx: any) => Promise<unknown>) {
+				if (event === "tool_call") handlers.push(handler);
+			},
+		};
+		registerGate(pi as never);
+
+		const ctx = {
+			hasUI: true,
+			ui: {
+				custom: async () => ({ action: "denied" }),
+				notify() {},
+				theme: { fg: (_color: string, text: string) => text },
+			},
+		};
+		let result: { block?: boolean; reason?: string } | undefined;
+		for (const handler of handlers) {
+			const r = (await handler(
+				{ toolName: "bash", input: { command: "grep -i p1-server ~/.ssh/config" } },
+				ctx,
+			)) as { block?: boolean; reason?: string } | undefined;
+			if (r?.block) result = r;
+		}
+
+		expect(result?.block).toBe(true);
+		expect(result?.reason).toContain("ssh_run");
+		expect(result?.reason).toContain('action:"info"');
+	});
+
+	test("omits the ssh steer when ssh_run is not installed", async () => {
+		const events = createEventBus();
+		const handlers: Array<(event: any, ctx: any) => Promise<unknown>> = [];
+		const pi = {
+			events,
+			getAllTools: () => [],
+			on(event: string, handler: (event: any, ctx: any) => Promise<unknown>) {
+				if (event === "tool_call") handlers.push(handler);
+			},
+		};
+		registerGate(pi as never);
+
+		const ctx = {
+			hasUI: true,
+			ui: {
+				custom: async () => ({ action: "denied" }),
+				notify() {},
+				theme: { fg: (_color: string, text: string) => text },
+			},
+		};
+		let result: { block?: boolean; reason?: string } | undefined;
+		for (const handler of handlers) {
+			const r = (await handler(
+				{ toolName: "bash", input: { command: "grep -i p1-server ~/.ssh/config" } },
+				ctx,
+			)) as { block?: boolean; reason?: string } | undefined;
+			if (r?.block) result = r;
+		}
+
+		expect(result?.block).toBe(true);
+		expect(result?.reason).not.toContain("ssh_run");
+	});
 });

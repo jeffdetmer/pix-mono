@@ -153,6 +153,16 @@ export default function (pi: ExtensionAPI): void {
 
 		// Path concerns
 		const candidates = extractPathsFromBash(command);
+
+		// Steer a blocked ssh-config read toward the dedicated `ssh info` tool
+		// (ssh_run action:"info"), which reads the effective config without touching
+		// ~/.ssh directly. Only when ssh_run is installed. Appended to the block
+		// reason so the model reads it and stops retrying with awk/grep/raw ssh.
+		const readsSshConfig = candidates.some((p) => /(^|\/)\.ssh\/config\b/i.test(p));
+		const sshInfoSteer =
+			readsSshConfig && isRegistered("ssh_run")
+				? ' Use the ssh_run tool with action:"info" to read the effective SSH config instead of reading ~/.ssh/config in bash.'
+				: "";
 		for (const p of candidates) {
 			const hit = classifyPath(p, "read", pathRules);
 			if (!hit) continue;
@@ -213,7 +223,7 @@ export default function (pi: ExtensionAPI): void {
 		if (unattended === "deny") {
 			return {
 				block: true,
-				reason: `[AFK][${highest.label}] ${highest.detail}`,
+				reason: `[AFK][${highest.label}] ${highest.detail}${sshInfoSteer}`,
 			};
 		}
 
@@ -224,7 +234,7 @@ export default function (pi: ExtensionAPI): void {
 			if (highest.tier >= SEVERITY_TIER.block) {
 				return {
 					block: true,
-					reason: `[${highest.label}] ${highest.detail} (no UI, auto-blocked)`,
+					reason: `[${highest.label}] ${highest.detail} (no UI, auto-blocked)${sshInfoSteer}`,
 				};
 			}
 			return undefined;
@@ -265,7 +275,7 @@ export default function (pi: ExtensionAPI): void {
 
 		if (!decision.approved) {
 			ctx.ui.notify(`${highest.icon} ${decision.reason}: ${highest.detail}`, "warning");
-			return { block: true, reason: `[${highest.label}] ${decision.reason}` };
+			return { block: true, reason: `[${highest.label}] ${decision.reason}${sshInfoSteer}` };
 		}
 
 		const severityColor =
