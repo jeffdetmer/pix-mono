@@ -43,6 +43,7 @@ const CATALOG = {
 	lsp: { nerd: "\u{F0626}", unicode: `\u25C9${VS}`, ascii: "LSP" },
 	mcp: { nerd: "\u{F048D}", unicode: `\u25D0${VS}`, ascii: "MCP" },
 	cwd: { nerd: "\u{F024B}", unicode: `\u2302${VS}`, ascii: "~" },
+	process: { nerd: "\u{F018D}", unicode: `\u25B8${VS}`, ascii: ">_" },
 	folder: { nerd: "\u{F024B}", unicode: `\u2302${VS}`, ascii: "/" },
 	afk: { nerd: "\u{F0310}", unicode: `\u2328${VS}`, ascii: "kbd" },
 

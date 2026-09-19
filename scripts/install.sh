@@ -84,6 +84,7 @@ npm:@xynogen/pix-graph|Native-TS code knowledge graph (build/query via CLI); a s
 npm:@xynogen/pix-hunk|Live Hunk diff-review bridge — requires the external Hunk CLI and an active review session, so enable it explicitly.
 npm:@xynogen/pix-search|Smarter @ file search (fuzzy + git-recency ranking) that overrides Pi's built-in autocomplete, so opt in when you want that ranking.
 npm:@xynogen/pix-aria2|Fast resumable downloads via an auto-managed aria2 daemon — requires the external aria2c binary, so enable it explicitly.
+npm:@xynogen/pix-runner|proc tool — run and manage long-lived processes (npm run dev, vite, python) that outlive a turn; spawns background processes, so enable it explicitly.
 "
 
 # Opt-in community extensions — third-party packages, not part of the pix distro.

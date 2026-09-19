@@ -137,10 +137,15 @@ export default function (pi: ExtensionAPI): void {
 		risky: 1,
 	};
 
+	// The unified command gate also covers pix-runner's `proc` tool: its `start`
+	// action carries a shell command in `event.input.command`, identical to bash.
+	// proc's other actions (list/logs/stop/rm) carry no command and pass straight
+	// through. Install pix-runner without pix-gate = ungated, same as bash.
+	const GATED_COMMAND_TOOLS = new Set(["bash", "proc"]);
 	pi.on("tool_call", async (event, ctx) => {
-		if (event.toolName !== "bash") return undefined;
+		if (!GATED_COMMAND_TOOLS.has(String(event.toolName))) return undefined;
 
-		const command = String(event.input.command ?? "");
+		const command = String((event.input as Record<string, unknown>).command ?? "");
 		if (!command.trim()) return undefined;
 
 		// Collect all concerns: path hits + command hit
