@@ -138,6 +138,18 @@ function computeSessionTotals(entries: Iterable<unknown>): SessionTotals {
 	return { input, output, cacheRead, cost };
 }
 
+/**
+ * Live tokens-per-second, or null when the window is too short to trust.
+ *
+ * usage.output includes reasoning tokens (a subset of output). They land as one
+ * lump early in the stream, so over a sub-second window they give a wild spike
+ * (e.g. 800 tokens / 0.1s = 8000 t/s). The 1s floor amortizes that lump.
+ */
+export function computeTps(totalOutput: number, elapsedSec: number): number | null {
+	if (totalOutput <= 0 || elapsedSec < 1) return null;
+	return Math.round(totalOutput / elapsedSec);
+}
+
 /** Tokens block (in/out + cache/cost). Always returns a string; caller decides visibility. */
 function renderTokens(totals: SessionTotals, theme: Theme, faded = false): string {
 	let s = `${icon("net.in")} ${fmtTokenCount(totals.input)} ${icon("net.out")} ${fmtTokenCount(totals.output)}`;
@@ -329,10 +341,10 @@ export default function (pi: ExtensionAPI) {
 			total += s.output;
 			if (s.start < earliest) earliest = s.start;
 		}
-		if (total <= 0 || earliest === Infinity) return;
-		const elapsed = (Date.now() - earliest) / 1000;
-		if (elapsed < 0.1) return;
-		const next = `${Math.round(total / elapsed)} t/s`;
+		if (earliest === Infinity) return;
+		const rate = computeTps(total, (Date.now() - earliest) / 1000);
+		if (rate === null) return;
+		const next = `${rate} t/s`;
 		if (next !== liveTps) {
 			liveTps = next;
 			requestRender?.();
