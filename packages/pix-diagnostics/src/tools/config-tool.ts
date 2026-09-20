@@ -1,10 +1,7 @@
 /**
  * config-tool.ts — the `effective_config` tool.
  *
- * Explain the resolved diagnostics setup for this workspace: the shared config
- * file path, and each known LSP server with whether its binary is on PATH. It
- * makes the "why is this language not checked?" question answerable without
- * guessing. Read-only.
+ * Explain the project-owned LSP setup and whether each selected server exists.
  */
 
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
@@ -13,7 +10,7 @@ import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { frameToolResult } from "@xynogen/pix-pretty/utils";
 import { findExecutable } from "@xynogen/pix-runtime/which";
 import { Type } from "typebox";
-import { LSP_SERVERS } from "../lsp/server-registry.ts";
+import { loadProjectServers } from "../lsp/server-registry.ts";
 
 export interface ConfigToolDeps {
 	cwd: string;
@@ -26,10 +23,9 @@ export function registerConfigTool(pi: ExtensionAPI, deps: ConfigToolDeps): void
 		name: "effective_config",
 		label: "Effective config",
 		description:
-			"Explain the resolved diagnostics setup: the shared config path and each known LSP " +
-			"server with whether its binary is on PATH. Use it to see why a language is or is not " +
-			"checked. Read-only.",
-		promptSnippet: "effective_config() — resolved LSP servers and config path.",
+			"Show the project LSP configuration and whether each selected server exists on PATH. " +
+			"Read-only.",
+		promptSnippet: "effective_config() — project-selected LSP servers.",
 		parameters: Type.Object({}),
 
 		renderCall(_args, theme) {
@@ -50,29 +46,27 @@ export function registerConfigTool(pi: ExtensionAPI, deps: ConfigToolDeps): void
 		},
 
 		async execute() {
-			const configPath = `${process.env.HOME ?? "~"}/.pi/agent/pix.json`;
+			const configPath = `${cwd}/.pi/lsp.json`;
+			const servers = loadProjectServers(cwd);
 			const rows: string[] = [`cwd: ${cwd}`, `config: ${configPath}`, "", "LSP servers:"];
 
 			let available = 0;
-			for (const spec of LSP_SERVERS) {
-				let found: string | undefined;
-				for (const cmd of spec.commands) {
-					found = await findExecutable(cmd);
-					if (found) break;
-				}
+			for (const spec of servers) {
+				const command = spec.commands[0] ?? "";
+				const found = await findExecutable(command);
 				if (found) available++;
 				const mark = found ? "found" : "missing";
-				const langs = spec.extensions.slice(0, 4).join(" ");
-				rows.push(`  ${spec.id}  [${mark}]  ${langs}`);
+				rows.push(`  ${spec.id}  [${mark}]  ${command}  ${spec.extensions.join(" ")}`);
 			}
-			rows.push("", `${available}/${LSP_SERVERS.length} server binaries found on PATH.`);
+			if (servers.length === 0) rows.push("  none — create .pi/lsp.json for this project");
+			rows.push("", `${available}/${servers.length} project server binaries found on PATH.`);
 
 			return {
 				content: [{ type: "text" as const, text: rows.join("\n") }],
 				details: {
 					_type: "pixConfig",
 					outcome: "success",
-					servers: LSP_SERVERS.length,
+					servers: servers.length,
 					available,
 				},
 			};
