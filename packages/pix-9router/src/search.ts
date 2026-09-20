@@ -10,6 +10,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { routerBaseUrl } from "./data.js";
+import { routerDefaults } from "./defaults.js";
 import { apiPost, auth, curl, isCancelled } from "./http.js";
 import { makeRenderCall, makeRenderResult } from "./render.js";
 
@@ -27,6 +28,7 @@ export interface SearchResultDetails {
 
 export interface SearchParams {
 	query: string;
+	model?: string;
 	search_type?: SearchType;
 	max_results?: number;
 }
@@ -118,7 +120,7 @@ export async function executeSearch(
 		const raw = await dependencies.apiPost(
 			"/search",
 			{
-				model: "exa",
+				model: params.model ?? routerDefaults.searchModel,
 				query: params.query,
 				search_type: searchType,
 				max_results: max,
@@ -169,7 +171,7 @@ export async function executeSearch(
 
 	try {
 		const body = JSON.stringify({
-			model: "exa",
+			model: params.model ?? routerDefaults.searchModel,
 			query: params.query,
 			search_type: searchType,
 			max_results: max,
@@ -263,6 +265,9 @@ export default function registerSearch(pi: ExtensionAPI): void {
 		),
 		parameters: Type.Object({
 			query: Type.String({ description: "Search query" }),
+			model: Type.Optional(
+				Type.String({ description: "9Router search model. Defaults to the /9router choice." }),
+			),
 			search_type: StringEnum(["web", "news"] as const, {
 				description:
 					'Required choice. Enter exactly "web" for general web results or "news" for recent news articles.',

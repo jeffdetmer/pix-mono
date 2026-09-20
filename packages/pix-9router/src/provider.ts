@@ -97,14 +97,14 @@ export function getReasoning(model: RouterModel, devModel?: ModelsDevModel): boo
 }
 
 export default async function registerProvider(pi: ExtensionAPI): Promise<void> {
-	const apiKey = process.env.ROUTER_API_KEY;
+	const apiKey = process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY;
 
 	if (!apiKey) {
 		// Register shell provider so the name is known; no models available yet.
 		pi.registerProvider("9router", {
 			name: "9Router",
 			baseUrl: routerBaseUrl(),
-			apiKey: "$ROUTER_API_KEY",
+			apiKey: "$NINEROUTER_KEY",
 			api: "openai-completions",
 			models: [],
 		});
@@ -137,7 +137,7 @@ function providerConfig(
 	return {
 		name: "9Router",
 		baseUrl: routerBaseUrl(),
-		apiKey: "$ROUTER_API_KEY",
+		apiKey,
 		api: "openai-completions",
 		headers: { "User-Agent": "pi-coding-agent" },
 		models: models.map(toModelConfig(devIndex)),

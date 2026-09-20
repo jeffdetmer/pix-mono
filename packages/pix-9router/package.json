@@ -1,7 +1,7 @@
 {
 	"name": "@xynogen/pix-9router",
-	"version": "0.4.5",
-	"description": "Pi extension — 9Router provider + fetch/search tools via router API",
+	"version": "0.4.6",
+	"description": "Pi extension — 9Router provider plus web, STT, and TTS tools",
 	"type": "module",
 	"main": "src/index.ts",
 	"scripts": {

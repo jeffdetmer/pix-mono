@@ -13,7 +13,7 @@ import { ioTimeoutMs, ioTimeoutSignal } from "@xynogen/pix-runtime/io";
 import { routerBaseUrl } from "./data.js";
 
 export function auth(): string | undefined {
-	return process.env.ROUTER_API_KEY;
+	return process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY;
 }
 
 /** POST a JSON body to a router path, returning the raw response text. */

@@ -19,6 +19,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
 import { Type } from "typebox";
 import { routerBaseUrl } from "./data.js";
+import { routerDefaults } from "./defaults.js";
 import { auth, curl } from "./http.js";
 import { makeRenderCall, makeRenderResult } from "./render.js";
 
@@ -366,7 +367,7 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 		}),
 
 		async execute(_toolCallId, params, signal, onUpdate) {
-			const model = params.model ?? DEFAULT_MODEL;
+			const model = params.model ?? routerDefaults.sttModel;
 			const filePath = params.file;
 			const outputFile = params.output_file;
 			let apiMsg = "";

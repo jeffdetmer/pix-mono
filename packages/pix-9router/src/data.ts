@@ -11,8 +11,9 @@
  * models.dev index helpers live there — imported here, not duplicated.
  *
  * Environment:
- *   ROUTER_API_BASE  — override base URL (default: https://9router.example.com/v1)
- *   ROUTER_API_KEY   — bearer token (required)
+ *   NINEROUTER_URL   — canonical base URL
+ *   NINEROUTER_KEY   — canonical bearer token
+ *   ROUTER_API_BASE / ROUTER_API_KEY — legacy aliases
  */
 
 import { join } from "node:path";
@@ -58,7 +59,9 @@ interface RouterModelsResponse {
 const ROUTER_DEFAULT_BASE = "https://9router.example.com/v1";
 
 export function routerBaseUrl(): string {
-	return (process.env.ROUTER_API_BASE || ROUTER_DEFAULT_BASE).replace(/\/$/, "");
+	const configured = process.env.NINEROUTER_URL || process.env.ROUTER_API_BASE;
+	const base = (configured || ROUTER_DEFAULT_BASE).replace(/\/$/, "");
+	return base.endsWith("/v1") ? base : `${base}/v1`;
 }
 
 // ── Router models ──────────────────────────────────────────────────────────────
@@ -67,10 +70,10 @@ export const routerModels = new DataSource<RouterModel[]>({
 	label: "9router",
 	url: () => `${routerBaseUrl()}/models`,
 	headers: () => {
-		const key = process.env.ROUTER_API_KEY;
+		const key = process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY;
 		return key ? { Authorization: `Bearer ${key}` } : undefined;
 	},
-	skip: () => !process.env.ROUTER_API_KEY,
+	skip: () => !(process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY),
 	cachePath: join(CACHE_DIR, "9router.json"),
 	ttlMs: 30 * 60 * 1000, // 30 minutes
 	parse: (raw) => ((raw as RouterModelsResponse).data ?? []).filter((m) => Boolean(m.id)),

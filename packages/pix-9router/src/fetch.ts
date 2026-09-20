@@ -9,6 +9,7 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { routerDefaults } from "./defaults.js";
 import { apiPost, curl, isCancelled } from "./http.js";
 import { makeRenderCall, makeRenderResult } from "./render.js";
 
@@ -27,6 +28,7 @@ export interface FetchResultDetails {
 
 export interface FetchParams {
 	url: string;
+	model?: string;
 	format?: FetchFormat;
 	max_characters?: number;
 }
@@ -96,7 +98,7 @@ export async function executeFetch(
 		const raw = await dependencies.apiPost(
 			"/web/fetch",
 			{
-				model: "exa",
+				model: params.model ?? routerDefaults.fetchModel,
 				url: params.url,
 				format: fmt,
 				max_characters: maxChars,
@@ -239,6 +241,9 @@ export default function registerFetch(pi: ExtensionAPI): void {
 		),
 		parameters: Type.Object({
 			url: Type.String({ description: "URL to fetch" }),
+			model: Type.Optional(
+				Type.String({ description: "9Router fetch model. Defaults to the /9router choice." }),
+			),
 			format: Type.Optional(
 				StringEnum(["markdown", "text", "html"] as const, {
 					description:
