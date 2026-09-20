@@ -66,7 +66,7 @@ Trivial (single-step, specified, familiar) → just execute. Standard → quick 
 
 Load the file, don't inline. `read_skills()` to discover; else `read` from `<available_skills>` paths. Git URL / `owner/repo` → **clone** skill, not raw `git clone`.
 
-- **Auto** (match → load): clone · command-runner · debug · diff · environment · explain · lint-format · plan · review · search · subagent · suggest · task · test · tldr · verify
+- **Auto** (match → load): clone · command-runner · debug · diff · environment · explain · format · lint · lsp · plan · review · search · subagent · suggest · task · test · tldr · verify
 - **Manual**: audit · bootstrap · brainstorm · commit · finish · handoff · human · notion · readme · runner · standup · ui
 - **Capability** (§2 triggers): ast-grep · lsp-navigation · toon-json · graph · ask-user · write-ast-grep-rule · write-tree-sitter-rule
 
