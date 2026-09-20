@@ -75,7 +75,7 @@ export default function registerDiagnostics(
 	const store = new DiagnosticStore();
 	const dispositions = new DispositionStore();
 	const manager = options.manager ?? createManager(cwd);
-	let requestRenderFn: (() => void) | null = null;
+	let unsubscribeStatus: (() => void) | null = null;
 
 	registerDiagnosticsTool(pi, { store, manager, cwd });
 	registerNavigationTool(pi, { manager, cwd });
@@ -85,26 +85,9 @@ export default function registerDiagnostics(
 	pi.on("session_start", (_event, ctx) => {
 		store.clear();
 		dispositions.clear();
-		if (!ctx.ui.setWidget) return;
-		ctx.ui.setWidget(
-			"pix-diagnostics",
-			(tui, theme: Theme) => {
-				requestRenderFn = () => {
-					tui.requestRender();
-					updateStatus(ctx, store);
-				};
-				const unsubscribe = store.subscribe(() => requestRenderFn?.());
-				return {
-					render: (width: number) => renderWidget(store, width, theme),
-					dispose() {
-						unsubscribe();
-						requestRenderFn = null;
-					},
-					invalidate() {},
-				};
-			},
-			{ placement: "belowEditor" },
-		);
+		unsubscribeStatus?.();
+		unsubscribeStatus = store.subscribe(() => updateStatus(ctx, store));
+		updateStatus(ctx, store);
 	});
 
 	pi.on("tool_result", async (event, _ctx) => {
@@ -120,7 +103,8 @@ export default function registerDiagnostics(
 		ctx.ui.setStatus?.(STATUS_KEY, undefined);
 		store.clear();
 		dispositions.clear();
-		requestRenderFn = null;
+		unsubscribeStatus?.();
+		unsubscribeStatus = null;
 		await manager.shutdown();
 	});
 }
@@ -129,6 +113,16 @@ function updateStatus(
 	ctx: { ui: { setStatus?: (k: string, v?: string) => void } },
 	store: DiagnosticStore,
 ): void {
-	const active = store.all().filter((s) => s.state !== "touched").length;
-	ctx.ui.setStatus?.(STATUS_KEY, active > 0 ? `LSP Active (${active})` : undefined);
+	const snapshots = store.all();
+	if (snapshots.length === 0) {
+		ctx.ui.setStatus?.(STATUS_KEY, undefined);
+		return;
+	}
+	const latest = store.recent(1)[0];
+	const file = latest?.filePath.split("/").pop() ?? "";
+	const { errors, warnings } = severityCounts(store);
+	const counts = [errors > 0 ? `${errors}E` : "", warnings > 0 ? `${warnings}W` : ""]
+		.filter(Boolean)
+		.join(" ");
+	ctx.ui.setStatus?.(STATUS_KEY, `LSP ${file}${counts ? ` ${counts}` : ""}`);
 }

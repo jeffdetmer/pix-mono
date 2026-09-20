@@ -45,37 +45,24 @@ describe("pix-diagnostics extension", () => {
 		]);
 	});
 
-	test("registers one widget on session_start", () => {
+	test("uses the footer status instead of an editor widget", () => {
 		const m = mockPi();
 		registerExtension(m.pi as never);
 		const start = m.handlers.find((h) => h.event === "session_start");
 		start?.fn({}, m.ctx);
-		expect(m.widgetKeys).toEqual(["pix-diagnostics"]);
+		expect(m.widgetKeys).toEqual([]);
+		expect(m.statuses).toContainEqual({ key: "pi-lens-lsp", value: undefined });
 	});
 
-	test("a write result marks a file touched without starting a server", async () => {
+	test("a write result sends the touched file to the footer", async () => {
 		const m = mockPi();
 		registerExtension(m.pi as never);
-		// Render the widget factory once so the store subscriber is attached.
 		const start = m.handlers.find((h) => h.event === "session_start");
-		let renderFn: ((width: number) => string[]) | undefined;
-		const capturingCtx = {
-			ui: {
-				setWidget(
-					_key: string,
-					factory: (tui: unknown, theme: unknown) => { render: (w: number) => string[] },
-				) {
-					const widget = factory({ requestRender() {} }, { fg: (_r: string, t: string) => t });
-					renderFn = widget.render;
-				},
-				setStatus() {},
-			},
-		};
-		start?.fn({}, capturingCtx);
+		start?.fn({}, m.ctx);
 
 		const toolResult = m.handlers.find((h) => h.event === "tool_result");
 		await toolResult?.fn({ toolName: "write", input: { path: "/repo/a.ts" } }, m.ctx);
-		expect(renderFn?.(120).join("")).toContain("a.ts");
+		expect(m.statuses).toContainEqual({ key: "pi-lens-lsp", value: "LSP a.ts" });
 	});
 
 	test("session_shutdown clears the status and shuts down the manager", async () => {

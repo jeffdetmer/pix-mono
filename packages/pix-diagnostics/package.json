@@ -1,7 +1,7 @@
 {
 	"name": "@xynogen/pix-diagnostics",
-	"version": "0.3.0",
-	"description": "Pi extension — lazy LSP diagnostics, navigation, and compact session widget",
+	"version": "0.3.1",
+	"description": "Pi extension — lazy LSP diagnostics, navigation, and footer status",
 	"type": "module",
 	"main": "src/index.ts",
 	"exports": {
