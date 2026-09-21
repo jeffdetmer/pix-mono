@@ -115,6 +115,29 @@ export class ProcManager {
 		return this.procs.get(handle);
 	}
 
+	/** Adopt a process kept from an earlier session so tools and widgets can manage it. */
+	adoptOrphan(orphan: Orphan): ProcMeta {
+		const existing = this.procs.get(orphan.handle);
+		if (existing) return existing.meta;
+		const meta: ProcMeta = {
+			handle: orphan.handle,
+			command: orphan.command,
+			cwd: process.cwd(),
+			pid: orphan.pgid,
+			pgid: orphan.pgid,
+			startTime: Date.now(),
+			startTicks: readStartTicks(orphan.pgid),
+			status: "running",
+			capped: false,
+		};
+		this.procs.set(orphan.handle, {
+			meta,
+			logPath: this.logPathFor(orphan.handle),
+			cursor: 0,
+		});
+		return meta;
+	}
+
 	/** Spawn a detached process; the child writes stdout+stderr to its log file. */
 	start(command: string, cwd: string, name?: string): ProcMeta {
 		const handle = this.freshHandle();
@@ -165,7 +188,13 @@ export class ProcManager {
 	/** Enforce the cap: at the limit, redirect the child to /dev/null and mark capped. */
 	checkCap(handle: string): void {
 		const live = this.procs.get(handle);
-		if (!live || live.meta.capped || live.meta.status !== "running") return;
+		if (live?.meta.status !== "running") return;
+		if (!live.child && !pgidAlive(live.meta.pgid)) {
+			live.meta.status = "exited";
+			silent(() => rmSync(this.pidPath(handle), { force: true }));
+			return;
+		}
+		if (live.meta.capped) return;
 		let bytes = 0;
 		try {
 			bytes = statSync(live.logPath).size;

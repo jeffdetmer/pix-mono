@@ -127,6 +127,12 @@ export default function registerRunner(pi: ExtensionAPI): void {
 		if (choice === "Kill all") {
 			for (const o of orphans) mgr.killOrphan(o);
 			ctx.ui.notify(`Killed ${orphans.length} orphaned process group(s).`, "warning");
+			return;
+		}
+		if (choice === "Keep all") {
+			for (const orphan of orphans) mgr.adoptOrphan(orphan);
+			startPolling();
+			await tick();
 		}
 	});
 

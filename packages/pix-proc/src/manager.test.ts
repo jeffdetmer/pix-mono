@@ -53,6 +53,18 @@ describe("ProcManager lifecycle", () => {
 		expect(m.exitCode).toBe(3);
 	});
 
+	test("adopts a kept orphan so this session can manage it", () => {
+		mgr = new ProcManager();
+		const meta = mgr.adoptOrphan({ handle: "proc-old", pgid: 1234, command: "npm run dev" });
+		expect(meta).toMatchObject({
+			handle: "proc-old",
+			pgid: 1234,
+			command: "npm run dev",
+			status: "running",
+		});
+		expect(mgr.list()).toContainEqual(meta);
+	});
+
 	test("stop kills the whole process group (child + grandchild)", async () => {
 		mgr = new ProcManager();
 		// parent sh forks a child sleep; killing only the sh pid would orphan it.
