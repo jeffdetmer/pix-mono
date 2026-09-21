@@ -47,6 +47,9 @@ describe("icon-catalog", () => {
 		expect(iconFor("audio.stop", "nerd")).toBe("\u{F04D}");
 		expect(iconFor("audio.stop", "unicode")).toBe("\u25A0\uFE0E");
 		expect(iconFor("audio.stop", "ascii")).toBe("[]");
+		expect(iconFor("audio.file", "nerd")).toBe("\u{F1C7}");
+		expect(iconFor("audio.file", "unicode")).toBe("\u266B\uFE0E");
+		expect(iconFor("audio.file", "ascii")).toBe("audio");
 	});
 
 	it("every catalog key has a non-empty glyph in every mode", () => {

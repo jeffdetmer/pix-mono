@@ -47,6 +47,7 @@ const CATALOG = {
 	"audio.play": { nerd: "\u{F04B}", unicode: `\u25B6${VS}`, ascii: ">" },
 	"audio.pause": { nerd: "\u{F04C}", unicode: `\u23F8${VS}`, ascii: "||" },
 	"audio.stop": { nerd: "\u{F04D}", unicode: `\u25A0${VS}`, ascii: "[]" },
+	"audio.file": { nerd: "\u{F1C7}", unicode: `\u266B${VS}`, ascii: "audio" },
 	folder: { nerd: "\u{F024B}", unicode: `\u2302${VS}`, ascii: "/" },
 	afk: { nerd: "\u{F0310}", unicode: `\u2328${VS}`, ascii: "kbd" },
 

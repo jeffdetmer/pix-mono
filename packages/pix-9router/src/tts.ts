@@ -182,7 +182,9 @@ export default function registerTts(pi: ExtensionAPI): void {
 					content: [
 						{
 							type: "text",
-							text: `${icon("audio.stop")} ${basename(saved)} · ${humanSize(audio.byteLength)}`,
+							text: play
+								? `${icon("audio.stop")} ${basename(saved)} · ${humanSize(audio.byteLength)}`
+								: `${icon("audio.file")} ${saved} · ${humanSize(audio.byteLength)}`,
 						},
 					],
 					details: {

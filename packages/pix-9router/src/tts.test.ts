@@ -136,4 +136,51 @@ describe("9Router TTS", () => {
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	test("shows the saved file path when playback is disabled", async () => {
+		let execute:
+			| ((
+					id: string,
+					params: {
+						input: string;
+						model: string;
+						output_file: string;
+						response_format: "mp3";
+						play: boolean;
+					},
+					signal: AbortSignal | undefined,
+					onUpdate: undefined,
+			  ) => Promise<{ content: Array<{ type: string; text: string }> }>)
+			| undefined;
+		registerTts({
+			registerTool(tool: { execute: NonNullable<typeof execute> }) {
+				execute = tool.execute;
+			},
+		} as never);
+		if (!execute) throw new Error("TTS tool was not registered");
+
+		const dir = mkdtempSync(join(tmpdir(), "pix-tts-saved-"));
+		const path = join(dir, "speech.mp3");
+		globalThis.fetch = Object.assign(async () => new Response(new ArrayBuffer(21_168)), {
+			preconnect: oldFetch.preconnect,
+		});
+		setIconMode("unicode");
+		try {
+			const result = await execute(
+				"test",
+				{
+					input: "Hello",
+					model: "test-voice",
+					output_file: path,
+					response_format: "mp3",
+					play: false,
+				},
+				undefined,
+				undefined,
+			);
+			expect(result.content[0]?.text).toBe(`\u266B\uFE0E ${path} · 20.7 KiB`);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
 });
