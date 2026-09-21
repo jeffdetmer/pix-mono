@@ -50,7 +50,7 @@ type Severity = PixDiagnostic["severity"] | "all";
 function relativePath(cwd: string, filePath: string): string {
 	const base = resolve(cwd);
 	const abs = resolve(filePath);
-	return abs.startsWith(base + "/") ? abs.slice(base.length + 1) : abs;
+	return abs.startsWith(`${base}/`) ? abs.slice(base.length + 1) : abs;
 }
 
 function formatFinding(cwd: string, d: PixDiagnostic): string {
