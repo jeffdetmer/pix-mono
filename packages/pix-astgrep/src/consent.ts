@@ -31,7 +31,7 @@ export function grammarConsent(ctx: ExecuteCtx): ConsentFn {
 				``,
 				`Install it into the pix cache (~/.pi/agent/pix-astgrep)?`,
 			],
-			accent: "info",
+			accent: "accent",
 			timeoutMs: INSTALL_TIMEOUT_MS,
 			choices: [
 				{ value: "yes", label: "Install", description: "Download and use this grammar" },
