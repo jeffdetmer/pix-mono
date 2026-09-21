@@ -6,6 +6,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { icon } from "@xynogen/pix-pretty/icon-catalog";
+import { humanSize } from "@xynogen/pix-pretty/utils";
 import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
 import { Type } from "typebox";
 import { routerBaseUrl } from "./data.js";
@@ -92,7 +94,7 @@ export default function registerTts(pi: ExtensionAPI): void {
 	const renderResult = makeRenderResult<TtsDetails>({
 		tool: "tts",
 		target: (details) => basename(details.output_path),
-		meta: (details) => `${details.bytes ?? 0} bytes · ${details.model}`,
+		meta: (details) => `${humanSize(details.bytes ?? 0)} · ${details.model}`,
 		status: (details) => (details.outcome === "error" ? "error" : "success"),
 	});
 
@@ -164,12 +166,23 @@ export default function registerTts(pi: ExtensionAPI): void {
 				const audio = new Uint8Array(await response.arrayBuffer());
 				const saved = await saveSpeech(outputFile, audio);
 				const play = params.play ?? routerDefaults.ttsPlay;
-				if (play) await playSpeech(saved);
+				if (play) {
+					onUpdate?.({
+						content: [
+							{
+								type: "text",
+								text: `${icon("audio.play")} ${basename(saved)} · ${humanSize(audio.byteLength)}`,
+							},
+						],
+						details,
+					});
+					await playSpeech(saved);
+				}
 				return {
 					content: [
 						{
 							type: "text",
-							text: `${play ? "Played" : "Saved"} ${basename(saved)} · ${audio.byteLength} bytes`,
+							text: `${icon("audio.stop")} ${basename(saved)} · ${humanSize(audio.byteLength)}`,
 						},
 					],
 					details: {

@@ -44,6 +44,9 @@ const CATALOG = {
 	mcp: { nerd: "\u{F048D}", unicode: `\u25D0${VS}`, ascii: "MCP" },
 	cwd: { nerd: "\u{F024B}", unicode: `\u2302${VS}`, ascii: "~" },
 	process: { nerd: "\u{F018D}", unicode: `\u25B8${VS}`, ascii: ">_" },
+	"audio.play": { nerd: "\u{F04B}", unicode: `\u25B6${VS}`, ascii: ">" },
+	"audio.pause": { nerd: "\u{F04C}", unicode: `\u23F8${VS}`, ascii: "||" },
+	"audio.stop": { nerd: "\u{F04D}", unicode: `\u25A0${VS}`, ascii: "[]" },
 	folder: { nerd: "\u{F024B}", unicode: `\u2302${VS}`, ascii: "/" },
 	afk: { nerd: "\u{F0310}", unicode: `\u2328${VS}`, ascii: "kbd" },
 

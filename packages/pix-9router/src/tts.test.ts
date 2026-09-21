@@ -1,14 +1,17 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildSpeechRequest, playerCommand, saveSpeech } from "./tts.js";
+import { setIconMode } from "@xynogen/pix-pretty/icon-catalog";
+import registerTts, { buildSpeechRequest, playerCommand, saveSpeech } from "./tts.js";
 
 const oldBase = process.env.ROUTER_API_BASE;
 const oldApiKey = process.env.ROUTER_API_KEY;
 const oldUrl = process.env.NINEROUTER_URL;
 const oldKey = process.env.NINEROUTER_KEY;
+const oldFetch = globalThis.fetch;
+const oldPath = process.env.PATH;
 
 afterEach(() => {
 	if (oldBase === undefined) delete process.env.ROUTER_API_BASE;
@@ -19,6 +22,9 @@ afterEach(() => {
 	else process.env.NINEROUTER_URL = oldUrl;
 	if (oldKey === undefined) delete process.env.NINEROUTER_KEY;
 	else process.env.NINEROUTER_KEY = oldKey;
+	globalThis.fetch = oldFetch;
+	process.env.PATH = oldPath;
+	setIconMode("nerd");
 });
 
 describe("9Router TTS", () => {
@@ -72,5 +78,62 @@ describe("9Router TTS", () => {
 		await saveSpeech(path, new Uint8Array([0, 255, 17, 128]));
 		expect([...new Uint8Array(await readFile(path))]).toEqual([0, 255, 17, 128]);
 		await rm(dir, { recursive: true, force: true });
+	});
+
+	test("formats the result with a triangle and a human-readable size", async () => {
+		let execute:
+			| ((
+					id: string,
+					params: {
+						input: string;
+						model: string;
+						output_file: string;
+						response_format: "mp3";
+						play: boolean;
+					},
+					signal: AbortSignal | undefined,
+					onUpdate:
+						| ((update: { content: Array<{ type: string; text: string }> }) => void)
+						| undefined,
+			  ) => Promise<{ content: Array<{ type: string; text: string }> }>)
+			| undefined;
+		registerTts({
+			registerTool(tool: { execute: NonNullable<typeof execute> }) {
+				execute = tool.execute;
+			},
+		} as never);
+		if (!execute) throw new Error("TTS tool was not registered");
+
+		const dir = mkdtempSync(join(tmpdir(), "pix-tts-result-"));
+		const path = join(dir, "speech.mp3");
+		const player = join(dir, "pw-play");
+		await writeFile(player, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+		process.env.PATH = dir;
+		globalThis.fetch = Object.assign(async () => new Response(new ArrayBuffer(21_168)), {
+			preconnect: oldFetch.preconnect,
+		});
+		setIconMode("unicode");
+		const updates: string[] = [];
+		try {
+			const result = await execute(
+				"test",
+				{
+					input: "Hello",
+					model: "test-voice",
+					output_file: path,
+					response_format: "mp3",
+					play: true,
+				},
+				undefined,
+				(update) => updates.push(update.content[0]?.text ?? ""),
+			);
+			expect(updates).toEqual([
+				"Generating speech with test-voice...",
+				"\u25B6\uFE0E speech.mp3 · 20.7 KiB",
+			]);
+			expect(result.content[0]?.text).toBe("\u25A0\uFE0E speech.mp3 · 20.7 KiB");
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });

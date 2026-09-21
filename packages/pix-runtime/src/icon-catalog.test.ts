@@ -37,6 +37,18 @@ describe("icon-catalog", () => {
 		expect(iconFor("afk", "ascii")).toBe("kbd");
 	});
 
+	it("provides player icons for audio output", () => {
+		expect(iconFor("audio.play", "nerd")).toBe("\u{F04B}");
+		expect(iconFor("audio.play", "unicode")).toBe("\u25B6\uFE0E");
+		expect(iconFor("audio.play", "ascii")).toBe(">");
+		expect(iconFor("audio.pause", "nerd")).toBe("\u{F04C}");
+		expect(iconFor("audio.pause", "unicode")).toBe("\u23F8\uFE0E");
+		expect(iconFor("audio.pause", "ascii")).toBe("||");
+		expect(iconFor("audio.stop", "nerd")).toBe("\u{F04D}");
+		expect(iconFor("audio.stop", "unicode")).toBe("\u25A0\uFE0E");
+		expect(iconFor("audio.stop", "ascii")).toBe("[]");
+	});
+
 	it("every catalog key has a non-empty glyph in every mode", () => {
 		for (const mode of ICON_MODES) {
 			for (const key of ICON_KEYS) {
