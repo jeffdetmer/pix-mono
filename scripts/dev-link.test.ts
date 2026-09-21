@@ -33,11 +33,16 @@ beforeEach(() => {
 		mkdirSync(dir, { recursive: true });
 		writeFileSync(
 			join(dir, "package.json"),
-			JSON.stringify({ name: `@xynogen/${name}`, version: "1.0.0", dependencies }),
+			JSON.stringify({
+				name: `@xynogen/${name}`,
+				version: "1.0.0",
+				dependencies,
+				...(name === "pix-app" ? { pi: { extensions: ["./index.ts"] } } : {}),
+			}),
 		);
 	}
 
-	mkdirSync(join(root, "pi", "node_modules", "@xynogen"), { recursive: true });
+	mkdirSync(join(root, "pi"), { recursive: true });
 	mkdirSync(join(root, "home", ".pi", "agent"), { recursive: true });
 	writeFileSync(join(root, "home", ".pi", "agent", "settings.json"), '{"packages":[]}\n');
 
@@ -76,5 +81,9 @@ describe("dev-link", () => {
 			);
 		}
 		expect(existsSync(join(root, "node_modules", "maria2", "dist", "index.js"))).toBe(true);
+		expect(
+			JSON.parse(readFileSync(join(root, "home", ".pi", "agent", "settings.json"), "utf8"))
+				.packages,
+		).toEqual([join(root, "packages", "pix-app")]);
 	});
 });

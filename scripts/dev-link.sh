@@ -3,9 +3,9 @@
 # Symlink local workspace packages into Pi's extension node_modules so edits
 # in this repo are picked up instantly — no npm publish / reinstall round-trip.
 #
-# For packages that declare "pi.extensions", also patches settings.json so Pi
-# loads their extension entry. Packages without "pi.extensions" (lib packages
-# like pix-bash that are soft-loaded by pix-pretty) only need the symlink.
+# For packages that declare Pi resources, also patches settings.json with their
+# local paths. This avoids registry lookups, so unpublished packages work too.
+# Packages without Pi resources only need the symlink.
 #
 # Usage:
 #   scripts/dev-link.sh                    # link all repo packages into Pi
@@ -32,11 +32,7 @@ SETTINGS_FILE="${HOME}/.pi/agent/settings.json"
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 packages_dir="${repo_root}/packages"
 
-if [ ! -d "$TARGET_DIR" ]; then
-	echo "✖ Pi extensions dir not found: ${TARGET_DIR}" >&2
-	echo "  Install the packages once via 'pi install' first, or set PI_NPM_DIR." >&2
-	exit 1
-fi
+mkdir -p "$TARGET_DIR"
 
 unlink=false
 [ "${1:-}" = "--unlink" ] && { unlink=true; shift; }
@@ -131,41 +127,57 @@ process.exit((hasExt || hasTheme) ? 0 : 1);
 " 2>/dev/null
 }
 
-# Add "npm:<name>" to settings.json packages array if not already present.
+# Register the local package path and replace its npm source if present.
 settings_add() {
-	local spec="npm:$1"
+	local npm_spec="npm:$1"
+	local local_path="$2"
 	[ -f "$SETTINGS_FILE" ] || return
-	node -e "
-const fs = require('fs');
-const f = '$SETTINGS_FILE';
-const s = JSON.parse(fs.readFileSync(f, 'utf8'));
-if (!Array.isArray(s.packages)) s.packages = [];
-if (!s.packages.includes('$spec')) {
-  s.packages.push('$spec');
-  fs.writeFileSync(f, JSON.stringify(s, null, 2) + '\n');
-  process.exit(0);
+	node - "$SETTINGS_FILE" "$npm_spec" "$local_path" <<'NODE'
+const fs = require("fs");
+const [file, npmSpec, localPath] = process.argv.slice(2);
+const settings = JSON.parse(fs.readFileSync(file, "utf8"));
+if (!Array.isArray(settings.packages)) settings.packages = [];
+let found = false;
+let changed = false;
+settings.packages = settings.packages.flatMap((entry) => {
+  const source = typeof entry === "string" ? entry : entry?.source;
+  if (source !== npmSpec && source !== localPath) return [entry];
+  if (found) {
+    changed = true;
+    return [];
+  }
+  found = true;
+  if (source === localPath) return [entry];
+  changed = true;
+  return [typeof entry === "string" ? localPath : { ...entry, source: localPath }];
+});
+if (!found) {
+  settings.packages.push(localPath);
+  changed = true;
 }
-process.exit(1);
-" 2>/dev/null && return 0 || return 1
+if (changed) fs.writeFileSync(file, JSON.stringify(settings, null, 2) + "\n");
+process.exit(changed ? 0 : 1);
+NODE
 }
 
-# Remove "npm:<name>" from settings.json packages array.
+# Remove local and legacy npm entries from settings.json.
 settings_remove() {
-	local spec="npm:$1"
+	local npm_spec="npm:$1"
+	local local_path="$2"
 	[ -f "$SETTINGS_FILE" ] || return
-	node -e "
-const fs = require('fs');
-const f = '$SETTINGS_FILE';
-const s = JSON.parse(fs.readFileSync(f, 'utf8'));
-if (!Array.isArray(s.packages)) process.exit(1);
-const before = s.packages.length;
-s.packages = s.packages.filter(p => p !== '$spec');
-if (s.packages.length < before) {
-  fs.writeFileSync(f, JSON.stringify(s, null, 2) + '\n');
-  process.exit(0);
-}
-process.exit(1);
-" 2>/dev/null && return 0 || return 1
+	node - "$SETTINGS_FILE" "$npm_spec" "$local_path" <<'NODE'
+const fs = require("fs");
+const [file, npmSpec, localPath] = process.argv.slice(2);
+const settings = JSON.parse(fs.readFileSync(file, "utf8"));
+if (!Array.isArray(settings.packages)) process.exit(1);
+const before = settings.packages.length;
+settings.packages = settings.packages.filter((entry) => {
+  const source = typeof entry === "string" ? entry : entry?.source;
+  return source !== npmSpec && source !== localPath;
+});
+if (settings.packages.length === before) process.exit(1);
+fs.writeFileSync(file, JSON.stringify(settings, null, 2) + "\n");
+NODE
 }
 
 # ── main loop ─────────────────────────────────────────────────────────────────
@@ -209,7 +221,7 @@ for dir in "$packages_dir"/*/; do
 		[ -L "${REPO_NM_DIR}/${short}" ] && rm "${REPO_NM_DIR}/${short}"
 		# Remove from settings.json if it was registered.
 		if [ "$needs_registration" = true ]; then
-			if settings_remove "$name"; then
+			if settings_remove "$name" "${dir%/}"; then
 				echo "  ✖ removed ${name} from settings.json"
 				unregistered=$((unregistered + 1))
 			fi
@@ -232,14 +244,14 @@ for dir in "$packages_dir"/*/; do
 		if is_aggregated_by_core "$name"; then
 			# A prior run may have wrongly registered this member — purge it so
 			# pix-core's in-process boot is the only loader (no tool conflict).
-			if settings_remove "$name"; then
+			if settings_remove "$name" "${dir%/}"; then
 				echo "  ✖ unregistered ${name} (loaded by pix-core)"
 				unregistered=$((unregistered + 1))
 			else
 				echo "  ↷ skipped ${name} (loaded by pix-core)"
 			fi
-		elif settings_add "$name"; then
-			echo "  ✔ registered ${name} in settings.json"
+		elif settings_add "$name" "${dir%/}"; then
+			echo "  ✔ registered local ${name} in settings.json"
 			registered=$((registered + 1))
 		fi
 	fi
