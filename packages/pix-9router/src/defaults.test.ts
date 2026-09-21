@@ -12,6 +12,7 @@ describe("9Router defaults", () => {
 			sttModel: "dg/nova-3",
 			ttsModel: "edge-tts/en-US-AriaNeural",
 			ttsPlay: true,
+			sttDevice: "default",
 		});
 	});
 

@@ -19,6 +19,7 @@ import registerRouterCommand from "./command.js";
 import registerFetch from "./fetch.js";
 import registerProvider from "./provider.js";
 import registerSearch from "./search.js";
+import registerSttCommand from "./stt-command.js";
 import registerTranscribe from "./transcribe.js";
 import registerTts from "./tts.js";
 
@@ -27,6 +28,7 @@ export default async function (pi: ExtensionAPI): Promise<void> {
 	registerRouterCommand(pi);
 	registerFetch(pi);
 	registerSearch(pi);
+	registerSttCommand(pi);
 	registerTranscribe(pi);
 	registerTts(pi);
 }

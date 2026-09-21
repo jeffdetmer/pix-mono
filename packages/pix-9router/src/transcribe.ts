@@ -63,7 +63,7 @@ export function mimeType(filePath: string): string {
 	return types[ext] ?? "application/octet-stream";
 }
 
-async function apiMultipart(
+export async function apiMultipart(
 	path: string,
 	filePath: string,
 	model: string,
@@ -294,6 +294,16 @@ export async function buildTranscriptionResult(
 		content: [{ type: "text", text: text.slice(0, CHAT_TRUNCATE_LIMIT) }],
 		details,
 	};
+}
+
+export async function transcribeAudioFile(
+	filePath: string,
+	model = routerDefaults.sttModel,
+	language?: string,
+	signal?: AbortSignal,
+): Promise<string> {
+	const raw = await apiMultipart("/audio/transcriptions", filePath, model, language, signal);
+	return parseTranscriptionResponse(raw);
 }
 
 function compactChars(chars: number | undefined): string {

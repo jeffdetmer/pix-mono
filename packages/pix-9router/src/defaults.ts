@@ -8,6 +8,7 @@ export interface RouterDefaults {
 	sttModel: string;
 	ttsModel: string;
 	ttsPlay: boolean;
+	sttDevice: string;
 }
 
 export const DEFAULTS_PATH = join(homedir(), ".pi", "agent", "9router.json");
@@ -18,6 +19,7 @@ const FALLBACK: RouterDefaults = {
 	sttModel: "dg/nova-3",
 	ttsModel: "edge-tts/en-US-AriaNeural",
 	ttsPlay: true,
+	sttDevice: "default",
 };
 
 export function loadDefaults(path = DEFAULTS_PATH): RouterDefaults {
@@ -35,6 +37,7 @@ export function loadDefaults(path = DEFAULTS_PATH): RouterDefaults {
 		sttModel: typeof item.sttModel === "string" ? item.sttModel : FALLBACK.sttModel,
 		ttsModel: typeof item.ttsModel === "string" ? item.ttsModel : FALLBACK.ttsModel,
 		ttsPlay: typeof item.ttsPlay === "boolean" ? item.ttsPlay : FALLBACK.ttsPlay,
+		sttDevice: typeof item.sttDevice === "string" ? item.sttDevice : FALLBACK.sttDevice,
 	};
 }
 
