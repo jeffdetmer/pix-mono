@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { getFetchProvider, listFetchProviders, registerFetchProvider } from "./providers.ts";
+import {
+	getFetchProvider,
+	listAllFetchProviders,
+	listFetchProviders,
+	registerFetchProvider,
+} from "./providers.ts";
 import { runFetch } from "./runner.ts";
 
 describe("fetch provider registry", () => {
@@ -10,6 +15,21 @@ describe("fetch provider registry", () => {
 		});
 		expect(getFetchProvider("test-provider")?.id).toBe("test-provider");
 		expect(listFetchProviders().map((provider) => provider.id)).toContain("test-provider");
+	});
+
+	test("listAllFetchProviders reports configured state, including unconfigured ones", () => {
+		registerFetchProvider({
+			id: "test-unconfigured",
+			isConfigured: () => false,
+			fetch: async ({ url }) => ({ url, content: "x" }),
+		});
+		const all = listAllFetchProviders();
+		// Unconfigured providers are hidden from listFetchProviders but visible here.
+		expect(listFetchProviders().map((p) => p.id)).not.toContain("test-unconfigured");
+		expect(all.find((p) => p.id === "test-unconfigured")).toEqual({
+			id: "test-unconfigured",
+			configured: false,
+		});
 	});
 
 	test("uses the next provider after a failure", async () => {

@@ -40,3 +40,11 @@ export function getFetchProvider(id: string): FetchProvider | undefined {
 export function listFetchProviders(): FetchProvider[] {
 	return [...providers().values()].filter((provider) => provider.isConfigured?.() ?? true);
 }
+
+/** Every provider with its configured state — for the settings picker. */
+export function listAllFetchProviders(): Array<{ id: string; configured: boolean }> {
+	return [...providers().values()].map((provider) => ({
+		id: provider.id,
+		configured: provider.isConfigured?.() ?? true,
+	}));
+}
