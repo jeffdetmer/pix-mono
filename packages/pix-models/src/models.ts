@@ -8,7 +8,11 @@
  * Sorted by benchlm rank when available (best first), then alphabetical.
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	type ExtensionAPI,
+	type ExtensionContext,
+	SettingsManager,
+} from "@earendil-works/pi-coding-agent";
 import {
 	fuzzyFilter,
 	Input,
@@ -574,8 +578,23 @@ async function showEnhancedPicker(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 		return;
 	}
 	const ok = await pi.setModel(picked);
-	if (ok) ctx.ui.notify(`Switched to ${picked.name ?? picked.id}`, "info");
-	else ctx.ui.notify(`Failed to switch to ${picked.id}`, "error");
+	if (!ok) {
+		ctx.ui.notify(`Failed to switch to ${picked.id}`, "error");
+		return;
+	}
+
+	const settings = SettingsManager.create(ctx.cwd);
+	settings.setDefaultModelAndProvider(picked.provider, picked.id);
+	await settings.flush();
+	const saveError = settings.drainErrors()[0];
+	if (saveError) {
+		ctx.ui.notify(
+			`Switched to ${picked.name ?? picked.id}, but failed to save the default: ${saveError.error.message}`,
+			"warning",
+		);
+		return;
+	}
+	ctx.ui.notify(`Default model: ${picked.provider}/${picked.id}`, "info");
 }
 
 export default function modelPickerExtension(pi: ExtensionAPI) {
