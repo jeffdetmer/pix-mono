@@ -29,6 +29,7 @@ describe("fetch provider registry", () => {
 		expect(all.find((p) => p.id === "test-unconfigured")).toEqual({
 			id: "test-unconfigured",
 			configured: false,
+			env: [],
 		});
 	});
 

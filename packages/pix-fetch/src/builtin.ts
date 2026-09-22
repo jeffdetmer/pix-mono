@@ -30,6 +30,7 @@ function plainText(content: string): string {
 
 const exa: FetchProvider = {
 	id: "exa",
+	env: ["EXA_API_KEY"],
 	isConfigured: () => Boolean(process.env.EXA_API_KEY),
 	async fetch(request: FetchRequest): Promise<FetchResponse> {
 		const data = (await jsonRequest(
@@ -50,6 +51,7 @@ const exa: FetchProvider = {
 
 const tavily: FetchProvider = {
 	id: "tavily",
+	env: ["TAVILY_API_KEY"],
 	isConfigured: () => Boolean(process.env.TAVILY_API_KEY),
 	async fetch(request: FetchRequest): Promise<FetchResponse> {
 		const data = (await jsonRequest(
@@ -74,6 +76,7 @@ const tavily: FetchProvider = {
 
 const firecrawl: FetchProvider = {
 	id: "firecrawl",
+	env: ["FIRECRAWL_API_KEY"],
 	isConfigured: () => Boolean(process.env.FIRECRAWL_API_KEY),
 	async fetch(request: FetchRequest): Promise<FetchResponse> {
 		const data = (await jsonRequest(
@@ -97,6 +100,7 @@ const firecrawl: FetchProvider = {
 // jina-reader returns text, not JSON, and works with or without a key.
 const jinaReader: FetchProvider = {
 	id: "jina-reader",
+	env: ["JINA_API_KEY"],
 	async fetch(request: FetchRequest): Promise<FetchResponse> {
 		const key = process.env.JINA_API_KEY;
 		const response = await fetch("https://r.jina.ai/", {
@@ -118,6 +122,7 @@ const jinaReader: FetchProvider = {
 
 const ollama: FetchProvider = {
 	id: "ollama",
+	env: ["OLLAMA_API_KEY", "OLLAMA_URL"],
 	isConfigured: () => Boolean(process.env.OLLAMA_API_KEY),
 	async fetch(request: FetchRequest): Promise<FetchResponse> {
 		const base = process.env.OLLAMA_URL || "https://ollama.com/api/web_fetch";
@@ -141,6 +146,7 @@ function routerBaseUrl(): string {
 function nineRouter(): FetchProvider {
 	return {
 		id: "9router",
+		env: ["NINEROUTER_URL", "NINEROUTER_KEY"],
 		isConfigured: () => Boolean(process.env.NINEROUTER_URL || process.env.ROUTER_API_BASE),
 		async fetch(request: FetchRequest): Promise<FetchResponse> {
 			const key = process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY;

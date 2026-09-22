@@ -18,6 +18,8 @@ export interface FetchProvider {
 	id: string;
 	fetch: (request: FetchRequest) => Promise<FetchResponse>;
 	isConfigured?: () => boolean;
+	/** Env var names this provider reads, editable from the /fetch settings modal. */
+	env?: string[];
 }
 
 const REGISTRY = Symbol.for("@xynogen/pix-fetch/providers");
@@ -41,10 +43,15 @@ export function listFetchProviders(): FetchProvider[] {
 	return [...providers().values()].filter((provider) => provider.isConfigured?.() ?? true);
 }
 
-/** Every provider with its configured state — for the settings picker. */
-export function listAllFetchProviders(): Array<{ id: string; configured: boolean }> {
+/** Every provider with its configured state and env var names — for the settings picker. */
+export function listAllFetchProviders(): Array<{
+	id: string;
+	configured: boolean;
+	env: string[];
+}> {
 	return [...providers().values()].map((provider) => ({
 		id: provider.id,
 		configured: provider.isConfigured?.() ?? true,
+		env: provider.env ?? [],
 	}));
 }

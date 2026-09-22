@@ -9,6 +9,7 @@ describe("fetch config", () => {
 		expect(loadFetchConfig(join(tmpdir(), "missing-pix-fetch.json"))).toEqual({
 			provider: "auto",
 			nineRouterModel: "exa",
+			env: {},
 		});
 	});
 
@@ -16,10 +17,14 @@ describe("fetch config", () => {
 		const directory = mkdtempSync(join(tmpdir(), "pix-fetch-"));
 		const path = join(directory, "fetch.json");
 		try {
-			saveFetchConfig({ provider: "9router", nineRouterModel: "custom-fetch" }, path);
+			saveFetchConfig(
+				{ provider: "9router", nineRouterModel: "custom-fetch", env: { NINEROUTER_KEY: "x" } },
+				path,
+			);
 			expect(loadFetchConfig(path)).toEqual({
 				provider: "9router",
 				nineRouterModel: "custom-fetch",
+				env: { NINEROUTER_KEY: "x" },
 			});
 		} finally {
 			rmSync(directory, { recursive: true, force: true });
