@@ -72,6 +72,66 @@ const tavily: FetchProvider = {
 	},
 };
 
+const firecrawl: FetchProvider = {
+	id: "firecrawl",
+	isConfigured: () => Boolean(process.env.FIRECRAWL_API_KEY),
+	async fetch(request: FetchRequest): Promise<FetchResponse> {
+		const data = (await jsonRequest(
+			"https://api.firecrawl.dev/v1/scrape",
+			process.env.FIRECRAWL_API_KEY ?? "",
+			"bearer",
+			{ url: request.url, formats: [request.format] },
+			request.signal,
+		)) as {
+			data?: { markdown?: string; html?: string; text?: string; metadata?: { title?: string } };
+		};
+		const page = data.data;
+		return {
+			title: page?.metadata?.title,
+			url: request.url,
+			content: plainText(page?.markdown || page?.html || page?.text || ""),
+		};
+	},
+};
+
+// jina-reader returns text, not JSON, and works with or without a key.
+const jinaReader: FetchProvider = {
+	id: "jina-reader",
+	async fetch(request: FetchRequest): Promise<FetchResponse> {
+		const key = process.env.JINA_API_KEY;
+		const response = await fetch("https://r.jina.ai/", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				...(key ? { Authorization: `Bearer ${key}` } : {}),
+			},
+			body: JSON.stringify({ url: request.url }),
+			signal: request.signal,
+		});
+		if (!response.ok)
+			throw new Error(`${response.status}: ${(await response.text()).slice(0, 500)}`);
+		const body = await response.text();
+		const title = body.match(/^\s*Title:\s*(.+)$/im)?.[1] || body.match(/^\s*#\s+(.+)$/m)?.[1];
+		return { title: title?.trim(), url: request.url, content: plainText(body) };
+	},
+};
+
+const ollama: FetchProvider = {
+	id: "ollama",
+	isConfigured: () => Boolean(process.env.OLLAMA_API_KEY),
+	async fetch(request: FetchRequest): Promise<FetchResponse> {
+		const base = process.env.OLLAMA_URL || "https://ollama.com/api/web_fetch";
+		const data = (await jsonRequest(
+			base,
+			process.env.OLLAMA_API_KEY ?? "",
+			"bearer",
+			{ url: request.url },
+			request.signal,
+		)) as { title?: string; content?: string };
+		return { title: data.title, url: request.url, content: plainText(data.content || "") };
+	},
+};
+
 function routerBaseUrl(): string {
 	const configured = process.env.NINEROUTER_URL || process.env.ROUTER_API_BASE;
 	const base = (configured || "https://9router.com").replace(/\/$/, "");
@@ -143,6 +203,9 @@ const curl: FetchProvider = {
 export function registerBuiltinProviders(): void {
 	registerFetchProvider(exa);
 	registerFetchProvider(tavily);
+	registerFetchProvider(firecrawl);
+	registerFetchProvider(jinaReader);
+	registerFetchProvider(ollama);
 	registerFetchProvider(nineRouter());
 	registerFetchProvider(curl);
 }

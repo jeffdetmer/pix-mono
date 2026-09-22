@@ -7,12 +7,18 @@ import { htmlToText } from "./text.ts";
 
 const originalFetch = globalThis.fetch;
 const originalTavilyKey = process.env.TAVILY_API_KEY;
+const originalFirecrawlKey = process.env.FIRECRAWL_API_KEY;
+const originalOllamaKey = process.env.OLLAMA_API_KEY;
 const originalNineRouterModel = fetchConfig.nineRouterModel;
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 	if (originalTavilyKey === undefined) delete process.env.TAVILY_API_KEY;
 	else process.env.TAVILY_API_KEY = originalTavilyKey;
+	if (originalFirecrawlKey === undefined) delete process.env.FIRECRAWL_API_KEY;
+	else process.env.FIRECRAWL_API_KEY = originalFirecrawlKey;
+	if (originalOllamaKey === undefined) delete process.env.OLLAMA_API_KEY;
+	else process.env.OLLAMA_API_KEY = originalOllamaKey;
 	fetchConfig.nineRouterModel = originalNineRouterModel;
 });
 
@@ -58,6 +64,47 @@ describe("built-in fetch providers", () => {
 		expect(request.url).toBe("https://api.tavily.com/extract");
 		expect(new Headers(request.init?.headers).get("authorization")).toBe("Bearer tavily-key");
 		expect(response).toEqual({ url: "https://example.com", content: "Example" });
+	});
+
+	test("builds a Firecrawl request and normalizes its response", async () => {
+		process.env.FIRECRAWL_API_KEY = "fc-key";
+		let request: { url?: string; init?: RequestInit } = {};
+		globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+			request = { url: String(url), init };
+			return Response.json({
+				data: { markdown: "Example", metadata: { title: "Doc" } },
+			});
+		}) as unknown as typeof fetch;
+		registerBuiltinProviders();
+
+		const response = await getFetchProvider("firecrawl")?.fetch({
+			url: "https://example.com",
+			format: "markdown",
+			maxCharacters: 1000,
+		});
+
+		expect(request.url).toBe("https://api.firecrawl.dev/v1/scrape");
+		expect(new Headers(request.init?.headers).get("authorization")).toBe("Bearer fc-key");
+		expect(response).toEqual({ title: "Doc", url: "https://example.com", content: "Example" });
+	});
+
+	test("builds an Ollama request and normalizes its response", async () => {
+		process.env.OLLAMA_API_KEY = "ol-key";
+		let request: { url?: string; init?: RequestInit } = {};
+		globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+			request = { url: String(url), init };
+			return Response.json({ title: "Page", content: "Body text" });
+		}) as unknown as typeof fetch;
+		registerBuiltinProviders();
+
+		const response = await getFetchProvider("ollama")?.fetch({
+			url: "https://example.com",
+			format: "markdown",
+			maxCharacters: 1000,
+		});
+
+		expect(request.url).toBe("https://ollama.com/api/web_fetch");
+		expect(response).toEqual({ title: "Page", url: "https://example.com", content: "Body text" });
 	});
 
 	test("blocks local addresses before an HTTP request", async () => {

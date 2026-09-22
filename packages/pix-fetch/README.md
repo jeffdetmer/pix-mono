@@ -6,6 +6,9 @@ Built-in providers:
 
 - Exa through `EXA_API_KEY`
 - Tavily through `TAVILY_API_KEY`
+- Firecrawl through `FIRECRAWL_API_KEY`
+- Jina Reader through `JINA_API_KEY` (key is optional)
+- Ollama through `OLLAMA_API_KEY` and `OLLAMA_URL`
 - 9Router through `NINEROUTER_URL` and `NINEROUTER_KEY`
 - `curl`, a basic HTTP provider
 
