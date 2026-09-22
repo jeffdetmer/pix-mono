@@ -1,28 +1,15 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import {
-	decodeKittyPrintable,
-	Key,
-	type KeybindingsManager,
-	matchesKey,
-	type SelectItem,
-	SelectList,
-	type TUI,
-	visibleWidth,
-} from "@earendil-works/pi-tui";
+import { Input, Key, type KeybindingsManager, matchesKey, type TUI } from "@earendil-works/pi-tui";
 import {
 	frameModal,
 	MIN_MODAL_HEIGHT,
 	ModalPager,
 	modalOverlayOptions,
 	modalWidth,
-	selectListTheme,
 	terminalModalHeight,
 } from "@xynogen/pix-pretty/modal-frame";
 import { fetchConfig, saveFetchConfig } from "./config.js";
 import { listAllFetchProviders } from "./providers.js";
-
-/** Sentinel value for the "edit 9Router model" row. */
-const MODEL_ROW = "\u0000model";
 
 type ProviderRow = { id: string; configured: boolean; env: string[] };
 
@@ -31,131 +18,198 @@ function providerRows(): ProviderRow[] {
 	return [{ id: "auto", configured: true, env: [] }, ...listAllFetchProviders()];
 }
 
-/** Which env vars are set (from the shell or saved config). */
-function setEnvCount(vars: string[]): number {
-	return vars.filter((name) => Boolean(process.env[name] || fetchConfig.env[name])).length;
+function envExample(name: string): string {
+	return name.endsWith("_URL")
+		? `export ${name}="https://9router.example.com/v1"`
+		: `export ${name}="your-api-key"`;
 }
 
-/** Build the picker rows. */
-function pickerItems(theme: Theme): SelectItem[] {
-	const accent = "accent";
+/** One selectable line in the tree: a provider, an unset env under it, or the model row. */
+type Node =
+	| { kind: "provider"; row: ProviderRow }
+	| { kind: "env"; name: string }
+	| { kind: "model" };
+
+type Action = { kind: "select"; id: string } | { kind: "model"; value: string };
+
+/** Provider id whose row also carries the model setting. */
+const NINE_ROUTER = "9router";
+
+/** A provider row opens when it has unset env, or when it owns extra settings. */
+function canExpand(row: ProviderRow): boolean {
+	return row.id === NINE_ROUTER || row.env.some((name) => !process.env[name]);
+}
+
+/** Flatten providers into visible rows. Open providers list unset env names and own settings. */
+function buildNodes(expanded: Set<string>): Node[] {
+	const nodes: Node[] = [];
+	for (const row of providerRows()) {
+		nodes.push({ kind: "provider", row });
+		if (!expanded.has(row.id)) continue;
+		for (const name of row.env) {
+			if (!process.env[name]) nodes.push({ kind: "env", name });
+		}
+		if (row.id === NINE_ROUTER) nodes.push({ kind: "model" });
+	}
+	return nodes;
+}
+
+function renderNode(
+	node: Node,
+	cursor: boolean,
+	expanded: Set<string>,
+	theme: Theme,
+	field: Input | null,
+	width: number,
+): string[] {
 	const mute = (s: string) => theme.fg("muted", s);
-	const active = fetchConfig.provider;
-
-	const items = providerRows().map(({ id, configured, env }): SelectItem => {
-		const marker = id === active ? theme.fg(accent, "\u25B6") : " ";
-		const setKeys = setEnvCount(env);
-		// Configured but no key set means the provider works keyless (e.g. jina-reader).
-		const keyless = configured && env.length > 0 && setKeys === 0;
-		const status =
-			id === "auto"
-				? mute("\u25CB choice")
-				: keyless
-					? theme.fg("warning", "\u25D0 ready \u00b7 no key needed")
-					: configured
-						? theme.fg("success", "\u25CF connected")
-						: mute("\u25CB no connection");
-		const keys = env.length && !keyless ? mute(` \u00b7 ${setKeys}/${env.length} keys`) : "";
-		return {
-			value: id,
-			label: `${marker} ${theme.fg(accent, id)}`,
-			description: `${status}${keys}`,
-		};
-	});
-
-	items.push({
-		value: MODEL_ROW,
-		label: `  ${theme.fg(accent, "9Router model")}`,
-		description: mute(fetchConfig.nineRouterModel),
-	});
-	return items;
+	const marker = cursor ? theme.fg("accent", "\u25B6") : " ";
+	if (node.kind === "model") {
+		const label = `${marker}     ${theme.fg("accent", "model")}`;
+		if (!field) return [`${label} ${mute(fetchConfig.nineRouterModel)}`];
+		return [label, ...field.render(Math.max(10, width - 8)).map((line) => `        ${line}`)];
+	}
+	if (node.kind === "env") {
+		// ponytail: procedure only. Pix never reads or stores the secret value.
+		return [
+			`${marker}     ${theme.fg("accent", node.name)} ${mute("\u25CB not set")}`,
+			`        ${theme.fg("warning", envExample(node.name))}`,
+		];
+	}
+	const { id, configured, env } = node.row;
+	const setCount = env.filter((name) => Boolean(process.env[name])).length;
+	const unset = env.length - setCount;
+	const arrow = canExpand(node.row) ? mute(expanded.has(id) ? "\u25BE" : "\u25B8") : " ";
+	const isDefault = fetchConfig.provider === id;
+	const dot = isDefault ? theme.fg("accent", "\u25CF") : mute("\u25CB");
+	const status =
+		id === "auto"
+			? mute("choice")
+			: configured
+				? theme.fg("success", "connected")
+				: theme.fg("warning", `${unset} variable${unset === 1 ? "" : "s"} not set`);
+	const tail = isDefault ? mute(" \u00b7 default") : "";
+	return [`${marker} ${arrow} ${dot} ${theme.fg("accent", id)} ${status}${tail}`];
 }
-
-type Action = { kind: "select"; id: string } | { kind: "editEnv"; id: string } | { kind: "model" };
 
 async function showPicker(ctx: ExtensionContext): Promise<Action | null> {
 	return ctx.ui.custom<Action | null>(
 		(tui: TUI, theme: Theme, keybindings: KeybindingsManager, done: (r: Action | null) => void) => {
-			const accent = "accent";
 			const guide = (key: string, action: string) =>
 				theme.fg("text", key) + theme.fg("muted", ` ${action}`);
 			const guideSep = theme.fg("muted", " \u00b7 ");
 
-			const items = pickerItems(theme);
-			const widest = items.reduce((w, it) => Math.max(w, visibleWidth(it.label)), 0);
-			const list = new SelectList(items, Math.max(1, items.length), selectListTheme(theme), {
-				minPrimaryColumnWidth: widest + 2,
-				maxPrimaryColumnWidth: widest + 2,
-			});
-			const activeIdx = items.findIndex((it) => it.value === fetchConfig.provider);
-			if (activeIdx >= 0) list.setSelectedIndex(activeIdx);
-			list.onCancel = () => done(null);
-
-			// SAFETY: SelectList tracks selectedIndex internally for pager sync.
-			const internal = list as unknown as { selectedIndex: number };
+			const expanded = new Set<string>();
+			let nodes = buildNodes(expanded);
+			let cursor = Math.max(
+				0,
+				nodes.findIndex((n) => n.kind === "provider" && n.row.id === fetchConfig.provider),
+			);
 			const pager = new ModalPager();
+			// Text field under the model row while editing. null means not editing.
+			let field: Input | null = null;
 
-			const confirm = () => {
-				const sel = list.getSelectedItem();
-				if (!sel) return done(null);
-				if (sel.value === MODEL_ROW) return done({ kind: "model" });
-				done({ kind: "select", id: sel.value });
+			const move = (delta: number) => {
+				cursor = Math.min(nodes.length - 1, Math.max(0, cursor + delta));
+				pager.followSelection();
 			};
-			list.onSelect = confirm;
+
+			const openField = () => {
+				const input = new Input({ prompt: theme.fg("accent", "> ") });
+				input.setValue(fetchConfig.nineRouterModel);
+				input.focused = true;
+				input.onEscape = () => {
+					field = null;
+				};
+				input.onSubmit = (raw) => {
+					const value = raw.trim();
+					field = null;
+					if (value) done({ kind: "model", value });
+				};
+				field = input;
+			};
+
+			/** space: open or close a provider row. */
+			const toggle = () => {
+				const node = nodes[cursor];
+				if (node?.kind !== "provider" || !canExpand(node.row)) return;
+				if (expanded.has(node.row.id)) expanded.delete(node.row.id);
+				else expanded.add(node.row.id);
+				nodes = buildNodes(expanded);
+			};
+
+			/** enter: set a provider as default, or edit the model row. */
+			const select = () => {
+				const node = nodes[cursor];
+				if (node?.kind === "provider") return done({ kind: "select", id: node.row.id });
+				if (node?.kind === "model") openField();
+			};
 
 			return {
 				render(w: number) {
 					const mw = modalWidth(w);
-					const inner = mw - 4; // CHROME = 2 border + 2 padding
+					const body: string[] = [];
+					let selStart = 0;
+					let selEnd = 1;
+					nodes.forEach((node, index) => {
+						const lines = renderNode(node, index === cursor, expanded, theme, field, mw - 4);
+						if (index === cursor) {
+							selStart = body.length;
+							selEnd = body.length + lines.length;
+						}
+						body.push(...lines);
+					});
 					const result = frameModal({
 						width: mw,
 						maxHeight: terminalModalHeight(tui.terminal.rows),
 						minHeight: MIN_MODAL_HEIGHT,
 						header: [
-							theme.fg(accent, theme.bold("Web Fetch")),
-							theme.fg("dim", "Default fetch provider \u00b7 API keys \u00b7 9Router model"),
+							theme.fg("accent", theme.bold("Web Fetch")),
+							theme.fg(
+								"dim",
+								"Default fetch provider \u00b7 shell variables \u00b7 provider settings",
+							),
 							"",
 						],
-						body: list.render(inner),
-						selectedBodyRange: pager.selectedRange({
-							start: internal.selectedIndex,
-							end: internal.selectedIndex + 1,
-						}),
+						body,
+						selectedBodyRange: pager.selectedRange({ start: selStart, end: selEnd }),
 						footer: [
 							"",
-							guide("\u2191\u2193", "navigate") +
-								guideSep +
-								guide("enter", "set default") +
-								guideSep +
-								guide("e", "edit keys") +
-								guideSep +
-								guide("esc", "close"),
+							!field
+								? guide("\u2191\u2193", "navigate") +
+									guideSep +
+									guide("enter", "set default") +
+									guideSep +
+									guide("space", "open") +
+									guideSep +
+									guide("esc", "close")
+								: guide("enter", "submit") + guideSep + guide("esc", "cancel"),
 						],
 						bodyOffset: pager.bodyOffset,
-						color: (s) => theme.fg(accent, s),
+						color: (s) => theme.fg("accent", s),
 						bg: (s) => theme.bg("customMessageBg", s),
 						fg: (s) => theme.fg("text", s),
 					});
 					pager.sync(result);
 					return result.lines;
 				},
-				invalidate() {
-					list.invalidate();
-				},
+				invalidate() {},
 				handleInput(data: string) {
+					if (field) {
+						field.handleInput(data);
+						tui.requestRender?.();
+						return;
+					}
 					if (pager.handleInput(data, keybindings, true)) {
 						tui.requestRender?.();
 						return;
 					}
-					if (matchesKey(data, Key.enter)) return confirm();
 					if (matchesKey(data, Key.escape)) return done(null);
-					if (decodeKittyPrintable(data) === "e") {
-						const sel = list.getSelectedItem();
-						if (sel && sel.value !== MODEL_ROW) done({ kind: "editEnv", id: sel.value });
-						return;
-					}
-					list.handleInput?.(data);
-					pager.followSelection();
+					if (matchesKey(data, Key.enter)) return select();
+					else if (matchesKey(data, Key.up) || keybindings.matches(data, "tui.select.up")) move(-1);
+					else if (matchesKey(data, Key.down) || keybindings.matches(data, "tui.select.down"))
+						move(1);
+					else if (matchesKey(data, Key.space)) toggle();
 					tui.requestRender?.();
 				},
 			};
@@ -164,35 +218,9 @@ async function showPicker(ctx: ExtensionContext): Promise<Action | null> {
 	);
 }
 
-/** Prompt for each env var of a provider; blank input removes the saved value. */
-async function editEnv(ctx: ExtensionContext, id: string): Promise<void> {
-	const row = providerRows().find((r) => r.id === id);
-	if (!row || row.env.length === 0) {
-		ctx.ui.notify(`Provider "${id}" has no configurable keys.`, "info");
-		return;
-	}
-	for (const name of row.env) {
-		const shellValue = process.env[name];
-		const current = fetchConfig.env[name] ?? "";
-		const note = shellValue && !current ? ` (set in shell)` : "";
-		const value = await ctx.ui.input(`${name}${note} — blank clears`, current);
-		if (value == null) return; // esc cancels the whole edit
-		const trimmed = value.trim();
-		if (trimmed) {
-			fetchConfig.env[name] = trimmed;
-			process.env[name] = trimmed;
-		} else {
-			if (current && process.env[name] === current) delete process.env[name];
-			delete fetchConfig.env[name];
-		}
-	}
-	saveFetchConfig(fetchConfig);
-	ctx.ui.notify(`Saved keys for ${id}.`, "info");
-}
-
 export function registerFetchCommand(pi: ExtensionAPI): void {
 	pi.registerCommand("fetch", {
-		description: "Set the default fetch provider, provider API keys, and 9Router model",
+		description: "Set the default fetch provider and 9Router model",
 		handler: async (_args, ctx) => {
 			// Native fallback for headless/test contexts without a TUI.
 			if (typeof ctx.ui.custom !== "function") {
@@ -209,16 +237,9 @@ export function registerFetchCommand(pi: ExtensionAPI): void {
 				const action = await showPicker(ctx);
 				if (!action) return;
 				if (action.kind === "model") {
-					const model = await ctx.ui.input("9Router fetch model", fetchConfig.nineRouterModel);
-					if (model?.trim()) {
-						fetchConfig.nineRouterModel = model.trim();
-						saveFetchConfig(fetchConfig);
-						ctx.ui.notify(`Default model: ${fetchConfig.nineRouterModel}`, "info");
-					}
-					continue;
-				}
-				if (action.kind === "editEnv") {
-					await editEnv(ctx, action.id);
+					fetchConfig.nineRouterModel = action.value;
+					saveFetchConfig(fetchConfig);
+					ctx.ui.notify(`Default model: ${fetchConfig.nineRouterModel}`, "info");
 					continue;
 				}
 				fetchConfig.provider = action.id;
