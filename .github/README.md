@@ -81,7 +81,8 @@ Not bundled by `pix-core`. Install each one only if you want it. Each one stays 
 
 | Package | Why it's opt-in |
 | --- | --- |
-| [`@xynogen/pix-9router`](packages/pix-9router) | 9Router LLM provider + `fetch`/`search`/`transcribe` tools — needs a 9Router API key |
+| [`@xynogen/pix-fetch`](packages/pix-fetch) | Provider-neutral `fetch` tool with Exa, Tavily, 9Router, and basic HTTP adapters |
+| [`@xynogen/pix-9router`](packages/pix-9router) | 9Router LLM provider plus audio tools — needs a 9Router API key |
 | [`@xynogen/pix-sudo`](packages/pix-sudo) | `sudo_run` — root execution via a PAM password overlay (blocked in non-interactive mode) |
 | [`@xynogen/pix-ssh`](packages/pix-ssh) | `ssh_run` — run commands on a remote host over SSH (key/password auth + remote `sudo`) |
 | [`@xynogen/pix-env`](packages/pix-env) | Broker `.env` secrets to tools via `$KEY` references, keeping the values out of the model's context |

@@ -17,7 +17,7 @@
     },
     "packages/pix-9router": {
       "name": "@xynogen/pix-9router",
-      "version": "0.5.0",
+      "version": "0.5.2",
       "dependencies": {
         "@xynogen/pix-pretty": "^1.25.0",
         "@xynogen/pix-runtime": "^0.10.1",
@@ -188,6 +188,20 @@
       "dependencies": {
         "@xynogen/pix-pretty": "^1.16.0",
         "@xynogen/pix-runtime": "^0.8.0",
+        "typebox": "^1.1.38",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-ai": "*",
+        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-tui": "*",
+      },
+    },
+    "packages/pix-fetch": {
+      "name": "@xynogen/pix-fetch",
+      "version": "0.1.0",
+      "dependencies": {
+        "@xynogen/pix-pretty": "^1.26.0",
+        "@xynogen/pix-runtime": "^0.10.1",
         "typebox": "^1.1.38",
       },
       "peerDependencies": {
@@ -857,6 +871,8 @@
     "@xynogen/pix-edit": ["@xynogen/pix-edit@workspace:packages/pix-edit"],
 
     "@xynogen/pix-env": ["@xynogen/pix-env@workspace:packages/pix-env"],
+
+    "@xynogen/pix-fetch": ["@xynogen/pix-fetch@workspace:packages/pix-fetch"],
 
     "@xynogen/pix-find": ["@xynogen/pix-find@workspace:packages/pix-find"],
 

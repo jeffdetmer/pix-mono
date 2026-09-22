@@ -1,14 +1,11 @@
 # pix-9router
 
-Pi extension with a 9Router model provider and four tools: web fetch, web search,
-speech-to-text, and text-to-speech.
+Pi extension with a 9Router model provider, speech-to-text, and text-to-speech tools.
 
 ## Tools
 
 | Tool | Default controlled by `/9router` |
 |---|---|
-| `fetch` | Web-fetch model |
-| `search` | Web-search model |
 | `transcribe` | STT model |
 | `tts` | TTS model or voice, plus automatic playback |
 
