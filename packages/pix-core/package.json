@@ -62,7 +62,7 @@
 		"@xynogen/pix-find": "^0.3.1",
 		"@xynogen/pix-grep": "^0.3.1",
 		"@xynogen/pix-ls": "^0.3.1",
-		"@xynogen/pix-bash": "^0.2.6",
+		"@xynogen/pix-bash": "^0.2.7",
 		"@xynogen/pix-todo": "^0.4.1",
 		"@xynogen/pix-ask": "^0.2.30",
 		"@xynogen/pix-optimizer": "^1.2.0",
