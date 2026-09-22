@@ -20,8 +20,23 @@ Provider-specific values pass through `provider_options`.
 Common request fields always override conflicting provider options.
 
 Use `/fetch` to set the package's default provider and 9Router fetch model.
-The settings stay separate from `pix-9router` in `~/.pi/agent/fetch.json`.
-Provider URL and API keys stay in environment variables.
+The settings stay separate from `pix-9router` in `~/.pi/agent/fetch.json`:
+
+```json
+{
+  "provider": "9router",
+  "nineRouterModel": "exa"
+}
+```
+
+Set the 9Router URL and API key in the shell environment:
+
+```bash
+export NINEROUTER_URL="https://9router.example.com/v1"
+export NINEROUTER_KEY="your-api-key"
+```
+
+Replace the example URL and key with the values for your 9Router server.
 
 ```ts
 import { registerFetchProvider } from "@xynogen/pix-fetch/providers";

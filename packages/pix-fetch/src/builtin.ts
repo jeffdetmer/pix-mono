@@ -168,7 +168,7 @@ function nineRouter(): FetchProvider {
 	return {
 		id: "9router",
 		env: ["NINEROUTER_URL", "NINEROUTER_KEY"],
-		isConfigured: () => Boolean(process.env.NINEROUTER_URL || process.env.ROUTER_API_BASE),
+		isConfigured: () => Boolean(process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY),
 		async fetch(request: FetchRequest): Promise<FetchResponse> {
 			const key = process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY;
 			const model =

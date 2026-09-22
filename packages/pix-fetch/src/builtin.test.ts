@@ -10,6 +10,8 @@ const originalTavilyKey = process.env.TAVILY_API_KEY;
 const originalFirecrawlKey = process.env.FIRECRAWL_API_KEY;
 const originalOllamaKey = process.env.OLLAMA_API_KEY;
 const originalYoucomKey = process.env.YDC_API_KEY;
+const originalNineRouterKey = process.env.NINEROUTER_KEY;
+const originalLegacyRouterKey = process.env.ROUTER_API_KEY;
 const originalNineRouterModel = fetchConfig.nineRouterModel;
 
 afterEach(() => {
@@ -22,10 +24,24 @@ afterEach(() => {
 	else process.env.OLLAMA_API_KEY = originalOllamaKey;
 	if (originalYoucomKey === undefined) delete process.env.YDC_API_KEY;
 	else process.env.YDC_API_KEY = originalYoucomKey;
+	if (originalNineRouterKey === undefined) delete process.env.NINEROUTER_KEY;
+	else process.env.NINEROUTER_KEY = originalNineRouterKey;
+	if (originalLegacyRouterKey === undefined) delete process.env.ROUTER_API_KEY;
+	else process.env.ROUTER_API_KEY = originalLegacyRouterKey;
 	fetchConfig.nineRouterModel = originalNineRouterModel;
 });
 
 describe("built-in fetch providers", () => {
+	test("requires a 9Router API key", () => {
+		delete process.env.NINEROUTER_KEY;
+		delete process.env.ROUTER_API_KEY;
+		registerBuiltinProviders();
+		expect(getFetchProvider("9router")?.isConfigured?.()).toBe(false);
+
+		process.env.NINEROUTER_KEY = "router-key";
+		expect(getFetchProvider("9router")?.isConfigured?.()).toBe(true);
+	});
+
 	test("uses the 9Router model from the standalone fetch config", async () => {
 		fetchConfig.nineRouterModel = "selected-fetch";
 		let sentModel: unknown;
