@@ -244,6 +244,29 @@ describe("registerBashTool", () => {
 		expect(render(false, true)).not.toContain("[success]- -");
 	});
 
+	it("shows the latest five lines while a command runs", () => {
+		const { pi, tool } = capturePi();
+		registerBashTool(pi, emptyFactory, makeToolContext());
+		const rendered = tool
+			.renderResult?.(
+				{
+					content: [{ type: "text", text: "one\ntwo\nthree\nfour\nfive\nsix" }],
+					details: undefined,
+				},
+				{ isPartial: true },
+				makeTheme(),
+				makeRenderCtx(),
+			)
+			?.getText();
+
+		expect(
+			rendered
+				?.replace(/\u001b\[[0-9;]*m/g, "")
+				.split("\n")
+				.map((line) => line.trim()),
+		).toEqual(["two", "three", "four", "five", "six"]);
+	});
+
 	it("tints the frame rules green on success and red on failure", () => {
 		const { pi, tool } = capturePi();
 		registerBashTool(pi, emptyFactory, makeToolContext());

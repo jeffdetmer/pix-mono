@@ -267,8 +267,15 @@ export function registerBashTool(
 
 			const fallback = result.content?.[0];
 			const fallbackText = fallback && isTextContent(fallback) ? fallback.text : "done";
+			if (isPartial) {
+				const liveLines = normalizeBashText(String(fallbackText)).split("\n").slice(-5);
+				text.setText(
+					fillToolBackground(liveLines.map((line) => `  ${theme.fg("dim", line)}`).join("\n")),
+				);
+				return text;
+			}
 			text.setText(fillToolBackground(`  ${theme.fg("dim", String(fallbackText).slice(0, 120))}`));
-			return isPartial ? text : completed();
+			return completed();
 		},
 	});
 }
