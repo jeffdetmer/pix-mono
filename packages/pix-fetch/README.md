@@ -9,6 +9,7 @@ Built-in providers:
 - Firecrawl through `FIRECRAWL_API_KEY`
 - Jina Reader through `JINA_API_KEY` (key is optional)
 - Ollama through `OLLAMA_API_KEY` and `OLLAMA_URL`
+- You.com through `YDC_API_KEY`
 - 9Router through `NINEROUTER_URL` and `NINEROUTER_KEY`
 - `curl`, a basic HTTP provider
 

@@ -86,6 +86,7 @@ npm:@xynogen/pix-hunk
 npm:@xynogen/pix-aria2
 npm:@xynogen/pix-proc
 npm:@xynogen/pix-search
+npm:@xynogen/pix-fetch
 npm:@xynogen/pix-gate
 "
 

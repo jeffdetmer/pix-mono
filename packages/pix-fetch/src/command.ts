@@ -47,11 +47,14 @@ function pickerItems(theme: Theme): SelectItem[] {
 		const setKeys = setEnvCount(env);
 		// Configured but no key set means the provider works keyless (e.g. jina-reader).
 		const keyless = configured && env.length > 0 && setKeys === 0;
-		const status = keyless
-			? theme.fg("warning", "\u25D0 ready \u00b7 no key needed")
-			: configured
-				? theme.fg("success", "\u25CF connected")
-				: mute("\u25CB no connection");
+		const status =
+			id === "auto"
+				? mute("\u25CB choice")
+				: keyless
+					? theme.fg("warning", "\u25D0 ready \u00b7 no key needed")
+					: configured
+						? theme.fg("success", "\u25CF connected")
+						: mute("\u25CB no connection");
 		const keys = env.length && !keyless ? mute(` \u00b7 ${setKeys}/${env.length} keys`) : "";
 		return {
 			value: id,

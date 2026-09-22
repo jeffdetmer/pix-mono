@@ -137,6 +137,27 @@ const ollama: FetchProvider = {
 	},
 };
 
+const youcom: FetchProvider = {
+	id: "youcom",
+	env: ["YDC_API_KEY"],
+	isConfigured: () => Boolean(process.env.YDC_API_KEY),
+	async fetch(request: FetchRequest): Promise<FetchResponse> {
+		const entries = (await jsonRequest(
+			"https://ydc-index.io/v1/contents",
+			process.env.YDC_API_KEY ?? "",
+			"x-api-key",
+			{ urls: [request.url], formats: ["markdown", "html"] },
+			request.signal,
+		)) as Array<{ url?: string; title?: string; html?: string | null; markdown?: string | null }>;
+		const page = entries[0];
+		return {
+			title: page?.title,
+			url: page?.url || request.url,
+			content: plainText(page?.markdown || page?.html || ""),
+		};
+	},
+};
+
 function routerBaseUrl(): string {
 	const configured = process.env.NINEROUTER_URL || process.env.ROUTER_API_BASE;
 	const base = (configured || "https://9router.com").replace(/\/$/, "");
@@ -212,6 +233,7 @@ export function registerBuiltinProviders(): void {
 	registerFetchProvider(firecrawl);
 	registerFetchProvider(jinaReader);
 	registerFetchProvider(ollama);
+	registerFetchProvider(youcom);
 	registerFetchProvider(nineRouter());
 	registerFetchProvider(curl);
 }

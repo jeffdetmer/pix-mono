@@ -9,6 +9,7 @@ const originalFetch = globalThis.fetch;
 const originalTavilyKey = process.env.TAVILY_API_KEY;
 const originalFirecrawlKey = process.env.FIRECRAWL_API_KEY;
 const originalOllamaKey = process.env.OLLAMA_API_KEY;
+const originalYoucomKey = process.env.YDC_API_KEY;
 const originalNineRouterModel = fetchConfig.nineRouterModel;
 
 afterEach(() => {
@@ -19,6 +20,8 @@ afterEach(() => {
 	else process.env.FIRECRAWL_API_KEY = originalFirecrawlKey;
 	if (originalOllamaKey === undefined) delete process.env.OLLAMA_API_KEY;
 	else process.env.OLLAMA_API_KEY = originalOllamaKey;
+	if (originalYoucomKey === undefined) delete process.env.YDC_API_KEY;
+	else process.env.YDC_API_KEY = originalYoucomKey;
 	fetchConfig.nineRouterModel = originalNineRouterModel;
 });
 
@@ -105,6 +108,49 @@ describe("built-in fetch providers", () => {
 
 		expect(request.url).toBe("https://ollama.com/api/web_fetch");
 		expect(response).toEqual({ title: "Page", url: "https://example.com", content: "Body text" });
+	});
+
+	test("builds a You.com request and normalizes its response", async () => {
+		process.env.YDC_API_KEY = "youcom-key";
+		let request: { url?: string; init?: RequestInit } = {};
+		globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+			request = { url: String(url), init };
+			return Response.json([
+				{ url: "https://example.com", title: "Example", markdown: "<p>Example</p>" },
+			]);
+		}) as unknown as typeof fetch;
+		registerBuiltinProviders();
+
+		const response = await getFetchProvider("youcom")?.fetch({
+			url: "https://example.com",
+			format: "markdown",
+			maxCharacters: 1000,
+		});
+
+		expect(request.url).toBe("https://ydc-index.io/v1/contents");
+		expect(new Headers(request.init?.headers).get("x-api-key")).toBe("youcom-key");
+		expect(response).toEqual({
+			title: "Example",
+			url: "https://example.com",
+			content: "Example",
+		});
+	});
+
+	test("falls back to You.com html when markdown is missing", async () => {
+		process.env.YDC_API_KEY = "youcom-key";
+		globalThis.fetch = (async () =>
+			Response.json([
+				{ url: "https://example.com", html: "<p>Example</p>" },
+			])) as unknown as typeof fetch;
+		registerBuiltinProviders();
+
+		const response = await getFetchProvider("youcom")?.fetch({
+			url: "https://example.com",
+			format: "text",
+			maxCharacters: 1000,
+		});
+
+		expect(response?.content).toBe("Example");
 	});
 
 	test("blocks local addresses before an HTTP request", async () => {
