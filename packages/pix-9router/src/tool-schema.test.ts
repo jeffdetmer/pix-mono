@@ -19,6 +19,13 @@ function captureParameters(register: (pi: never) => void): {
 	};
 }
 
+describe("configured web models", () => {
+	test("does not expose a model override to tool callers", () => {
+		expect(captureParameters(registerSearch).properties.model).toBeUndefined();
+		expect(captureParameters(registerFetch).properties.model).toBeUndefined();
+	});
+});
+
 describe("enum-like tool parameters", () => {
 	test("search_type exposes values and their semantics", () => {
 		const searchType = captureParameters(registerSearch).properties.search_type;

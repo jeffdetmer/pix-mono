@@ -28,7 +28,6 @@ export interface SearchResultDetails {
 
 export interface SearchParams {
 	query: string;
-	model?: string;
 	search_type?: SearchType;
 	max_results?: number;
 }
@@ -104,6 +103,7 @@ export async function executeSearch(
 ): Promise<SearchResult> {
 	const max = Math.min(params.max_results ?? 5, 10);
 	const searchType = params.search_type ?? "web";
+	const model = routerDefaults.searchModel;
 	let apiMsg = "";
 
 	try {
@@ -120,7 +120,7 @@ export async function executeSearch(
 		const raw = await dependencies.apiPost(
 			"/search",
 			{
-				model: params.model ?? routerDefaults.searchModel,
+				model,
 				query: params.query,
 				search_type: searchType,
 				max_results: max,
@@ -171,7 +171,7 @@ export async function executeSearch(
 
 	try {
 		const body = JSON.stringify({
-			model: params.model ?? routerDefaults.searchModel,
+			model,
 			query: params.query,
 			search_type: searchType,
 			max_results: max,
@@ -265,9 +265,6 @@ export default function registerSearch(pi: ExtensionAPI): void {
 		),
 		parameters: Type.Object({
 			query: Type.String({ description: "Search query" }),
-			model: Type.Optional(
-				Type.String({ description: "9Router search model. Defaults to the /9router choice." }),
-			),
 			search_type: StringEnum(["web", "news"] as const, {
 				description:
 					'Required choice. Enter exactly "web" for general web results or "news" for recent news articles.',

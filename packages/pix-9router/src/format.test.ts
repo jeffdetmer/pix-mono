@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { COLLAPSED_TOOL_GLYPH } from "@xynogen/pix-pretty/utils";
+import { routerDefaults } from "./defaults.ts";
 import registerFetch, { executeFetch, formatFetchResult } from "./fetch.ts";
 import registerSearch, {
 	executeSearch,
@@ -126,6 +127,27 @@ describe("fetch execution metadata", () => {
 		expect(result.details).toMatchObject({ outcome: "success", format: "markdown" });
 	});
 
+	it("reads the fetch model selected in /9router", async () => {
+		const original = routerDefaults.fetchModel;
+		routerDefaults.fetchModel = "configured-fetch";
+		let sentModel: unknown;
+		try {
+			await executeFetch({ url: "https://example.com" }, undefined, undefined, {
+				apiPost: async (_path, body) => {
+					sentModel = (body as { model?: unknown }).model;
+					return '{"content":{"text":"ok"}}';
+				},
+				curl: async () => {
+					throw new Error("curl should not run");
+				},
+			});
+		} finally {
+			routerDefaults.fetchModel = original;
+		}
+
+		expect(sentModel).toBe("configured-fetch");
+	});
+
 	it("reports curl fallback metadata while preserving the fallback banner", async () => {
 		const result = await executeFetch(
 			{ url: "https://example.com", format: "html", max_characters: 1000 },
@@ -227,6 +249,27 @@ describe("search execution metadata", () => {
 			resultCount: 1,
 		});
 		expect(result.content).toEqual(originalContent);
+	});
+
+	it("reads the search model selected in /9router", async () => {
+		const original = routerDefaults.searchModel;
+		routerDefaults.searchModel = "configured-search";
+		let sentModel: unknown;
+		try {
+			await executeSearch({ query: "example" }, undefined, undefined, {
+				apiPost: async (_path, body) => {
+					sentModel = (body as { model?: unknown }).model;
+					return '{"results":[]}';
+				},
+				curl: async () => {
+					throw new Error("curl should not run");
+				},
+			});
+		} finally {
+			routerDefaults.searchModel = original;
+		}
+
+		expect(sentModel).toBe("configured-search");
 	});
 
 	it("records zero API results", async () => {
