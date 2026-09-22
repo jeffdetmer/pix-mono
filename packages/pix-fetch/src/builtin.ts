@@ -72,6 +72,33 @@ const tavily: FetchProvider = {
 	},
 };
 
+const youcom: FetchProvider = {
+	id: "youcom",
+	isConfigured: () => Boolean(process.env.YDC_API_KEY),
+	async fetch(request: FetchRequest): Promise<FetchResponse> {
+		// Retrieval and extraction happen server-side at You.com; markdown is
+		// requested first and html kept as a fallback for pages that fail
+		// markdown conversion. The response is one entry per requested URL.
+		const entries = (await jsonRequest(
+			"https://ydc-index.io/v1/contents",
+			process.env.YDC_API_KEY ?? "",
+			"x-api-key",
+			{
+				urls: [request.url],
+				formats: ["markdown", "html"],
+			},
+			request.signal,
+		)) as Array<{ url?: string; title?: string; html?: string | null; markdown?: string | null }>;
+		const page = entries[0];
+		const content = page?.markdown || page?.html || "";
+		return {
+			title: page?.title,
+			url: page?.url || request.url,
+			content: plainText(content),
+		};
+	},
+};
+
 function routerBaseUrl(): string {
 	const configured = process.env.NINEROUTER_URL || process.env.ROUTER_API_BASE;
 	const base = (configured || "https://9router.com").replace(/\/$/, "");
@@ -143,6 +170,7 @@ const curl: FetchProvider = {
 export function registerBuiltinProviders(): void {
 	registerFetchProvider(exa);
 	registerFetchProvider(tavily);
+	registerFetchProvider(youcom);
 	registerFetchProvider(nineRouter());
 	registerFetchProvider(curl);
 }

@@ -7,12 +7,15 @@ import { htmlToText } from "./text.ts";
 
 const originalFetch = globalThis.fetch;
 const originalTavilyKey = process.env.TAVILY_API_KEY;
+const originalYoucomKey = process.env.YDC_API_KEY;
 const originalNineRouterModel = fetchConfig.nineRouterModel;
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 	if (originalTavilyKey === undefined) delete process.env.TAVILY_API_KEY;
 	else process.env.TAVILY_API_KEY = originalTavilyKey;
+	if (originalYoucomKey === undefined) delete process.env.YDC_API_KEY;
+	else process.env.YDC_API_KEY = originalYoucomKey;
 	fetchConfig.nineRouterModel = originalNineRouterModel;
 });
 
@@ -58,6 +61,53 @@ describe("built-in fetch providers", () => {
 		expect(request.url).toBe("https://api.tavily.com/extract");
 		expect(new Headers(request.init?.headers).get("authorization")).toBe("Bearer tavily-key");
 		expect(response).toEqual({ url: "https://example.com", content: "Example" });
+	});
+
+	test("builds a You.com request and normalizes its response", async () => {
+		process.env.YDC_API_KEY = "youcom-key";
+		let request: { url?: string; init?: RequestInit } = {};
+		globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+			request = { url: String(url), init };
+			return new Response(
+				JSON.stringify([
+					{ url: "https://example.com", title: "Example", markdown: "<p>Example</p>" },
+				]),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		}) as typeof fetch;
+		registerBuiltinProviders();
+
+		const response = await getFetchProvider("youcom")?.fetch({
+			url: "https://example.com",
+			format: "markdown",
+			maxCharacters: 1000,
+		});
+
+		expect(request.url).toBe("https://ydc-index.io/v1/contents");
+		expect(new Headers(request.init?.headers).get("x-api-key")).toBe("youcom-key");
+		expect(response).toEqual({
+			title: "Example",
+			url: "https://example.com",
+			content: "Example",
+		});
+	});
+
+	test("falls back to You.com html when markdown is missing", async () => {
+		process.env.YDC_API_KEY = "youcom-key";
+		globalThis.fetch = (async () =>
+			new Response(JSON.stringify([{ url: "https://example.com", html: "<p>Example</p>" }]), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			})) as unknown as typeof fetch;
+		registerBuiltinProviders();
+
+		const response = await getFetchProvider("youcom")?.fetch({
+			url: "https://example.com",
+			format: "text",
+			maxCharacters: 1000,
+		});
+
+		expect(response?.content).toBe("Example");
 	});
 
 	test("blocks local addresses before an HTTP request", async () => {

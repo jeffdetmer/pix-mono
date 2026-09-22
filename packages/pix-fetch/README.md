@@ -6,6 +6,7 @@ Built-in providers:
 
 - Exa through `EXA_API_KEY`
 - Tavily through `TAVILY_API_KEY`
+- You.com through `YDC_API_KEY`
 - 9Router through `NINEROUTER_URL` and `NINEROUTER_KEY`
 - `curl`, a basic HTTP provider
 
