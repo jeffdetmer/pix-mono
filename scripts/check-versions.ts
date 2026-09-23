@@ -14,6 +14,8 @@ import { $ } from "bun";
 import { lastReleaseTagCommand } from "./release-tag.ts";
 
 const packagesDir = join(import.meta.dir, "..", "packages");
+/** Tests point this at a local fake registry. */
+const REGISTRY = (process.env.PIX_NPM_REGISTRY ?? "https://registry.npmjs.org").replace(/\/$/, "");
 
 interface PkgJson {
 	name: string;
@@ -99,25 +101,41 @@ console.log(
 
 // ── Check npm registry in parallel ────────────────────────────────────────────
 
+/**
+ * A version on npm is not stale when its published commit has the same package
+ * content as HEAD. That is the case after a manual first publish of a new
+ * package. publish-all then skips it. Without a gitHead there is no proof.
+ */
+async function samePackageContent(gitHead: unknown, pkgDir: string): Promise<boolean> {
+	if (typeof gitHead !== "string" || !/^[0-9a-f]{40}$/.test(gitHead)) return false;
+	const diff = await $`git diff --quiet ${gitHead} HEAD -- packages/${pkgDir}`.nothrow().quiet();
+	return diff.exitCode === 0;
+}
+
 const results = await Promise.all(
-	changed.map(async ({ name, version }) => {
+	changed.map(async ({ name, version, dir }) => {
 		try {
-			const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${version}`, {
+			const res = await fetch(`${REGISTRY}/${encodeURIComponent(name)}/${version}`, {
 				signal: AbortSignal.timeout(10_000),
 			});
-			return { name, version, exists: res.ok };
+			if (!res.ok) return { name, version, exists: false, same: false };
+			const manifest = (await res.json()) as { gitHead?: unknown };
+			return { name, version, exists: true, same: await samePackageContent(manifest.gitHead, dir) };
 		} catch {
 			// Network error — can't verify, let publish-all handle it.
-			return { name, version, exists: false };
+			return { name, version, exists: false, same: false };
 		}
 	}),
 );
 
-const stale = results.filter((r) => r.exists);
+const stale = results.filter((r) => r.exists && !r.same);
 const fresh = results.filter((r) => !r.exists);
 
 for (const r of fresh) {
 	console.log(`  ✔ ${r.name}@${r.version} — not yet on npm`);
+}
+for (const r of results.filter((r) => r.exists && r.same)) {
+	console.log(`  ✔ ${r.name}@${r.version} — already on npm from the same package content, skipped`);
 }
 for (const r of stale) {
 	console.error(`  ✖ ${r.name}@${r.version} — ALREADY on npm! Bump the version.`);

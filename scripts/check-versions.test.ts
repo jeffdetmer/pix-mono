@@ -122,4 +122,65 @@ describe("check-versions pre-publish guard", () => {
 		expect(output).not.toContain("stale-pkg");
 		expect(output).not.toContain("stable-pkg");
 	});
+
+	// A manual first publish of a new package puts the version on npm before the
+	// tag release. The guard accepts it only when npm's gitHead has the same content.
+	describe("a version already on npm", () => {
+		function publishFresh(root: string): string {
+			writeFileSync(
+				join(root, "packages/fresh/package.json"),
+				JSON.stringify({ name: "fresh-pkg", version: "1.0.1" }, null, "\t"),
+			);
+			spawnSync("git", ["add", "-A"], { cwd: root });
+			spawnSync("git", ["commit", "-q", "-m", "bump fresh"], { cwd: root });
+			return spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim();
+		}
+
+		function serve(gitHead: string) {
+			return Bun.serve({
+				port: 0,
+				fetch: () => Response.json({ name: "fresh-pkg", version: "1.0.1", gitHead }),
+			});
+		}
+
+		test("passes when npm has the same package content", async () => {
+			if (!sandbox) throw new Error("sandbox not initialised");
+			const server = serve(publishFresh(sandbox.root));
+			try {
+				const run = await Bun.spawn(["bun", sandbox.scriptPath], {
+					cwd: sandbox.root,
+					env: { ...process.env, PIX_NPM_REGISTRY: server.url.href },
+					stdout: "pipe",
+					stderr: "pipe",
+				});
+				const output = `${await new Response(run.stdout).text()}${await new Response(run.stderr).text()}`;
+				expect(output).toMatch(/fresh-pkg@1\.0\.1 — already on npm from the same package content/);
+				expect(await run.exited).toBe(0);
+			} finally {
+				server.stop(true);
+			}
+		});
+
+		test("fails when the package changed after the npm publish", async () => {
+			if (!sandbox) throw new Error("sandbox not initialised");
+			const published = publishFresh(sandbox.root);
+			writeFileSync(join(sandbox.root, "packages/fresh/index.ts"), "export const later = 1;\n");
+			spawnSync("git", ["add", "-A"], { cwd: sandbox.root });
+			spawnSync("git", ["commit", "-q", "-m", "change after publish"], { cwd: sandbox.root });
+			const server = serve(published);
+			try {
+				const run = await Bun.spawn(["bun", sandbox.scriptPath], {
+					cwd: sandbox.root,
+					env: { ...process.env, PIX_NPM_REGISTRY: server.url.href },
+					stdout: "pipe",
+					stderr: "pipe",
+				});
+				const output = `${await new Response(run.stdout).text()}${await new Response(run.stderr).text()}`;
+				expect(output).toMatch(/fresh-pkg@1\.0\.1 — ALREADY on npm! Bump the version\./);
+				expect(await run.exited).toBe(1);
+			} finally {
+				server.stop(true);
+			}
+		});
+	});
 });
