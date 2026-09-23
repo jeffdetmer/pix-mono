@@ -37,7 +37,7 @@ const exa: FetchProvider = {
 			"https://api.exa.ai/contents",
 			process.env.EXA_API_KEY ?? "",
 			"x-api-key",
-			{ ...request.options, ids: [request.url], text: true },
+			{ ids: [request.url], text: true },
 			request.signal,
 		)) as { results?: Array<{ title?: string; url?: string; text?: string }> };
 		const page = data.results?.[0];
@@ -59,7 +59,6 @@ const tavily: FetchProvider = {
 			process.env.TAVILY_API_KEY ?? "",
 			"bearer",
 			{
-				...request.options,
 				urls: [request.url],
 				extract_depth: "basic",
 				format: request.format,
@@ -171,10 +170,6 @@ function nineRouter(): FetchProvider {
 		isConfigured: () => Boolean(process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY),
 		async fetch(request: FetchRequest): Promise<FetchResponse> {
 			const key = process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY;
-			const model =
-				typeof request.options?.model === "string"
-					? request.options.model
-					: fetchConfig.nineRouterModel;
 			const response = await fetch(`${routerBaseUrl()}/web/fetch`, {
 				method: "POST",
 				headers: {
@@ -182,11 +177,10 @@ function nineRouter(): FetchProvider {
 					...(key ? { Authorization: `Bearer ${key}` } : {}),
 				},
 				body: JSON.stringify({
-					model,
+					model: fetchConfig.nineRouterModel,
 					url: request.url,
 					format: request.format,
 					max_characters: request.maxCharacters,
-					provider_options: request.options,
 				}),
 				signal: request.signal,
 			});

@@ -18,12 +18,8 @@ interface ToolResult {
 	isError?: boolean;
 }
 
-function providerIds(provider?: string, fallbackProviders?: string[]): string[] | undefined {
-	const configured = fetchConfig.provider === "auto" ? undefined : fetchConfig.provider;
-	const ids = [provider ?? configured, ...(fallbackProviders ?? [])].filter(
-		(value): value is string => Boolean(value),
-	);
-	return ids.length > 0 ? [...new Set(ids)] : undefined;
+function configuredProvider(): string[] | undefined {
+	return fetchConfig.provider === "auto" ? undefined : [fetchConfig.provider];
 }
 
 function errorResult(error: unknown, target: string, signal?: AbortSignal): ToolResult {
@@ -54,11 +50,7 @@ export function registerFetchTool(pi: ExtensionAPI): void {
 		label: "Fetch",
 		renderShell: "self",
 		description: "Fetch a URL as plain text through a configured provider.",
-		promptSnippet:
-			"fetch(url, format?, max_characters?, provider?, fallback_providers?, provider_options?)",
-		promptGuidelines: [
-			"fetch: omit provider to use a configured API provider, or curl when none is configured. Use fallback_providers for an ordered list.",
-		],
+		promptSnippet: "fetch(url, format?, max_characters?)",
 		renderCall: makeRenderCall<unknown>("fetch", (args) =>
 			String((args as { url?: string }).url ?? ""),
 		),
@@ -83,28 +75,12 @@ export function registerFetchTool(pi: ExtensionAPI): void {
 			max_characters: Type.Optional(
 				Type.Number({ description: "Max characters (default 1000, 0 = unlimited)", default: 1000 }),
 			),
-			provider: Type.Optional(
-				Type.String({ description: "First provider id. Omit for automatic selection." }),
-			),
-			fallback_providers: Type.Optional(
-				Type.Array(Type.String(), {
-					description: "Ordered provider ids to try after the first provider fails.",
-				}),
-			),
-			provider_options: Type.Optional(
-				Type.Record(Type.String(), Type.Unknown(), {
-					description: "Provider-specific options.",
-				}),
-			),
 		}),
 		async execute(_id, raw, signal, onUpdate) {
 			const params = raw as {
 				url: string;
 				format?: FetchFormat;
 				max_characters?: number;
-				provider?: string;
-				fallback_providers?: string[];
-				provider_options?: Record<string, unknown>;
 			};
 			onUpdate?.({
 				content: [{ type: "text", text: `Fetching: ${params.url}...` }],
@@ -121,10 +97,9 @@ export function registerFetchTool(pi: ExtensionAPI): void {
 						url: params.url,
 						format: params.format ?? "markdown",
 						maxCharacters,
-						options: params.provider_options,
 						signal,
 					},
-					providerIds(params.provider, params.fallback_providers),
+					configuredProvider(),
 				);
 				const page = result.data;
 				const body = [page.title ? `# ${page.title}` : "", `URL: ${page.url}`, "", page.content]

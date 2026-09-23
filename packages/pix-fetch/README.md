@@ -13,11 +13,20 @@ Built-in providers:
 - 9Router through `NINEROUTER_URL` and `NINEROUTER_KEY`
 - `curl`, a basic HTTP provider
 
-Other packages can register providers through `@xynogen/pix-fetch/providers`.
-Tool calls can select one provider and an ordered fallback list.
-When no API provider is configured, automatic selection uses `curl`.
-Provider-specific values pass through `provider_options`.
-Common request fields always override conflicting provider options.
+The model calls `fetch` with three fields only:
+
+```ts
+fetch({
+  url: string,
+  format?: "markdown" | "text" | "html",
+  max_characters?: number,
+});
+```
+
+The user picks the provider, not the model. Use `/fetch` to set the default
+fetch provider and the 9Router fetch model. When no API provider is configured,
+automatic selection uses `curl`. Other packages can register providers through
+`@xynogen/pix-fetch/providers`.
 
 Use `/fetch` to set the package's default provider and 9Router fetch model.
 The settings stay separate from `pix-9router` in `~/.pi/agent/fetch.json`:
@@ -61,15 +70,53 @@ interface FetchProvider {
 }
 ```
 
-A tool call can request fallback without hiding the order:
+## Web search
+
+The same package registers a provider-neutral `search` tool. It returns web or
+news results as plain text.
+
+Built-in search providers:
+
+- SearXNG through `SEARXNG_URL` (no API key)
+- Exa through `EXA_API_KEY`
+- Tavily through `TAVILY_API_KEY`
+- Perplexity through `PERPLEXITY_API_KEY`
+- Serper through `SERPER_API_KEY`
+- Brave Search through `BRAVE_API_KEY`
+- You.com through `YDC_API_KEY`
+- Google PSE through `GOOGLE_PSE_API_KEY` and `GOOGLE_PSE_CX`
+- SearchAPI through `SEARCHAPI_API_KEY`
+- Linkup through `LINKUP_API_KEY`
+- Xquik (X posts) through `XQUIK_API_KEY`
+- Ollama Search through `OLLAMA_API_KEY`
+- 9Router through `NINEROUTER_URL` and `NINEROUTER_KEY`
+
+The model calls `search` with three fields only:
+
+```ts
+search({
+  query: string,
+  search_type?: "web" | "news",
+  max_results?: number,
+});
+```
+
+The user picks the provider, not the model. Use `/search` to set the default
+search provider and the 9Router search model. The 9Router provider handles its
+own fallback. When no API provider is configured, automatic selection uses
+SearXNG.
+
+Search settings stay separate from fetch in `~/.pi/agent/search.json`:
 
 ```json
 {
-  "url": "https://example.com",
   "provider": "exa",
-  "fallback_providers": ["tavily", "curl"]
+  "nineRouterModel": "exa"
 }
 ```
+
+Other packages can register search providers through
+`@xynogen/pix-fetch/search-providers`.
 
 Install:
 

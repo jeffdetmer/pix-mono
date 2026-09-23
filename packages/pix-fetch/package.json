@@ -1,13 +1,15 @@
 {
 	"name": "@xynogen/pix-fetch",
 	"version": "0.1.0",
-	"description": "Provider-neutral URL fetch tool with plain-text output for Pi",
+	"description": "Provider-neutral web fetch and search tools with plain-text output for Pi",
 	"type": "module",
 	"main": "src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
 		"./providers": "./src/providers.ts",
-		"./runner": "./src/runner.ts"
+		"./runner": "./src/runner.ts",
+		"./search-providers": "./src/search-providers.ts",
+		"./search-runner": "./src/search-runner.ts"
 	},
 	"scripts": {
 		"test": "bun test"

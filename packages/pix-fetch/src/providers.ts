@@ -4,7 +4,6 @@ export interface FetchRequest {
 	url: string;
 	format: FetchFormat;
 	maxCharacters: number;
-	options?: Record<string, unknown>;
 	signal?: AbortSignal;
 }
 
