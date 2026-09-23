@@ -9,12 +9,13 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { humanSize } from "@xynogen/pix-pretty/utils";
 import { Type } from "typebox";
-import { voiceConfig } from "./config.js";
+import { voiceConfig, voiceModel } from "./config.js";
 import { resolveProvider } from "./providers.js";
 import { makeRenderCall, makeRenderResult } from "./render.js";
 import { resolveOutputPath, validateOutputPath } from "./transcribe.js";
 
-const DEFAULT_FORMAT = "mp3";
+// ponytail: mp3 plays everywhere. Add a /voice format setting if a provider needs another.
+const FORMAT = "mp3";
 
 interface TtsDetails {
 	_type: "ttsResult";
@@ -78,59 +79,30 @@ export default function registerSpeak(pi: ExtensionAPI): void {
 		name: "speak",
 		label: "Text to speech",
 		renderShell: "self",
-		description:
-			"Convert text to speech with the provider the user picked in /voice and save the audio file.",
-		promptSnippet:
-			"speak(input, model?, output_file?, response_format?, play?) — Generate speech with saved /voice defaults.",
-		promptGuidelines: [
-			'speak: Omit model to use the /voice default. A model is "model/voice" for most providers. The tool saves and plays audio by default; set play=false for file-only output. Some providers return wav or mp3 regardless of response_format; the result reports the real format. Sensitive paths and symlinks are rejected.',
-		],
-		renderCall: makeRenderCall("speak", (args) => String(args.model ?? "")),
+		description: "Speak text aloud through the configured voice provider.",
+		promptSnippet: "speak(input, output_file?)",
+		renderCall: makeRenderCall("speak", (args) => String(args.input ?? "").slice(0, 60)),
 		renderResult,
 		parameters: Type.Object({
 			input: Type.String({ description: "Text to speak" }),
-			model: Type.Optional(
-				Type.String({
-					description: 'Provider model or "model/voice". Omit to use the /voice default.',
-				}),
-			),
 			output_file: Type.Optional(
-				Type.String({
-					description: "Audio output path. Defaults to an OS temporary file.",
-				}),
-			),
-			response_format: Type.Optional(
-				Type.Union(
-					[
-						Type.Literal("mp3"),
-						Type.Literal("wav"),
-						Type.Literal("opus"),
-						Type.Literal("aac"),
-						Type.Literal("flac"),
-					],
-					{ description: "Audio format (default: mp3)", default: DEFAULT_FORMAT },
-				),
-			),
-			play: Type.Optional(
-				Type.Boolean({ description: "Play the saved audio before returning (default: true)" }),
+				Type.String({ description: "Save the audio here (default: temp file)" }),
 			),
 		}),
 
 		async execute(_id, params, signal, onUpdate) {
-			const requested = params.response_format ?? DEFAULT_FORMAT;
 			const details: TtsDetails = {
 				_type: "ttsResult",
 				outcome: "running",
 				provider: voiceConfig.ttsProvider,
-				model: params.model ?? "",
-				format: requested,
+				model: "",
+				format: FORMAT,
 				output_path: "",
 			};
 			try {
 				const provider = resolveProvider("tts", voiceConfig.ttsProvider);
 				details.provider = provider.id;
-				details.model =
-					params.model?.trim() || voiceConfig.ttsModels[provider.id] || provider.defaultModel;
+				details.model = voiceModel("tts", provider);
 				onUpdate?.({
 					content: [
 						{ type: "text", text: `Generating speech with ${provider.id}/${details.model}...` },
@@ -140,7 +112,7 @@ export default function registerSpeak(pi: ExtensionAPI): void {
 				const speech = await provider.synthesize({
 					input: params.input,
 					model: details.model,
-					format: requested,
+					format: FORMAT,
 					signal,
 				});
 				details.format = speech.format;
@@ -154,7 +126,7 @@ export default function registerSpeak(pi: ExtensionAPI): void {
 					params.output_file && extname(saved).slice(1).toLowerCase() !== speech.format
 						? ` · ${provider.id} returned ${speech.format}`
 						: "";
-				const play = params.play ?? voiceConfig.ttsPlay;
+				const play = voiceConfig.ttsPlay;
 				if (play) {
 					onUpdate?.({
 						content: [{ type: "text", text: `${icon("audio.play")} ${basename(saved)} · ${size}` }],

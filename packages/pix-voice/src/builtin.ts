@@ -84,7 +84,6 @@ const stt: SttProvider[] = [
 		defaultModel: "dg/nova-3",
 		env: ["NINEROUTER_URL", "NINEROUTER_KEY"],
 		isConfigured: () => Boolean(routerKey()),
-		models: () => routerCatalog("stt"),
 		transcribe: (req) =>
 			openaiTranscribe(`${routerBaseUrl()}/audio/transcriptions`, routerKey(), req),
 	},
@@ -93,7 +92,6 @@ const stt: SttProvider[] = [
 		defaultModel: "gpt-4o-mini-transcribe",
 		env: ["OPENAI_API_KEY"],
 		isConfigured: has("OPENAI_API_KEY"),
-		models: () => ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"],
 		transcribe: (req) =>
 			openaiTranscribe(
 				"https://api.openai.com/v1/audio/transcriptions",
@@ -106,7 +104,6 @@ const stt: SttProvider[] = [
 		defaultModel: "whisper-large-v3-turbo",
 		env: ["GROQ_API_KEY"],
 		isConfigured: has("GROQ_API_KEY"),
-		models: () => ["whisper-large-v3-turbo", "whisper-large-v3", "distil-whisper-large-v3-en"],
 		transcribe: (req) =>
 			openaiTranscribe(
 				"https://api.groq.com/openai/v1/audio/transcriptions",
@@ -119,7 +116,6 @@ const stt: SttProvider[] = [
 		defaultModel: "nova-3",
 		env: ["DEEPGRAM_API_KEY"],
 		isConfigured: has("DEEPGRAM_API_KEY"),
-		models: () => ["nova-3", "nova-2", "nova", "whisper-large"],
 		async transcribe(req) {
 			const url = new URL("https://api.deepgram.com/v1/listen");
 			url.searchParams.set("model", req.model);
@@ -147,7 +143,6 @@ const stt: SttProvider[] = [
 		defaultModel: "universal-2",
 		env: ["ASSEMBLYAI_API_KEY"],
 		isConfigured: has("ASSEMBLYAI_API_KEY"),
-		models: () => ["universal-3-pro", "universal-2", "best", "nano"],
 		async transcribe(req) {
 			const auth = { Authorization: env("ASSEMBLYAI_API_KEY") };
 			const upload = await json("https://api.assemblyai.com/v2/upload", {
@@ -186,7 +181,6 @@ const stt: SttProvider[] = [
 		defaultModel: "gemini-2.5-flash",
 		env: ["GEMINI_API_KEY"],
 		isConfigured: has("GEMINI_API_KEY"),
-		models: () => ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"],
 		async transcribe(req) {
 			const audio = await readFile(req.file, { signal: req.signal });
 			const prompt = `Generate a transcript of the speech. Return only the transcribed text, no commentary.${req.language ? ` Language: ${req.language}.` : ""}`;
@@ -224,7 +218,6 @@ const stt: SttProvider[] = [
 		defaultModel: "openai/whisper-large-v3-turbo",
 		env: ["HF_TOKEN"],
 		isConfigured: has("HF_TOKEN"),
-		models: () => ["openai/whisper-large-v3-turbo", "openai/whisper-large-v3"],
 		async transcribe(req) {
 			if (req.model.includes("..")) throw new Error("invalid Hugging Face model id");
 			const data = await json(`https://router.huggingface.co/hf-inference/models/${req.model}`, {
@@ -241,7 +234,6 @@ const stt: SttProvider[] = [
 		defaultModel: "nvidia/parakeet-ctc-1.1b-asr",
 		env: ["NVIDIA_API_KEY"],
 		isConfigured: has("NVIDIA_API_KEY"),
-		models: () => ["nvidia/parakeet-ctc-1.1b-asr"],
 		transcribe: (req) =>
 			openaiTranscribe(
 				"https://integrate.api.nvidia.com/v1/audio/transcriptions",
@@ -286,7 +278,6 @@ function minimax(id: string, host: string, envName: string): TtsProvider {
 		defaultModel: "speech-2.8-hd/English_expressive_narrator",
 		env: [envName],
 		isConfigured: has(envName),
-		models: () => ["speech-2.8-hd", "speech-2.8-turbo", "speech-2.6-hd", "speech-2.6-turbo"],
 		async synthesize(req) {
 			const { model, voice } = splitModel(req.model, "English_expressive_narrator");
 			const data = await json(`https://${host}/v1/t2a_v2`, {
@@ -318,7 +309,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "edge-tts/en-US-AriaNeural",
 		env: ["NINEROUTER_URL", "NINEROUTER_KEY"],
 		isConfigured: () => Boolean(routerKey()),
-		models: () => routerCatalog("tts"),
 		async synthesize(req) {
 			const response = await request(
 				`${routerBaseUrl()}/audio/speech?response_format=${req.format}`,
@@ -337,10 +327,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "gpt-4o-mini-tts/alloy",
 		env: ["OPENAI_API_KEY"],
 		isConfigured: has("OPENAI_API_KEY"),
-		models: () =>
-			["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"].map(
-				(voice) => `gpt-4o-mini-tts/${voice}`,
-			),
 		synthesize: (req) =>
 			openaiSpeech("https://api.openai.com/v1/audio/speech", env("OPENAI_API_KEY"), req, "alloy"),
 	},
@@ -349,15 +335,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "eleven_flash_v2_5/21m00Tcm4TlvDq8ikWAM",
 		env: ["ELEVENLABS_API_KEY"],
 		isConfigured: has("ELEVENLABS_API_KEY"),
-		async models() {
-			const data = await json("https://api.elevenlabs.io/v1/voices", {
-				headers: { "xi-api-key": env("ELEVENLABS_API_KEY") },
-			});
-			const voices = (data.voices ?? []) as Array<{ voice_id?: string }>;
-			return voices.flatMap((voice) =>
-				voice.voice_id ? [`eleven_flash_v2_5/${voice.voice_id}`] : [],
-			);
-		},
 		async synthesize(req) {
 			const { model, voice } = splitModel(req.model, "21m00Tcm4TlvDq8ikWAM");
 			const response = await request(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
@@ -378,10 +355,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "gemini-2.5-flash-preview-tts/Kore",
 		env: ["GEMINI_API_KEY"],
 		isConfigured: has("GEMINI_API_KEY"),
-		models: () =>
-			["Kore", "Puck", "Zephyr", "Charon", "Fenrir", "Leda", "Aoede"].map(
-				(voice) => `gemini-2.5-flash-preview-tts/${voice}`,
-			),
 		async synthesize(req) {
 			const { model, voice } = splitModel(req.model, "Kore");
 			const data = await json(
@@ -416,7 +389,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "s2.1-pro-free",
 		env: ["FISH_AUDIO_API_KEY"],
 		isConfigured: has("FISH_AUDIO_API_KEY"),
-		models: () => ["s2.1-pro-free", "s2.1-pro", "s2-pro", "s1"],
 		async synthesize(req) {
 			const { model, voice } = splitModel(req.model, "");
 			const response = await request("https://api.fish.audio/v1/tts", {
@@ -441,7 +413,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "sonic-2",
 		env: ["CARTESIA_API_KEY"],
 		isConfigured: has("CARTESIA_API_KEY"),
-		models: () => ["sonic-2", "sonic-3"],
 		async synthesize(req) {
 			const { model, voice } = splitModel(req.model, "");
 			const response = await request("https://api.cartesia.ai/tts/bytes", {
@@ -467,7 +438,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "inworld-tts-1.5-mini/Alex",
 		env: ["INWORLD_API_KEY"],
 		isConfigured: has("INWORLD_API_KEY"),
-		models: () => ["inworld-tts-1.5-mini/Alex", "inworld-tts-1.5-max/Alex"],
 		async synthesize(req) {
 			const { model, voice } = splitModel(req.model, "Alex");
 			const data = await json("https://api.inworld.ai/tts/v1/voice", {
@@ -492,7 +462,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "fastpitch/default",
 		env: ["NVIDIA_API_KEY"],
 		isConfigured: has("NVIDIA_API_KEY"),
-		models: () => ["fastpitch/default", "tacotron2/default"],
 		async synthesize(req) {
 			const { model, voice } = splitModel(req.model, "default");
 			const response = await request("https://integrate.api.nvidia.com/v1/audio/speech", {
@@ -509,7 +478,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "openai/gpt-4o-mini-tts/alloy",
 		env: ["OPENROUTER_API_KEY"],
 		isConfigured: has("OPENROUTER_API_KEY"),
-		models: () => ["openai/gpt-4o-mini-tts/alloy", "openai/tts-1-hd/alloy", "openai/tts-1/alloy"],
 		async synthesize(req) {
 			const { model, voice } = splitModel(req.model, "alloy");
 			const response = await request("https://openrouter.ai/api/v1/chat/completions", {
@@ -543,7 +511,6 @@ const tts: TtsProvider[] = [
 		defaultModel: "mimo-v2.5-tts/mimo_default",
 		env: ["XIAOMI_API_KEY"],
 		isConfigured: has("XIAOMI_API_KEY"),
-		models: () => ["mimo-v2.5-tts/mimo_default", "mimo-v2.5-tts/Mia", "mimo-v2.5-tts/Milo"],
 		synthesize(req) {
 			const { model, voice } = splitModel(req.model, "mimo_default");
 			return chatAudio(
@@ -573,14 +540,6 @@ const tts: TtsProvider[] = [
 			),
 	},
 ];
-
-// ── 9Router catalog ─────────────────────────────────────────────────────────
-
-async function routerCatalog(kind: "stt" | "tts"): Promise<string[]> {
-	const data = await json(`${routerBaseUrl()}/models/${kind}`, { headers: bearer(routerKey()) });
-	const items = Array.isArray(data.data) ? (data.data as Array<{ id?: unknown }>) : [];
-	return items.flatMap((item) => (typeof item.id === "string" ? [item.id] : []));
-}
 
 export function registerBuiltinProviders(): void {
 	for (const provider of stt) registerProvider("stt", provider);

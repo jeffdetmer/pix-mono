@@ -10,10 +10,12 @@ import registerSpeak, { playerCommand, saveSpeech } from "./speak.js";
 
 const oldPath = process.env.PATH;
 const oldProvider = voiceConfig.ttsProvider;
+const oldPlay = voiceConfig.ttsPlay;
 
 afterEach(() => {
 	process.env.PATH = oldPath;
 	voiceConfig.ttsProvider = oldProvider;
+	voiceConfig.ttsPlay = oldPlay;
 	setIconMode("nerd");
 });
 
@@ -21,10 +23,7 @@ type Execute = (
 	id: string,
 	params: {
 		input: string;
-		model?: string;
 		output_file: string;
-		response_format?: "mp3" | "wav";
-		play: boolean;
 	},
 	signal: AbortSignal | undefined,
 	onUpdate: ((update: { content: Array<{ type: string; text: string }> }) => void) | undefined,
@@ -87,12 +86,13 @@ describe("speak tool", () => {
 		const path = join(dir, "speech.mp3");
 		await writeFile(join(dir, "pw-play"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
 		process.env.PATH = dir;
+		voiceConfig.ttsPlay = true;
 		setIconMode("unicode");
 		const updates: string[] = [];
 		try {
 			const result = await captureExecute()(
 				"test",
-				{ input: "Hello", output_file: path, response_format: "mp3", play: true },
+				{ input: "Hello", output_file: path },
 				undefined,
 				(update) => updates.push(update.content[0]?.text ?? ""),
 			);
@@ -112,18 +112,19 @@ describe("speak tool", () => {
 		fakeProvider("test-tts-wav", "wav");
 		const dir = mkdtempSync(join(tmpdir(), "pix-tts-saved-"));
 		const path = join(dir, "speech.mp3");
+		voiceConfig.ttsPlay = false;
 		setIconMode("unicode");
 		try {
 			const result = await captureExecute()(
 				"test",
-				{ input: "Hello", model: "m/v", output_file: path, play: false },
+				{ input: "Hello", output_file: path },
 				undefined,
 				undefined,
 			);
 			expect(result.content[0]?.text).toBe(
 				`\u266B\uFE0E ${path} · 20.7 KiB · test-tts-wav returned wav`,
 			);
-			expect(result.details).toMatchObject({ format: "wav", model: "m/v" });
+			expect(result.details).toMatchObject({ format: "wav", model: "fake-model/fake-voice" });
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
@@ -140,7 +141,7 @@ describe("speak tool", () => {
 		voiceConfig.ttsProvider = "test-tts-fail";
 		const result = await captureExecute()(
 			"test",
-			{ input: "Hello", output_file: join(tmpdir(), "unused.mp3"), play: false },
+			{ input: "Hello", output_file: join(tmpdir(), "unused.mp3") },
 			undefined,
 			undefined,
 		);

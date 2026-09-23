@@ -11,23 +11,23 @@ describe("voice config", () => {
 		expect(loadConfig(missing, missing)).toEqual({
 			sttProvider: "auto",
 			ttsProvider: "auto",
-			sttModels: {},
-			ttsModels: {},
+			sttNineRouterModel: "dg/nova-3",
+			ttsNineRouterModel: "edge-tts/en-US-AriaNeural",
 			ttsPlay: true,
 			sttDevice: "default",
 		});
 	});
 
-	test("persists a provider and a per-provider model", () => {
+	test("persists a provider and the 9router model", () => {
 		const dir = mkdtempSync(join(tmpdir(), "pix-voice-config-"));
 		const path = join(dir, "voice.json");
 		const config = loadConfig(path, missing);
 		config.sttProvider = "groq";
-		config.sttModels.groq = "whisper-large-v3";
+		config.sttNineRouterModel = "dg/nova-2";
 		saveConfig(config, path);
 		expect(loadConfig(path, missing)).toMatchObject({
 			sttProvider: "groq",
-			sttModels: { groq: "whisper-large-v3" },
+			sttNineRouterModel: "dg/nova-2",
 		});
 	});
 
@@ -39,8 +39,8 @@ describe("voice config", () => {
 			JSON.stringify({ sttModel: "dg/nova-2", ttsModel: "openai/tts-1/nova", ttsPlay: false }),
 		);
 		expect(loadConfig(join(dir, "voice.json"), legacy)).toMatchObject({
-			sttModels: { "9router": "dg/nova-2" },
-			ttsModels: { "9router": "openai/tts-1/nova" },
+			sttNineRouterModel: "dg/nova-2",
+			ttsNineRouterModel: "openai/tts-1/nova",
 			ttsPlay: false,
 		});
 	});

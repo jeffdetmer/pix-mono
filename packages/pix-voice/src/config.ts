@@ -7,10 +7,10 @@ export interface VoiceConfig {
 	sttProvider: string;
 	/** Default TTS provider id, or "auto" for the first configured provider. */
 	ttsProvider: string;
-	/** Model per STT provider id. A missing entry uses the provider default. */
-	sttModels: Record<string, string>;
-	/** Model or voice per TTS provider id. A missing entry uses the provider default. */
-	ttsModels: Record<string, string>;
+	/** STT model for 9router. Other providers use their default model, the same as pix-web. */
+	sttNineRouterModel: string;
+	/** TTS "model/voice" for 9router. Other providers use their default model. */
+	ttsNineRouterModel: string;
 	ttsPlay: boolean;
 	sttDevice: string;
 }
@@ -23,8 +23,8 @@ function fallback(): VoiceConfig {
 	return {
 		sttProvider: "auto",
 		ttsProvider: "auto",
-		sttModels: {},
-		ttsModels: {},
+		sttNineRouterModel: "dg/nova-3",
+		ttsNineRouterModel: "edge-tts/en-US-AriaNeural",
 		ttsPlay: true,
 		sttDevice: "default",
 	};
@@ -39,13 +39,17 @@ function read(path: string): Record<string, unknown> | undefined {
 	}
 }
 
-function stringMap(value: unknown): Record<string, string> {
-	if (!value || typeof value !== "object") return {};
-	return Object.fromEntries(
-		Object.entries(value).filter(
-			(entry): entry is [string, string] => typeof entry[1] === "string",
-		),
-	);
+function text(value: unknown, fallback: string): string {
+	return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+/** The model a provider runs: the typed model for 9router, else the provider default. */
+export function voiceModel(
+	kind: "stt" | "tts",
+	provider: { id: string; defaultModel: string },
+): string {
+	if (provider.id !== "9router") return provider.defaultModel;
+	return kind === "stt" ? voiceConfig.sttNineRouterModel : voiceConfig.ttsNineRouterModel;
 }
 
 export function loadConfig(path = CONFIG_PATH, legacyPath = LEGACY_PATH): VoiceConfig {
@@ -56,16 +60,16 @@ export function loadConfig(path = CONFIG_PATH, legacyPath = LEGACY_PATH): VoiceC
 		// upgrade keeps the user's models. Remove after pix-9router 0.6 is gone.
 		const legacy = read(legacyPath);
 		if (!legacy) return config;
-		if (typeof legacy.sttModel === "string") config.sttModels["9router"] = legacy.sttModel;
-		if (typeof legacy.ttsModel === "string") config.ttsModels["9router"] = legacy.ttsModel;
+		config.sttNineRouterModel = text(legacy.sttModel, config.sttNineRouterModel);
+		config.ttsNineRouterModel = text(legacy.ttsModel, config.ttsNineRouterModel);
 		if (typeof legacy.ttsPlay === "boolean") config.ttsPlay = legacy.ttsPlay;
 		if (typeof legacy.sttDevice === "string") config.sttDevice = legacy.sttDevice;
 		return config;
 	}
 	if (typeof item.sttProvider === "string") config.sttProvider = item.sttProvider;
 	if (typeof item.ttsProvider === "string") config.ttsProvider = item.ttsProvider;
-	config.sttModels = stringMap(item.sttModels);
-	config.ttsModels = stringMap(item.ttsModels);
+	config.sttNineRouterModel = text(item.sttNineRouterModel, config.sttNineRouterModel);
+	config.ttsNineRouterModel = text(item.ttsNineRouterModel, config.ttsNineRouterModel);
 	if (typeof item.ttsPlay === "boolean") config.ttsPlay = item.ttsPlay;
 	if (typeof item.sttDevice === "string") config.sttDevice = item.sttDevice;
 	return config;

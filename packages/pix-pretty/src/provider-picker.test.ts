@@ -49,6 +49,17 @@ describe("settings overview rows", () => {
 		]);
 		expect(rowLines).toEqual([1, 2, 5]);
 	});
+
+	test("draws the text field inside the selected editable row", () => {
+		const field = { render: () => ["> dg/nova-2█"] };
+		const { lines } = renderSettingsRows(
+			[{ key: "m", section: "STT", label: "model", value: "dg/nova-3", editable: true }],
+			theme,
+			0,
+			field,
+		);
+		expect(lines[1]).toBe("<accent>→</accent> <accent>model</accent>  > dg/nova-2█");
+	});
 });
 
 describe("provider picker rows", () => {

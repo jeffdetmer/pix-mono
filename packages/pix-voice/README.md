@@ -8,14 +8,13 @@ Provider-neutral speech tools for Pi: `transcribe` (speech to text), `speak`
 The model calls the tools with these fields:
 
 ```ts
-transcribe({ file: string, output_file?: string, model?: string, language?: string });
-speak({ input: string, model?: string, output_file?: string, response_format?: "mp3" | "wav" | "opus" | "aac" | "flac", play?: boolean });
+transcribe({ file: string, output_file?: string, language?: string });
+speak({ input: string, output_file?: string });
 ```
 
-The user picks the provider, not the model. A tool call uses the provider set in
-`/voice`. The `model` argument overrides only the model or voice of that
-provider. Every result names the provider and model that ran. There is no
-silent fallback to another provider.
+The user picks the provider, the model, and playback in `/voice`. The model
+gives only the input. Every result names the provider and model that ran. There
+is no silent fallback to another provider.
 
 For most TTS providers, a model is `model/voice`, for example
 `gpt-4o-mini-tts/nova`. Some providers return `wav` or `mp3` for every request.
@@ -50,16 +49,17 @@ example `edge-tts`, `google-tts`, and `aws-polly`.
 
 ## Settings
 
-Run `/voice` to set the STT and TTS provider, the model or voice for each
-provider, and TTS playback. A model list loads only when you open the model
-picker. Settings stay in `~/.pi/agent/voice.json`:
+Run `/voice` to set the STT and TTS provider, the 9Router model for each, and
+TTS playback. The layout is the same as `/web`. You type the 9Router model in a
+text field. Other providers use their default model. Enter on playback toggles
+it. Settings stay in `~/.pi/agent/voice.json`:
 
 ```json
 {
-  "sttProvider": "groq",
+  "sttProvider": "9router",
   "ttsProvider": "9router",
-  "sttModels": { "groq": "whisper-large-v3-turbo" },
-  "ttsModels": { "9router": "edge-tts/en-US-AriaNeural" },
+  "sttNineRouterModel": "dg/nova-3",
+  "ttsNineRouterModel": "edge-tts/en-US-AriaNeural",
   "ttsPlay": true,
   "sttDevice": "default"
 }

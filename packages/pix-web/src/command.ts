@@ -105,7 +105,6 @@ function pickerOptions(service: Service): ProviderPickerOptions {
 		current: service.config.provider,
 		envAliases: LEGACY_ENV,
 		envExample,
-		modelEdit: "inline",
 	};
 }
 
@@ -114,7 +113,6 @@ async function editService(ctx: ExtensionContext, service: Service): Promise<voi
 		const action = await showProviderPicker(ctx.ui, pickerOptions(service));
 		if (!action) return;
 		if (action.kind === "model") {
-			if (!action.value) continue;
 			service.config.nineRouterModel = action.value;
 			service.save(service.config);
 			continue;
@@ -139,6 +137,7 @@ function settingsRows(): SettingsRow[] {
 			label: "9router model",
 			value: service.config.nineRouterModel,
 			tone: service.config.provider === NINE_ROUTER ? "success" : "muted",
+			editable: true,
 		},
 	]);
 }
@@ -159,25 +158,26 @@ export function registerWebCommand(pi: ExtensionAPI): void {
 				}
 				return;
 			}
+			let cursor = 0;
 			while (true) {
-				const key = await showSettingsPicker(
+				const rows = settingsRows();
+				const action = await showSettingsPicker(
 					ctx.ui,
 					`${icon("settings")} Web Settings`,
-					settingsRows(),
+					rows,
+					cursor,
 				);
-				if (!key) return;
-				const [kind, field] = key.split(":");
+				if (!action) return;
+				cursor = rows.findIndex((row) => row.key === action.key);
+				const [kind, field] = action.key.split(":");
 				const service = SERVICES.find((item) => item.kind === kind);
 				if (!service) continue;
 				if (field === "provider") {
 					await editService(ctx, service);
 					continue;
 				}
-				const value = (
-					await ctx.ui.input(`9router ${service.kind} model`, service.config.nineRouterModel)
-				)?.trim();
-				if (!value) continue;
-				service.config.nineRouterModel = value;
+				if (!action.value) continue;
+				service.config.nineRouterModel = action.value;
 				service.save(service.config);
 			}
 		},

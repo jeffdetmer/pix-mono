@@ -9,7 +9,7 @@ import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { voiceConfig } from "./config.js";
+import { voiceConfig, voiceModel } from "./config.js";
 import { resolveProvider } from "./providers.js";
 import { makeRenderCall, makeRenderResult } from "./render.js";
 
@@ -232,7 +232,7 @@ export async function transcribeAudioFile(
 	signal?: AbortSignal,
 ): Promise<{ text: string; provider: string; model: string }> {
 	const provider = resolveProvider("stt", voiceConfig.sttProvider);
-	const model = voiceConfig.sttModels[provider.id] || provider.defaultModel;
+	const model = voiceModel("stt", provider);
 	const text = await provider.transcribe({ file, model, signal });
 	return { text, provider: provider.id, model };
 }
@@ -269,10 +269,8 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 		name: "transcribe",
 		label: "Transcribe",
 		renderShell: "self",
-		description:
-			"Convert speech to text. Transcribes an audio file with the provider the user picked in /voice. Optionally writes the full text to a file on disk.",
-		promptSnippet:
-			"transcribe(file, output_file?, model?, language?) — Transcribe an audio file to text. Supports mp3, wav, flac, ogg, m4a, webm. Omit model to use the /voice default. If output_file is set, the full text is written to that path (parent dirs created) and only a short path summary is returned to the model.",
+		description: "Transcribe an audio file to text through the configured voice provider.",
+		promptSnippet: "transcribe(file, output_file?, language?)",
 		renderCall: makeRenderCall("transcribe", (args) => basename(String(args.file ?? ""))),
 		renderResult: (result, options, theme, context) =>
 			renderTerminal(result, options, theme, {
@@ -281,27 +279,15 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 				// terminal row; expansion still restores the exact returned blocks.
 				isError: context.isError && options.expanded,
 			}),
-		promptGuidelines: [
-			"transcribe: `language` as ISO 639-1 (e.g. 'en', 'es') improves accuracy. Pass `output_file` for long results — writes full text to disk (sensitive paths/symlinks rejected; text still returned inline on rejection) and returns a path summary. Without it, text returns inline truncated to 50,000 chars.",
-		],
 		parameters: Type.Object({
-			file: Type.String({
-				description: "Path to the audio file to transcribe",
-			}),
+			file: Type.String({ description: "Audio file path" }),
 			output_file: Type.Optional(
 				Type.String({
 					description:
-						"Write the full transcription text to this path (parent dirs are created). Relative paths resolve against cwd. When set, content returned to the model is just a short path summary.",
+						"Write the full text here and return only a summary (default: inline, max 50000 chars)",
 				}),
 			),
-			model: Type.Optional(
-				Type.String({ description: "Provider model id. Omit to use the /voice default." }),
-			),
-			language: Type.Optional(
-				Type.String({
-					description: "ISO 639-1 language code (e.g. 'en', 'es', 'fr') for better accuracy",
-				}),
-			),
+			language: Type.Optional(Type.String({ description: "ISO 639-1 code, e.g. en" })),
 		}),
 
 		async execute(_toolCallId, params, signal, onUpdate) {
@@ -310,13 +296,12 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 				_type: "transcribeResult" as const,
 				file: filePath,
 				provider: voiceConfig.sttProvider,
-				model: params.model ?? "",
+				model: "",
 				...(params.language ? { language: params.language } : {}),
 			};
 			try {
 				const provider = resolveProvider("stt", voiceConfig.sttProvider);
-				const model =
-					params.model?.trim() || voiceConfig.sttModels[provider.id] || provider.defaultModel;
+				const model = voiceModel("stt", provider);
 				Object.assign(base, { provider: provider.id, model });
 				onUpdate?.({
 					content: [

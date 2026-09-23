@@ -37,13 +37,11 @@ export interface ProviderPickerOptions {
 	/** Canonical name → legacy alias. Either one counts as set. */
 	envAliases?: Record<string, string>;
 	envExample?: (name: string) => string;
-	/** `inline` edits the model in a text field. `action` returns the id so the caller opens its own picker. */
-	modelEdit?: "inline" | "action";
 }
 
 export type ProviderPickerAction =
 	| { kind: "select"; id: string }
-	| { kind: "model"; id: string; value?: string };
+	| { kind: "model"; id: string; value: string };
 
 interface PickerTheme {
 	fg(color: string, text: string): string;
@@ -153,13 +151,19 @@ export interface SettingsRow {
 	value: string;
 	/** Theme role for the value. Default `success`. */
 	tone?: "success" | "warning" | "muted";
+	/** Enter edits `value` in a text field inside the row, not in a new dialog. */
+	editable?: boolean;
 }
+
+export type SettingsAction = { key: string; value?: string };
 
 /** Render the sectioned settings overview body. Exported for tests. */
 export function renderSettingsRows(
 	rows: SettingsRow[],
 	theme: Pick<PickerTheme, "fg">,
 	selected: number,
+	field?: { render(width: number): string[] },
+	width = 80,
 ): { lines: string[]; rowLines: number[] } {
 	const labelWidth = Math.max(...rows.map((row) => row.label.length));
 	const lines: string[] = [];
@@ -173,34 +177,64 @@ export function renderSettingsRows(
 		}
 		const active = index === selected;
 		rowLines[index] = lines.length;
+		const label = `${active ? theme.fg("accent", "→") : " "} ${theme.fg(active ? "accent" : "text", row.label.padEnd(labelWidth))}  `;
+		const editing = active ? field : undefined;
 		lines.push(
-			`${active ? theme.fg("accent", "→") : " "} ${theme.fg(active ? "accent" : "text", row.label.padEnd(labelWidth))}  ${theme.fg(row.tone ?? "success", row.value)}`,
+			editing
+				? `${label}${editing.render(Math.max(10, width - labelWidth - 4))[0] ?? ""}`
+				: `${label}${theme.fg(row.tone ?? "success", row.value)}`,
 		);
 	});
 	return { lines, rowLines };
 }
 
-/** Show the sectioned settings overview. Resolves the chosen row key, or null on escape. */
+/**
+ * Show the sectioned settings overview. Resolves the chosen row key, or null on escape.
+ * For an `editable` row, enter opens a text field in the row and resolves with its value.
+ * `selected` restores the cursor when the caller shows the overview again.
+ */
 export async function showSettingsPicker(
 	ui: ProviderPickerUI,
 	title: string,
 	rows: SettingsRow[],
-): Promise<string | null> {
-	const result = await ui.custom<string | null>(
+	selected = 0,
+): Promise<SettingsAction | null> {
+	const result = await ui.custom<SettingsAction | null>(
 		(tui, theme, keybindings, done) => {
-			let selected = 0;
+			let field: Input | undefined;
+			const edit = (row: SettingsRow) => {
+				const input = new Input({ prompt: "" });
+				input.setValue(row.value);
+				input.focused = true;
+				input.onEscape = () => {
+					field = undefined;
+				};
+				input.onSubmit = (raw) => {
+					const value = raw.trim();
+					field = undefined;
+					if (value && value !== row.value) done({ key: row.key, value });
+				};
+				field = input;
+			};
 			return {
 				render(width: number) {
-					const body = renderSettingsRows(rows, theme, selected);
+					const mw = modalWidth(width);
+					const body = renderSettingsRows(rows, theme, selected, field, mw - 4);
 					return frameModal({
-						width: modalWidth(width),
+						width: mw,
 						maxHeight: terminalModalHeight(tui.terminal?.rows),
 						minHeight: MIN_MODAL_HEIGHT,
 						title,
 						titleColor: (text) => theme.fg("accent", theme.bold(text)),
 						header: [""],
 						body: body.lines,
-						footer: ["", theme.fg("muted", "↑↓ move · enter change · esc close")],
+						footer: [
+							"",
+							theme.fg(
+								"muted",
+								field ? "enter save · esc cancel" : "↑↓ move · enter change · esc close",
+							),
+						],
 						selectedBodyLine: body.rowLines[selected],
 						color: (text) => theme.fg("accent", text),
 						bg: (text) => theme.bg("customMessageBg", text),
@@ -208,8 +242,18 @@ export async function showSettingsPicker(
 				},
 				invalidate() {},
 				handleInput(data: string) {
+					if (field) {
+						field.handleInput(data);
+						return tui.requestRender();
+					}
 					if (keybindings.matches(data, "tui.select.cancel")) return done(null);
-					if (matchesKey(data, Key.enter)) return done(rows[selected]?.key ?? null);
+					const row = rows[selected];
+					if (matchesKey(data, Key.enter)) {
+						if (!row) return;
+						if (!row.editable) return done({ key: row.key });
+						edit(row);
+						return tui.requestRender();
+					}
 					if (keybindings.matches(data, "tui.select.up"))
 						selected = (selected - 1 + rows.length) % rows.length;
 					else if (keybindings.matches(data, "tui.select.down"))
@@ -262,7 +306,6 @@ export async function showProviderPicker(
 				const node = nodes[cursor];
 				if (node?.kind === "provider") return done({ kind: "select", id: node.row.id });
 				if (node?.kind !== "model") return;
-				if (opts.modelEdit === "action") return done({ kind: "model", id: node.row.id });
 				openField(node.row);
 			};
 

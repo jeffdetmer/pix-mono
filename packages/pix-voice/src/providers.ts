@@ -26,8 +26,6 @@ interface BaseProvider {
 	/** Env var names this provider reads. Shown in /voice. */
 	env?: string[];
 	isConfigured?: () => boolean;
-	/** Model or voice choices for /voice. Called only when the user opens the picker. */
-	models?: () => string[] | Promise<string[]>;
 }
 
 export interface SttProvider extends BaseProvider {
