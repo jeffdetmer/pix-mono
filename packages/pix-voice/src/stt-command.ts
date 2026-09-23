@@ -73,6 +73,32 @@ export function keyEvent(
 	return isKeyRepeat(data) ? "repeat" : "press";
 }
 
+/** Esc cancels only while a dictation runs. Otherwise Pi keeps its own Esc. */
+export function isCancelKey(data: string, active: boolean): boolean {
+	return active && !isKeyRelease(data) && matchesKey(data, "escape");
+}
+
+/** Stop ffmpeg and delete the file. Nothing is transcribed. */
+async function discardRecording(recording: Recording, limit: ReturnType<typeof setTimeout>) {
+	clearTimeout(limit);
+	await recording.stop().catch(() => undefined);
+	await rm(recording.path, { force: true });
+}
+
+/** Esc during a dictation: drop it, and add nothing to the prompt. */
+async function cancelDictation(ctx: ExtensionContext): Promise<void> {
+	const current = phase;
+	if (!current) return;
+	phase = undefined;
+	heldSince = undefined;
+	redraw = undefined;
+	ctx.ui.setWidget(WIDGET, undefined);
+	showTransientMessage(ctx.ui, "Dictation cancelled. Nothing was added.", "info");
+	// A transcription deletes its own file in its finally block.
+	if (current.kind === "transcribing") current.abort.abort();
+	else await discardRecording(current.recording, current.limit);
+}
+
 function message(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
@@ -86,12 +112,12 @@ function showWidget(ctx: ExtensionContext): void {
 				render() {
 					if (phase?.kind !== "recording")
 						return [
-							`${theme.fg("warning", "…")} ${theme.fg("toolTitle", phase?.kind === "transcribing" ? phase.step : "transcribing")}`,
+							`${theme.fg("warning", "…")} ${theme.fg("toolTitle", phase?.kind === "transcribing" ? phase.step : "transcribing")}${theme.fg("muted", " · esc cancel")}`,
 						];
 					const loud = phase.level !== undefined && phase.level > -12;
 					const db = phase.level === undefined ? "" : ` ${phase.level.toFixed(0)} dB`;
 					return [
-						`${theme.fg("error", "●")} ${theme.fg("toolTitle", "recording")} ${theme.fg("dim", voiceConfig.sttDevice)} ${theme.fg(loud ? "warning" : "success", levelBar(phase.level))}${theme.fg("muted", `${db} · ${heldSince === undefined ? `${voiceConfig.sttShortcut} stop` : "release to stop"}`)}`,
+						`${theme.fg("error", "●")} ${theme.fg("toolTitle", "recording")} ${theme.fg("dim", voiceConfig.sttDevice)} ${theme.fg(loud ? "warning" : "success", levelBar(phase.level))}${theme.fg("muted", `${db} · ${heldSince === undefined ? `${voiceConfig.sttShortcut} stop` : "release to stop"} · esc cancel`)}`,
 					];
 				},
 				invalidate() {},
@@ -185,19 +211,24 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 			model += ` · cleanup failed, raw text kept: ${message(error)}`;
 			level = "warning";
 		}
+		// Esc can cancel while a provider ignores the signal. Add nothing then.
+		signal.throwIfAborted();
 		// A paste goes in at the cursor and keeps the editor undo history.
 		ctx.ui.pasteToEditor(dictationInsert(ctx.ui.getEditorText(), text));
 		showTransientMessage(ctx.ui, `Dictation added to the prompt · ${model}`, level);
 	} catch (error) {
-		// An abort means the session ended. Its UI is gone, so show nothing.
+		// An abort is Esc or the session end. Both already cleared the UI.
 		if (!signal.aborted)
 			showTransientMessage(ctx.ui, `Dictation failed: ${message(error)}`, "error");
 	} finally {
 		// The recording is the user's voice. Delete it first: a stale ctx can throw below.
 		await rm(recording.path, { force: true });
-		if (phase?.kind === "transcribing" && phase.abort === abort) phase = undefined;
-		redraw = undefined;
-		if (!signal.aborted) ctx.ui.setWidget(WIDGET, undefined);
+		// After an abort, a new dictation can own phase and the widget. Leave them.
+		if (!signal.aborted) {
+			phase = undefined;
+			redraw = undefined;
+			ctx.ui.setWidget(WIDGET, undefined);
+		}
 	}
 }
 
@@ -208,6 +239,10 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
  */
 function listen(ctx: ExtensionContext): () => void {
 	return ctx.ui.onTerminalInput((data) => {
+		if (isCancelKey(data, phase !== undefined)) {
+			void cancelDictation(ctx);
+			return { consume: true };
+		}
 		const event = keyEvent(data, voiceConfig.sttShortcut);
 		if (!event) return undefined;
 		if (event === "repeat") return { consume: true };
@@ -253,9 +288,7 @@ export default function registerSttCommand(pi: ExtensionAPI): void {
 		}
 		if (phase?.kind !== "recording") return;
 		const { recording, limit } = phase;
-		clearTimeout(limit);
 		phase = undefined;
-		await recording.stop().catch(() => undefined);
-		await rm(recording.path, { force: true });
+		await discardRecording(recording, limit);
 	});
 }

@@ -1,7 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import { setKittyProtocolActive } from "@earendil-works/pi-tui";
 import { ffmpegRecordArgs, microphoneLabel, parsePulseSources, parseRmsDb } from "./recorder.js";
-import { dictationInsert, keyEvent, levelBar } from "./stt-command.js";
+import { dictationInsert, isCancelKey, keyEvent, levelBar } from "./stt-command.js";
+
+describe("dictation cancel key", () => {
+	test("esc cancels only while a dictation runs, and not on release", () => {
+		expect(isCancelKey("\x1b", true)).toBe(true);
+		expect(isCancelKey("\x1b", false)).toBe(false);
+		setKittyProtocolActive(true);
+		try {
+			expect(isCancelKey("\x1b[27u", true)).toBe(true);
+			expect(isCancelKey("\x1b[27;1:3u", true)).toBe(false);
+		} finally {
+			setKittyProtocolActive(false);
+		}
+	});
+});
 
 describe("dictation key", () => {
 	// Kitty keyboard protocol: CSI codepoint ; modifiers : event u. alt = 3, event 2 = repeat, 3 = release.

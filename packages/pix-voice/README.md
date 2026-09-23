@@ -85,7 +85,9 @@ the old `~/.pi/agent/9router.json`.
 ## Dictation
 
 Hold `Ctrl+Alt+Z`, talk, and let go. The transcript goes into the prompt at the
-cursor, and nothing is sent. Ctrl+- undoes it. A tap (under 0.3 s) starts a
+cursor, and nothing is sent. Esc while it records or transcribes cancels the
+dictation, and nothing goes into the prompt. After the text is in, Ctrl+- (the
+editor undo) removes it. A tap (under 0.3 s) starts a
 recording that stays on until the next press, for long dictation. A recording
 stops at 5 minutes and is then transcribed. A transcript over 1,000 characters
 shows as a `[paste #1 … chars]` marker, the same as a large paste.
