@@ -23,13 +23,8 @@ function items(value: unknown): CatalogItem[] {
 	return Array.isArray(data) ? (data as CatalogItem[]) : [];
 }
 
-export async function catalogModels(
-	kind: "webSearch" | "webFetch" | "stt" | "tts",
-): Promise<string[]> {
-	const path = kind === "stt" || kind === "tts" ? `/models/${kind}` : "/models/web";
-	return items(await get(path))
-		.filter((item) => (kind === "webSearch" || kind === "webFetch" ? item.kind === kind : true))
-		.flatMap((item) => (item.id ? [item.id] : []));
+export async function catalogModels(kind: "stt" | "tts"): Promise<string[]> {
+	return items(await get(`/models/${kind}`)).flatMap((item) => (item.id ? [item.id] : []));
 }
 
 export interface VoiceChoice {

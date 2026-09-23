@@ -151,18 +151,6 @@ export default function registerRouterCommand(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => {
 			while (true) {
 				const setting = await pickSetting(ctx, [
-					{
-						key: "search",
-						section: "Web",
-						label: "search model",
-						value: routerDefaults.searchModel,
-					},
-					{
-						key: "fetch",
-						section: "Web",
-						label: "fetch model",
-						value: routerDefaults.fetchModel,
-					},
 					{ key: "stt", section: "Audio", label: "STT model", value: routerDefaults.sttModel },
 					{
 						key: "tts",
@@ -181,17 +169,7 @@ export default function registerRouterCommand(pi: ExtensionAPI): void {
 
 				try {
 					let value: string | undefined;
-					if (setting === "search") {
-						value = await choose(ctx, "Search model", routerDefaults.searchModel, () =>
-							catalogModels("webSearch"),
-						);
-						if (value) routerDefaults.searchModel = value;
-					} else if (setting === "fetch") {
-						value = await choose(ctx, "Fetch model", routerDefaults.fetchModel, () =>
-							catalogModels("webFetch"),
-						);
-						if (value) routerDefaults.fetchModel = value;
-					} else if (setting === "stt") {
+					if (setting === "stt") {
 						value = await choose(ctx, "STT model", routerDefaults.sttModel, () =>
 							catalogModels("stt"),
 						);

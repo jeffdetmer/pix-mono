@@ -1,47 +1,17 @@
 /**
  * http.ts — shared 9Router HTTP plumbing.
  *
- * auth / apiPost / curl / isCancelled were duplicated across fetch.ts,
- * search.ts and transcribe.ts. Extracted here; the only real differences were
- * timeout values (audio needs longer) and curl stdin (search pipes a body),
- * so both are parameters with the old per-file defaults.
+ * auth and curl serve the transcribe/tts fallback paths and the catalog reader.
+ * curl differs only by timeout (audio needs longer) and stdin body, so both are
+ * parameters with the old per-file defaults.
  */
 
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
-import { ioTimeoutMs, ioTimeoutSignal } from "@xynogen/pix-runtime/io";
-import { routerBaseUrl } from "./data.js";
+import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 
 export function auth(): string | undefined {
 	return process.env.NINEROUTER_KEY || process.env.ROUTER_API_KEY;
-}
-
-/** POST a JSON body to a router path, returning the raw response text. */
-export async function apiPost(
-	path: string,
-	body: Record<string, unknown>,
-	signal?: AbortSignal,
-	timeoutMs: number = ioTimeoutMs(),
-): Promise<string> {
-	const url = `${routerBaseUrl()}${path}`;
-	const key = auth();
-	const timeoutSignal =
-		timeoutMs === ioTimeoutMs() ? ioTimeoutSignal() : AbortSignal.timeout(timeoutMs);
-	const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
-	const res = await fetch(url, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			...(key ? { Authorization: `Bearer ${key}` } : {}),
-		},
-		body: JSON.stringify(body),
-		signal: requestSignal,
-	});
-	if (!res.ok) {
-		const errText = await res.text().catch(() => "");
-		throw new Error(`API ${res.status}: ${errText.slice(0, 500)}`);
-	}
-	return res.text();
 }
 
 export interface CurlOptions {
@@ -129,8 +99,4 @@ export async function curl(args: string[], opts: CurlOptions = {}): Promise<stri
 		throw new Error(`curl exit ${res.status}: ${errText.slice(0, 300)}`);
 	}
 	return res.text();
-}
-
-export function isCancelled(error: unknown, signal: AbortSignal | undefined): boolean {
-	return signal?.aborted === true || (error instanceof DOMException && error.name === "AbortError");
 }
