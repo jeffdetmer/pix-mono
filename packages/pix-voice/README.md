@@ -1,7 +1,7 @@
 # pix-voice
 
-Provider-neutral speech tools for Pi: `transcribe` (speech to text), `speak`
-(text to speech), and the `/stt` microphone command.
+Provider-neutral speech for Pi: push-to-talk dictation into the prompt
+(`Ctrl+Alt+Z`), plus the `transcribe` and `speak` tools.
 
 ## Tools
 
@@ -49,10 +49,21 @@ example `edge-tts`, `google-tts`, and `aws-polly`.
 
 ## Settings
 
-Run `/voice` to set the STT and TTS provider, the 9Router model for each, and
-TTS playback. The layout is the same as `/web`. You type the 9Router model in a
-text field. Other providers use their default model. Enter on playback toggles
-it. Settings stay in `~/.pi/agent/voice.json`:
+Run `/voice`. The modal stays open until you press esc, and each change saves at
+once. Rows with a list open it in the modal: type to filter, then press enter.
+
+| Row | Value |
+|---|---|
+| provider | STT or TTS provider, or `auto` |
+| 9router model | The model 9Router runs. Other providers use their default model. |
+| microphone | An input by name, or `System default` |
+| test microphone | A live level meter. Nothing is recorded. |
+| language | A code such as `en`, `id`, or `pt-br`, or `auto` |
+| cleanup model | `off`, `current`, or `provider/model`. See [Cleanup](#cleanup-optional). |
+| dictation key | Any Pi key id. Needs a Pi restart. |
+| play after generation | Play `speak` output with `pw-play`, `paplay`, `ffplay`, or `mpv` |
+
+Settings stay in `~/.pi/agent/voice.json`:
 
 ```json
 {
@@ -61,19 +72,60 @@ it. Settings stay in `~/.pi/agent/voice.json`:
   "sttNineRouterModel": "dg/nova-3",
   "ttsNineRouterModel": "edge-tts/en-US-AriaNeural",
   "ttsPlay": true,
-  "sttDevice": "default"
+  "sttDevice": "default",
+  "sttLanguage": "auto",
+  "sttShortcut": "ctrl+alt+z",
+  "sttCleanup": "off"
 }
 ```
 
 When `voice.json` does not exist, the first load copies the audio defaults from
 the old `~/.pi/agent/9router.json`.
 
-## Microphone
+## Dictation
 
-`/stt` records from a PulseAudio source through `ffmpeg`. It then puts the
-transcript in the prompt editor. It needs `ffmpeg` on `PATH`, and `pactl` to
-list input devices. Playback after `speak` uses `pw-play`, `paplay`, `ffplay`, or
-`mpv`.
+Hold `Ctrl+Alt+Z`, talk, and let go. The transcript goes into the prompt at the
+cursor, and nothing is sent. Ctrl+- undoes it. A tap (under 0.3 s) starts a
+recording that stays on until the next press, for long dictation. A recording
+stops at 5 minutes and is then transcribed. A transcript over 1,000 characters
+shows as a `[paste #1 … chars]` marker, the same as a large paste.
+
+Hold-to-talk needs a terminal with the Kitty keyboard protocol, for example
+Kitty, Ghostty, WezTerm, foot, or iTerm2 3.5+. Other terminals, and tmux, do not
+report a key release. There, each press toggles the recording. `/stt` also
+toggles it.
+
+A widget above the editor shows the microphone and its level while it records.
+The recording is deleted after transcription. A set `language` is often faster
+and more accurate than `auto` for short speech.
+
+Requirements: `ffmpeg` records a PulseAudio or PipeWire source, and `pactl`
+lists the inputs by name. Without `pactl`, only `System default` shows.
+
+### Cleanup (optional)
+
+`cleanup model` runs one small LLM pass over each transcript before it goes into
+the prompt. It removes the slips of live speech and keeps the words and language:
+
+| Said | Prompt gets |
+|---|---|
+| i want 3 of it, no i meant 2 | I want 2 of it. |
+| um so can you uh open the the config file, sorry, the package json | Can you open the package json? |
+| saya mau 3, eh bukan, maksudnya 2 | saya mau 2 |
+
+It is `off` by default, because each dictation then costs one model call. The
+prompt is about 250 tokens plus the transcript. A router can add more: the
+9Router `cc/` route used about 2.4k per call. Pick a fast model, because
+dictation waits for the reply. Pick `current` for the session model, or any
+`provider/model`.
+The message after each dictation names the cleanup model and its token count.
+If the pass fails, or gives a much longer text (an answer, not a cleanup), the
+raw transcript stays in the prompt.
+
+A quick word check runs first. When the transcript has no filler, correction
+word, or repeated word, the model call is skipped, and the message says so. The
+list covers English, Indonesian, Malay, and some European fillers. A slip in
+another language is not found, so that dictation gets no cleanup.
 
 ## Custom providers
 
@@ -96,6 +148,15 @@ pi install npm:@xynogen/pix-voice
 ```
 
 This package is standalone and opt-in. It is not bundled by `@xynogen/pix-core`.
+
+## Attribution
+
+The push-to-talk dictation design comes from
+[earendil-works/pi-voice](https://github.com/earendil-works/pi-voice) (MIT): a
+shortcut starts and stops the recording, and the transcript goes into the
+prompt. That package runs a local model. `pix-voice` sends the audio to the
+provider you pick in `/voice`. No code is copied. Thanks to the pi-voice
+authors.
 
 ## License
 

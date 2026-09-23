@@ -13,6 +13,12 @@ export interface VoiceConfig {
 	ttsNineRouterModel: string;
 	ttsPlay: boolean;
 	sttDevice: string;
+	/** Dictation language as an ISO 639-1 code, e.g. "en". "auto" lets the provider detect it. */
+	sttLanguage: string;
+	/** Push-to-talk key, in Pi key syntax. Read once when Pi starts. */
+	sttShortcut: string;
+	/** Dictation cleanup model: "off", "current" (the session model), or "provider/model". */
+	sttCleanup: string;
 }
 
 export const CONFIG_PATH = join(homedir(), ".pi", "agent", "voice.json");
@@ -27,6 +33,10 @@ function fallback(): VoiceConfig {
 		ttsNineRouterModel: "edge-tts/en-US-AriaNeural",
 		ttsPlay: true,
 		sttDevice: "default",
+		sttLanguage: "auto",
+		sttShortcut: "ctrl+alt+z",
+		// Opt-in: cleanup sends each dictation to an LLM and costs tokens.
+		sttCleanup: "off",
 	};
 }
 
@@ -41,6 +51,18 @@ function read(path: string): Record<string, unknown> | undefined {
 
 function text(value: unknown, fallback: string): string {
 	return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+/** Normalize a typed language: "" or "auto" means detect. Throws on a value that is not a code. */
+export function parseLanguage(value: string): string {
+	const code = value.trim().toLowerCase();
+	if (!code || code === "auto") return "auto";
+	// ISO 639-1 (en), 639-3 (fil), or a region tag (pt-br, zh-cn).
+	if (!/^[a-z]{2,3}(-[a-z0-9]{2,4})?$/.test(code))
+		throw new Error(
+			`"${value}" is not a language code. Use a code like en, id, or pt-br, or auto.`,
+		);
+	return code;
 }
 
 /** The model a provider runs: the typed model for 9router, else the provider default. */
@@ -72,6 +94,9 @@ export function loadConfig(path = CONFIG_PATH, legacyPath = LEGACY_PATH): VoiceC
 	config.ttsNineRouterModel = text(item.ttsNineRouterModel, config.ttsNineRouterModel);
 	if (typeof item.ttsPlay === "boolean") config.ttsPlay = item.ttsPlay;
 	if (typeof item.sttDevice === "string") config.sttDevice = item.sttDevice;
+	config.sttLanguage = text(item.sttLanguage, config.sttLanguage).toLowerCase();
+	config.sttShortcut = text(item.sttShortcut, config.sttShortcut);
+	config.sttCleanup = text(item.sttCleanup, config.sttCleanup);
 	return config;
 }
 

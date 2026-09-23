@@ -4,11 +4,76 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { findExecutableSync } from "@xynogen/pix-runtime/which";
 
-export function parsePulseSources(output: string): string[] {
-	return output
-		.split("\n")
-		.map((line) => line.split("\t")[1]?.trim())
-		.filter((name): name is string => Boolean(name));
+export interface Microphone {
+	/** PulseAudio source name, passed to ffmpeg. "default" follows the system default. */
+	id: string;
+	/** Readable name, e.g. "Headset - Nokia E1200 ANC". */
+	label: string;
+}
+
+interface PulseSource {
+	name?: string;
+	description?: string;
+	active_port?: string | null;
+	ports?: Array<{ name?: string; description?: string }>;
+	properties?: Record<string, string | undefined>;
+}
+
+const FORM: Record<string, string> = {
+	headset: "Headset",
+	headphone: "Headset",
+	handsfree: "Headset",
+	webcam: "Webcam",
+	microphone: "Microphone",
+};
+
+/** "Built-in Audio Analog Stereo" → "Built-in Audio". The channel layout is noise here. */
+function product(description: string): string {
+	return description.replace(/\s+(Analog|Digital)?\s*(Mono|Stereo|Surround[\s\d.]*)$/i, "").trim();
+}
+
+/** Readable label: "<kind> - <product>", like a desktop sound menu. */
+export function microphoneLabel(source: PulseSource): string {
+	const props = source.properties ?? {};
+	const name = product(source.description || props["device.product.name"] || source.name || "");
+	const port = source.ports?.find((item) => item.name === source.active_port)?.description;
+	const kind =
+		FORM[props["device.form_factor"] ?? ""] ??
+		(props["device.bus"] === "bluetooth" ? "Headset" : undefined) ??
+		(port && /line/i.test(port) ? "Line In" : "Microphone");
+	return name.toLowerCase().startsWith(kind.toLowerCase()) ? name : `${kind} - ${name}`;
+}
+
+/** An output monitor records what plays, not a microphone. PulseAudio and PipeWire both name it `*.monitor`. */
+function isMonitor(source: PulseSource): boolean {
+	return Boolean(
+		source.name?.endsWith(".monitor") || source.properties?.["device.class"] === "monitor",
+	);
+}
+
+/**
+ * Input sources, without output monitors. Takes `pactl --format=json list sources`
+ * (pactl 16+), or the tab-separated `pactl list short sources` from older PulseAudio.
+ */
+export function parsePulseSources(output: string, fallback = "default"): Microphone[] {
+	let sources: PulseSource[];
+	try {
+		sources = JSON.parse(output) as PulseSource[];
+	} catch {
+		// Short format has no description, so the label is the source name.
+		sources = output
+			.split("\n")
+			.map((line) => ({ name: line.split("\t")[1]?.trim() }))
+			.filter((source) => source.name);
+	}
+	const inputs = sources
+		.filter((source) => source.name && !isMonitor(source))
+		.map((source) => ({ id: source.name as string, label: microphoneLabel(source) }));
+	const system = inputs.find((input) => input.id === fallback)?.label;
+	return [
+		{ id: "default", label: system ? `System default (${system})` : "System default" },
+		...inputs,
+	];
 }
 
 export function parseRmsDb(output: string): number | undefined {
@@ -55,11 +120,34 @@ function run(command: string, args: string[]): Promise<string> {
 	});
 }
 
-export async function microphoneDevices(): Promise<string[]> {
+export async function microphoneDevices(): Promise<Microphone[]> {
 	const pactl = findExecutableSync("pactl");
-	if (!pactl) return ["default"];
-	const names = parsePulseSources(await run(pactl, ["list", "short", "sources"]));
-	return [...new Set(["default", ...names])];
+	if (!pactl) return [{ id: "default", label: "System default" }];
+	const [list, current] = await Promise.all([
+		run(pactl, ["--format=json", "list", "sources"]).catch(() =>
+			run(pactl, ["list", "short", "sources"]),
+		),
+		// get-default-source needs PulseAudio 15+. Without it, no name shows after "System default".
+		run(pactl, ["get-default-source"]).catch(() => ""),
+	]);
+	return parsePulseSources(list, current.trim());
+}
+
+/** Stream the input level only. Nothing is written to disk. Call the result to stop. */
+export function startMeter(device: string, onLevel: (db: number) => void): () => void {
+	const ffmpeg = findExecutableSync("ffmpeg");
+	if (!ffmpeg) throw new Error("The microphone test needs ffmpeg on PATH.");
+	const args = ffmpegRecordArgs(device, "-");
+	args.splice(args.length - 2, 2, "-f", "null", "-");
+	const child = spawn(ffmpeg, args, { stdio: ["pipe", "ignore", "pipe"] });
+	child.stderr.on("data", (data) => {
+		const level = parseRmsDb(String(data));
+		if (level !== undefined) onLevel(level);
+	});
+	child.once("error", () => undefined);
+	return () => {
+		if (child.exitCode === null) child.kill("SIGTERM");
+	};
 }
 
 export interface Recording {

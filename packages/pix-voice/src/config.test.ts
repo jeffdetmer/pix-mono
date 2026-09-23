@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, saveConfig } from "./config.js";
+import { loadConfig, parseLanguage, saveConfig } from "./config.js";
 
 const missing = join(tmpdir(), "pix-voice-missing.json");
 
@@ -15,6 +15,9 @@ describe("voice config", () => {
 			ttsNineRouterModel: "edge-tts/en-US-AriaNeural",
 			ttsPlay: true,
 			sttDevice: "default",
+			sttLanguage: "auto",
+			sttShortcut: "ctrl+alt+z",
+			sttCleanup: "off",
 		});
 	});
 
@@ -43,5 +46,12 @@ describe("voice config", () => {
 			ttsNineRouterModel: "openai/tts-1/nova",
 			ttsPlay: false,
 		});
+	});
+
+	test("accepts language codes and auto, and rejects other text", () => {
+		expect(parseLanguage(" EN ")).toBe("en");
+		expect(parseLanguage("pt-BR")).toBe("pt-br");
+		expect(parseLanguage("")).toBe("auto");
+		expect(() => parseLanguage("English")).toThrow(/not a language code/);
 	});
 });

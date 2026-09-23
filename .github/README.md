@@ -82,7 +82,7 @@ Not bundled by `pix-core`. Install each one only if you want it. Each one stays 
 | Package | Why it's opt-in |
 | --- | --- |
 | [`@xynogen/pix-web`](https://www.npmjs.com/package/@xynogen/pix-web) | Provider-neutral `fetch` and `search` tools with Exa, Tavily, You.com, Brave, SearXNG, 9Router, and more adapters |
-| [`@xynogen/pix-voice`](https://www.npmjs.com/package/@xynogen/pix-voice) | Provider-neutral `transcribe` and `speak` tools plus `/stt` microphone input, with 9Router, OpenAI, Groq, Deepgram, ElevenLabs, Gemini, and more adapters |
+| [`@xynogen/pix-voice`](https://www.npmjs.com/package/@xynogen/pix-voice) | Provider-neutral push-to-talk dictation (`Ctrl+Alt+Z`) plus the `transcribe` and `speak` tools, with 9Router, OpenAI, Groq, Deepgram, ElevenLabs, Gemini, and more adapters |
 | [`@xynogen/pix-9router`](https://www.npmjs.com/package/@xynogen/pix-9router) | 9Router LLM provider — needs a 9Router API key |
 | [`@xynogen/pix-sudo`](https://www.npmjs.com/package/@xynogen/pix-sudo) | `sudo_run` — root execution via a PAM password overlay (blocked in non-interactive mode) |
 | [`@xynogen/pix-ssh`](https://www.npmjs.com/package/@xynogen/pix-ssh) | `ssh_run` — run commands on a remote host over SSH (key/password auth + remote `sudo`) |
@@ -185,6 +185,7 @@ Several packages here started as a fork or a merge of a community Pi package:
 | [`tintinweb/pi-subagents`](https://github.com/tintinweb/pi-subagents) | spawn engine ported into `pix-subagent` |
 | [`nicobailon/pi-subagents`](https://github.com/nicobailon/pi-subagents) | work-splitting design adapted in `pix-subagent` |
 | [`nicobailon/pi-mcp-adapter`](https://github.com/nicobailon/pi-mcp-adapter) | v2.11.0 (`82724dc`) adopted as `@xynogen/pix-mcp`; MIT license retained, with bounded on-demand discovery and lazy startup behavior |
+| [`earendil-works/pi-voice`](https://github.com/earendil-works/pi-voice) | push-to-talk dictation design (`Ctrl+Alt+Z` into the prompt) adapted in `pix-voice`; no code copied |
 | [`apmantza/pi-lens`](https://github.com/apmantza/pi-lens) | LSP engine (server registry, transport, lazy manager) adapted into `@xynogen/pix-diagnostics`; MIT license retained in `packages/pix-diagnostics/LICENSE.pi-lens` |
 
 These standalone repos moved into this monorepo before: `pix-optimizer`, `pix-themes`, `pix-pretty`, `pix-core`, `pix-9router`, `pix-data`.

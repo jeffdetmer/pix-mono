@@ -1,130 +1,227 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { matchesKey } from "@earendil-works/pi-tui";
+/**
+ * Push-to-talk dictation into the prompt. Design from earendil-works/pi-voice (MIT).
+ * Press the shortcut (or run /stt) to record. Press it again to stop, transcribe,
+ * and add the text to the prompt editor. A live widget shows the input level.
+ */
+
+import { rm } from "node:fs/promises";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-	frameModal,
-	modalOverlayOptions,
-	modalWidth,
-	terminalModalHeight,
-} from "@xynogen/pix-pretty/modal-frame";
-import { saveConfig, voiceConfig } from "./config.js";
-import { microphoneDevices, type Recording, startRecording } from "./recorder.js";
+	isKeyRelease,
+	isKeyRepeat,
+	isKittyProtocolActive,
+	type KeyId,
+	matchesKey,
+	parseKey,
+} from "@earendil-works/pi-tui";
+import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
+import { cleanTranscript, cleanupModel, hasSlip } from "./cleanup.js";
+import { voiceConfig } from "./config.js";
+import { type Recording, startRecording } from "./recorder.js";
 import { transcribeAudioFile } from "./transcribe.js";
 
-function levelBar(db: number | undefined): string {
-	if (db === undefined) return "░".repeat(24);
-	const count = Math.max(0, Math.min(24, Math.round(((db + 60) / 60) * 24)));
-	return `${"█".repeat(count)}${"░".repeat(24 - count)}`;
+const WIDGET = "voice-stt";
+
+export function levelBar(db: number | undefined, width = 16): string {
+	if (db === undefined) return "░".repeat(width);
+	const count = Math.max(0, Math.min(width, Math.round(((db + 60) / 60) * width)));
+	return `${"█".repeat(count)}${"░".repeat(width - count)}`;
 }
 
-async function record(
-	ctx: ExtensionCommandContext,
-	devices: string[],
-): Promise<string | undefined> {
-	return (
-		(await ctx.ui.custom<string | null>(
-			(tui, theme, _keybindings, done) => {
-				let deviceIndex = Math.max(0, devices.indexOf(voiceConfig.sttDevice));
-				let recording: Recording | undefined;
-				let level: number | undefined;
-				let error = "";
-				let stopping = false;
+/**
+ * Text to insert at the cursor. It adds a space when the prompt ends in a word.
+ * ponytail: Pi gives no cursor position, so the check reads the prompt end. A
+ * dictation into the middle of a word can lack a space. The fix needs a cursor API.
+ */
+export function dictationInsert(current: string, text: string): string {
+	return current && !/\s$/.test(current) ? ` ${text}` : text;
+}
 
-				const stop = async () => {
-					if (!recording || stopping) return;
-					stopping = true;
-					try {
-						const current = recording;
-						await current.stop();
-						done(current.path);
-					} catch (cause) {
-						error = cause instanceof Error ? cause.message : String(cause);
-						recording = undefined;
-						stopping = false;
-						tui.requestRender();
-					}
-				};
+/** A forgotten tap-mode recording stops here. 5 min of 16 kHz mono wav is about 9.6 MB. */
+export const MAX_RECORDING_MS = 5 * 60_000;
 
-				return {
-					render(width: number) {
-						const device = devices[deviceIndex] ?? "default";
-						return frameModal({
-							width: modalWidth(width),
-							maxHeight: terminalModalHeight(tui.terminal?.rows),
-							title: "Microphone",
-							titleColor: (text) => theme.fg("accent", theme.bold(text)),
-							header: [""],
-							body: [
-								`${theme.fg("dim", "input")}  ${theme.fg("success", device)}`,
-								"",
-								`${theme.fg("dim", "level")}  ${theme.fg(level !== undefined && level > -12 ? "warning" : "success", levelBar(level))} ${level === undefined ? "" : `${level.toFixed(1)} dB`}`,
-								"",
-								theme.fg(error ? "error" : "text", error || (recording ? "Recording…" : "Ready")),
-							],
-							footer: [
-								"",
-								theme.fg(
-									"muted",
-									recording
-										? "enter stop and transcribe · esc cancel"
-										: "←→ input · enter record · esc close",
-								),
-							],
-							color: (text) => theme.fg("accent", text),
-							bg: (text) => theme.bg("customMessageBg", text),
-						}).lines;
-					},
-					invalidate: () => {},
-					handleInput(data: string) {
-						if (matchesKey(data, "escape")) {
-							if (recording) void recording.stop().finally(() => done(null));
-							else done(null);
-						} else if (matchesKey(data, "enter")) {
-							if (recording) void stop();
-							else {
-								const device = devices[deviceIndex] ?? "default";
-								try {
-									recording = startRecording(device, (db) => {
-										level = db;
-										tui.requestRender();
-									});
-									voiceConfig.sttDevice = device;
-									saveConfig(voiceConfig);
-								} catch (cause) {
-									error = cause instanceof Error ? cause.message : String(cause);
-								}
-							}
-						} else if (!recording && (matchesKey(data, "left") || matchesKey(data, "right"))) {
-							const direction = matchesKey(data, "left") ? -1 : 1;
-							deviceIndex = (deviceIndex + direction + devices.length) % devices.length;
-						}
-						tui.requestRender();
-					},
-				};
-			},
-			{ overlay: true, overlayOptions: modalOverlayOptions() },
-		)) ?? undefined
+type Phase =
+	| {
+			kind: "recording";
+			recording: Recording;
+			level?: number;
+			limit: ReturnType<typeof setTimeout>;
+	  }
+	| { kind: "transcribing"; step: string };
+
+let phase: Phase | undefined;
+let redraw: (() => void) | undefined;
+/** Press time of a recording the key started. A release after TAP_MS stops it. */
+let heldSince: number | undefined;
+
+/** A shorter press is a tap: the recording stays on until the next press. */
+export const TAP_MS = 300;
+
+/**
+ * Classify raw input for the dictation key. A release still counts when the user
+ * lets go of the modifier first, because the terminal then reports the bare key.
+ */
+export function keyEvent(
+	data: string,
+	shortcut: string,
+): "press" | "repeat" | "release" | undefined {
+	if (isKeyRelease(data)) {
+		const key = parseKey(data);
+		return key === shortcut || key === shortcut.split("+").at(-1) ? "release" : undefined;
+	}
+	if (!matchesKey(data, shortcut as KeyId)) return undefined;
+	return isKeyRepeat(data) ? "repeat" : "press";
+}
+
+function message(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+function showWidget(ctx: ExtensionContext): void {
+	ctx.ui.setWidget(
+		WIDGET,
+		(tui, theme) => {
+			redraw = () => tui.requestRender();
+			return {
+				render() {
+					if (phase?.kind !== "recording")
+						return [
+							`${theme.fg("warning", "…")} ${theme.fg("toolTitle", phase?.kind === "transcribing" ? phase.step : "transcribing")}`,
+						];
+					const loud = phase.level !== undefined && phase.level > -12;
+					const db = phase.level === undefined ? "" : ` ${phase.level.toFixed(0)} dB`;
+					return [
+						`${theme.fg("error", "●")} ${theme.fg("toolTitle", "recording")} ${theme.fg("dim", voiceConfig.sttDevice)} ${theme.fg(loud ? "warning" : "success", levelBar(phase.level))}${theme.fg("muted", `${db} · ${heldSince === undefined ? `${voiceConfig.sttShortcut} stop` : "release to stop"}`)}`,
+					];
+				},
+				invalidate() {},
+			};
+		},
+		{ placement: "aboveEditor" },
 	);
 }
 
-export default function registerSttCommand(pi: ExtensionAPI): void {
-	pi.registerCommand("stt", {
-		description: "Record microphone audio and put its transcript in the prompt",
-		handler: async (_args, ctx) => {
-			try {
-				const audio = await record(ctx, await microphoneDevices());
-				if (!audio) return;
-				ctx.ui.setStatus("voice-stt", "Transcribing microphone…");
-				const result = await transcribeAudioFile(audio);
-				ctx.ui.setEditorText(result.text);
-				ctx.ui.notify(
-					`The transcript is in the prompt editor (${result.provider}/${result.model}).`,
-					"info",
+export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
+	if (!ctx.hasUI || phase?.kind === "transcribing") return;
+	if (!phase) {
+		try {
+			const recording = startRecording(voiceConfig.sttDevice, (db) => {
+				if (phase?.kind === "recording") phase.level = db;
+				redraw?.();
+			});
+			const limit = setTimeout(() => {
+				if (phase?.kind !== "recording" || phase.recording !== recording) return;
+				heldSince = undefined;
+				showTransientMessage(
+					ctx.ui,
+					"Dictation stopped at the 5 min limit. Transcribing.",
+					"warning",
 				);
-			} catch (error) {
-				ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
-			} finally {
-				ctx.ui.setStatus("voice-stt", undefined);
+				void toggleDictation(ctx);
+			}, MAX_RECORDING_MS);
+			phase = { kind: "recording", recording, limit };
+			showWidget(ctx);
+		} catch (error) {
+			showTransientMessage(ctx.ui, message(error), "error");
+		}
+		return;
+	}
+
+	const { recording, limit } = phase;
+	clearTimeout(limit);
+	phase = { kind: "transcribing", step: "transcribing" };
+	redraw?.();
+	try {
+		await recording.stop();
+		const result = await transcribeAudioFile(recording.path);
+		let text = result.text.trim();
+		let model = `${result.provider}/${result.model} · ${result.language ?? "auto"}`;
+		if (!text) {
+			showTransientMessage(ctx.ui, `No speech found · ${model}`, "warning");
+			return;
+		}
+		let level: "info" | "warning" = "info";
+		try {
+			const cleaner = cleanupModel(voiceConfig.sttCleanup, ctx);
+			if (cleaner && !hasSlip(text)) model += " · cleanup skipped, no slip found";
+			else if (cleaner) {
+				phase = { kind: "transcribing", step: `cleaning up · ${cleaner.provider}/${cleaner.id}` };
+				redraw?.();
+				const cleanup = await cleanTranscript(text, cleaner, ctx);
+				text = cleanup.text;
+				model += cleanup.applied
+					? ` · cleaned by ${cleanup.model} (${cleanup.tokens} tok)`
+					: ` · cleanup by ${cleanup.model} rejected, raw text kept`;
+				if (!cleanup.applied) level = "warning";
 			}
-		},
+		} catch (error) {
+			// Keep the dictation. A cleanup failure must not lose what the user said.
+			model += ` · cleanup failed, raw text kept: ${message(error)}`;
+			level = "warning";
+		}
+		// A paste goes in at the cursor and keeps the editor undo history.
+		ctx.ui.pasteToEditor(dictationInsert(ctx.ui.getEditorText(), text));
+		showTransientMessage(ctx.ui, `Dictation added to the prompt · ${model}`, level);
+	} catch (error) {
+		showTransientMessage(ctx.ui, `Dictation failed: ${message(error)}`, "error");
+	} finally {
+		phase = undefined;
+		redraw = undefined;
+		ctx.ui.setWidget(WIDGET, undefined);
+		// The recording is the user's voice. Do not leave it in the temp directory.
+		await rm(recording.path, { force: true });
+	}
+}
+
+/**
+ * Raw input listener for hold-to-talk. Pi does not pass key releases to shortcuts,
+ * so the key is read here. Hold: record until release. Tap: record until the next press.
+ * Without the Kitty keyboard protocol there is no release, so every press toggles.
+ */
+function listen(ctx: ExtensionContext): () => void {
+	return ctx.ui.onTerminalInput((data) => {
+		const event = keyEvent(data, voiceConfig.sttShortcut);
+		if (!event) return undefined;
+		if (event === "repeat") return { consume: true };
+		if (event === "release") {
+			if (heldSince === undefined) return undefined;
+			const held = Date.now() - heldSince;
+			heldSince = undefined;
+			if (held >= TAP_MS) void toggleDictation(ctx);
+			else redraw?.();
+			return { consume: true };
+		}
+		const starting = !phase;
+		void toggleDictation(ctx);
+		heldSince = starting && isKittyProtocolActive() ? Date.now() : undefined;
+		return { consume: true };
+	});
+}
+
+export default function registerSttCommand(pi: ExtensionAPI): void {
+	// Fallback only: the terminal listener consumes the key first when it runs.
+	pi.registerShortcut(voiceConfig.sttShortcut as KeyId, {
+		description: "Hold to dictate into the prompt, or tap to start and stop",
+		handler: toggleDictation,
+	});
+	let unlisten: (() => void) | undefined;
+	pi.on("session_start", (_event, ctx) => {
+		unlisten?.();
+		unlisten = ctx.hasUI ? listen(ctx) : undefined;
+	});
+	pi.registerCommand("stt", {
+		description: `Start or stop voice dictation into the prompt (same as ${voiceConfig.sttShortcut})`,
+		handler: (_args, ctx) => toggleDictation(ctx),
+	});
+	pi.on("session_shutdown", async () => {
+		unlisten?.();
+		unlisten = undefined;
+		heldSince = undefined;
+		if (phase?.kind !== "recording") return;
+		const { recording, limit } = phase;
+		clearTimeout(limit);
+		phase = undefined;
+		await recording.stop().catch(() => undefined);
+		await rm(recording.path, { force: true });
 	});
 }

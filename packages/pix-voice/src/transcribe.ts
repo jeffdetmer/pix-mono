@@ -230,11 +230,12 @@ export async function buildTranscriptionResult(
 export async function transcribeAudioFile(
 	file: string,
 	signal?: AbortSignal,
-): Promise<{ text: string; provider: string; model: string }> {
+): Promise<{ text: string; provider: string; model: string; language?: string }> {
 	const provider = resolveProvider("stt", voiceConfig.sttProvider);
 	const model = voiceModel("stt", provider);
-	const text = await provider.transcribe({ file, model, signal });
-	return { text, provider: provider.id, model };
+	const language = voiceConfig.sttLanguage === "auto" ? undefined : voiceConfig.sttLanguage;
+	const text = await provider.transcribe({ file, model, language, signal });
+	return { text, provider: provider.id, model, language };
 }
 
 function compactChars(chars: number | undefined): string {
