@@ -10,6 +10,7 @@ import {
 	selectListTheme,
 	terminalModalHeight,
 } from "@xynogen/pix-pretty/modal-frame";
+import { showProviderPicker } from "@xynogen/pix-pretty/provider-picker";
 import { groupVoice } from "./catalog.js";
 import { saveConfig, voiceConfig } from "./config.js";
 import { isConfigured, listProviders, type VoiceKind } from "./providers.js";
@@ -74,6 +75,8 @@ interface SettingRow {
 	section: string;
 	label: string;
 	value: string;
+	/** Theme role for the value. Default `success`. */
+	tone?: "success" | "warning" | "muted";
 }
 
 async function pickSetting(ctx: ExtensionContext, rows: SettingRow[]): Promise<string | undefined> {
@@ -101,7 +104,7 @@ async function pickSetting(ctx: ExtensionContext, rows: SettingRow[]): Promise<s
 							const active = index === selected;
 							rowLines[index] = body.length;
 							body.push(
-								`${active ? theme.fg("accent", "→") : " "} ${theme.fg(active ? "accent" : "text", row.label.padEnd(labelWidth))}  ${theme.fg("success", row.value)}`,
+								`${active ? theme.fg("accent", "→") : " "} ${theme.fg(active ? "accent" : "text", row.label.padEnd(labelWidth))}  ${theme.fg(row.tone ?? "success", row.value)}`,
 							);
 						}
 						const result = frameModal({
@@ -138,7 +141,6 @@ async function pickSetting(ctx: ExtensionContext, rows: SettingRow[]): Promise<s
 }
 
 const MANUAL = "enter a model id…";
-const AUTO = "auto · first configured";
 
 function selectedProvider(kind: VoiceKind) {
 	const selected = kind === "stt" ? voiceConfig.sttProvider : voiceConfig.ttsProvider;
@@ -148,6 +150,17 @@ function selectedProvider(kind: VoiceKind) {
 		: providers.find((item) => item.id === selected);
 }
 
+/** Provider value plus its status color: connected, or which variables are missing. */
+function providerValue(kind: VoiceKind): Pick<SettingRow, "value" | "tone"> {
+	const id = kind === "stt" ? voiceConfig.sttProvider : voiceConfig.ttsProvider;
+	const provider = selectedProvider(kind);
+	if (!provider) return { value: `${id} · not configured`, tone: "warning" };
+	const label = id === "auto" ? `auto → ${provider.id}` : id;
+	return isConfigured(provider)
+		? { value: `${label} · connected`, tone: "success" }
+		: { value: `${label} · set ${provider.env?.join(", ")}`, tone: "warning" };
+}
+
 function modelLabel(kind: VoiceKind): string {
 	const provider = selectedProvider(kind);
 	if (!provider) return "no configured provider";
@@ -155,27 +168,36 @@ function modelLabel(kind: VoiceKind): string {
 	return `${provider.id}/${models[provider.id] || provider.defaultModel}`;
 }
 
-async function pickProvider(ctx: ExtensionContext, kind: VoiceKind): Promise<string | undefined> {
-	const current = kind === "stt" ? voiceConfig.sttProvider : voiceConfig.ttsProvider;
-	const byLabel = new Map<string, string>([[AUTO, "auto"]]);
-	for (const provider of listProviders(kind)) {
-		// ponytail: show only env presence. Pix never reads or stores the secret value.
-		const unset = (provider.env ?? []).filter((name) => !process.env[name]);
-		const status = isConfigured(provider) ? "ready" : `needs ${unset.join(", ")}`;
-		byLabel.set(`${provider.id} · ${status}`, provider.id);
-	}
-	const currentLabel = [...byLabel].find(([, id]) => id === current)?.[0];
-	const choice = await pick(
-		ctx,
-		`${kind.toUpperCase()} provider · current: ${current}`,
-		[...byLabel.keys()],
-		currentLabel,
-	);
-	return choice ? byLabel.get(choice) : undefined;
+const ROUTER_ALIASES = { NINEROUTER_URL: "ROUTER_API_BASE", NINEROUTER_KEY: "ROUTER_API_KEY" };
+
+/** Color-coded provider tree, the same view as /fetch and /search. */
+async function pickProvider(ctx: ExtensionContext, kind: VoiceKind): Promise<void> {
+	const models = kind === "stt" ? voiceConfig.sttModels : voiceConfig.ttsModels;
+	const action = await showProviderPicker(ctx.ui, {
+		title: `${icon("settings")} ${kind === "stt" ? "Speech to Text" : "Text to Speech"}`,
+		subtitle: `Default ${kind.toUpperCase()} provider · shell variables · model`,
+		rows: [
+			{ id: "auto", configured: true, env: [] },
+			...listProviders(kind).map((provider) => ({
+				id: provider.id,
+				configured: isConfigured(provider),
+				env: provider.env ?? [],
+				model: models[provider.id] || provider.defaultModel,
+			})),
+		],
+		current: kind === "stt" ? voiceConfig.sttProvider : voiceConfig.ttsProvider,
+		envAliases: ROUTER_ALIASES,
+		modelEdit: "action",
+	});
+	if (!action) return;
+	if (action.kind === "model") return pickModel(ctx, kind, action.id);
+	if (kind === "stt") voiceConfig.sttProvider = action.id;
+	else voiceConfig.ttsProvider = action.id;
+	saveConfig(voiceConfig);
 }
 
-async function pickModel(ctx: ExtensionContext, kind: VoiceKind): Promise<void> {
-	const provider = selectedProvider(kind);
+async function pickModel(ctx: ExtensionContext, kind: VoiceKind, id?: string): Promise<void> {
+	const provider = id ? listProviders(kind).find((item) => item.id === id) : selectedProvider(kind);
 	if (!provider) {
 		ctx.ui.notify(`No configured ${kind} provider. Pick a provider first.`, "warning");
 		return;
@@ -230,14 +252,14 @@ export default function registerVoiceCommand(pi: ExtensionAPI): void {
 						key: "sttProvider",
 						section: "Speech to text",
 						label: "provider",
-						value: voiceConfig.sttProvider,
+						...providerValue("stt"),
 					},
 					{ key: "sttModel", section: "Speech to text", label: "model", value: modelLabel("stt") },
 					{
 						key: "ttsProvider",
 						section: "Text to speech",
 						label: "provider",
-						value: voiceConfig.ttsProvider,
+						...providerValue("tts"),
 					},
 					{
 						key: "ttsModel",
@@ -250,17 +272,13 @@ export default function registerVoiceCommand(pi: ExtensionAPI): void {
 						section: "Text to speech",
 						label: "play after generation",
 						value: voiceConfig.ttsPlay ? "on" : "off",
+						tone: voiceConfig.ttsPlay ? "success" : "muted",
 					},
 				]);
 				if (!setting) return;
 				try {
 					if (setting === "sttProvider" || setting === "ttsProvider") {
-						const kind = setting === "sttProvider" ? "stt" : "tts";
-						const id = await pickProvider(ctx, kind);
-						if (!id) continue;
-						if (kind === "stt") voiceConfig.sttProvider = id;
-						else voiceConfig.ttsProvider = id;
-						saveConfig(voiceConfig);
+						await pickProvider(ctx, setting === "sttProvider" ? "stt" : "tts");
 					} else if (setting === "sttModel" || setting === "ttsModel") {
 						await pickModel(ctx, setting === "sttModel" ? "stt" : "tts");
 					} else if (setting === "playback") {

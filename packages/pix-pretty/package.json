@@ -27,6 +27,7 @@
 		"./context": "./src/tools/context.ts",
 		"./gate-overlay": "./src/gate-overlay.ts",
 		"./modal-frame": "./src/modal-frame.ts",
+		"./provider-picker": "./src/provider-picker.ts",
 		"./test-utils": "./src/test-utils.ts",
 		"./transient-error": "./src/transient-error.ts"
 	},
