@@ -160,25 +160,25 @@ export function registerWebCommand(pi: ExtensionAPI): void {
 			}
 			let cursor = 0;
 			while (true) {
-				const rows = settingsRows();
-				const action = await showSettingsPicker(
-					ctx.ui,
-					`${icon("settings")} Web Settings`,
-					rows,
-					cursor,
-				);
+				// The modal stays open for model edits. It closes only to open the provider tree.
+				const action = await showSettingsPicker(ctx.ui, {
+					title: `${icon("settings")} Web Settings`,
+					rows: settingsRows,
+					selected: cursor,
+					onAction: ({ key, value }) => {
+						const [kind, field] = key.split(":");
+						if (field === "provider") return "close";
+						const service = SERVICES.find((item) => item.kind === kind);
+						if (!service || !value) return undefined;
+						service.config.nineRouterModel = value;
+						service.save(service.config);
+						return undefined;
+					},
+				});
 				if (!action) return;
-				cursor = rows.findIndex((row) => row.key === action.key);
-				const [kind, field] = action.key.split(":");
-				const service = SERVICES.find((item) => item.kind === kind);
-				if (!service) continue;
-				if (field === "provider") {
-					await editService(ctx, service);
-					continue;
-				}
-				if (!action.value) continue;
-				service.config.nineRouterModel = action.value;
-				service.save(service.config);
+				cursor = settingsRows().findIndex((row) => row.key === action.key);
+				const service = SERVICES.find((item) => action.key.startsWith(`${item.kind}:`));
+				if (service) await editService(ctx, service);
 			}
 		},
 	});

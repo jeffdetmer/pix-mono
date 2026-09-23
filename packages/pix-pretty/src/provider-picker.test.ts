@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
+	filterChoices,
 	type ProviderPickerOptions,
+	type ProviderPickerUI,
 	renderProviderRows,
 	renderSettingsRows,
+	showSettingsPicker,
 } from "./provider-picker.ts";
 
 // Tag every color role so assertions check the semantic theme role, not ANSI bytes.
@@ -27,6 +30,115 @@ function options(): ProviderPickerOptions {
 		],
 	};
 }
+
+/** Drive showSettingsPicker with key presses. Returns the result and the last frame. */
+function harness() {
+	let component: { render(width: number): string[]; handleInput(data: string): void } | undefined;
+	const ui: ProviderPickerUI = {
+		custom: (factory) =>
+			new Promise((resolve) => {
+				component = factory(
+					{ requestRender() {} },
+					{ ...theme, bg: (_role: string, text: string) => text, bold: (text: string) => text },
+					{
+						matches: (data: string, id: string) =>
+							id === "tui.select.cancel"
+								? data === "\x1b"
+								: id === "tui.select.down"
+									? data === "\x1b[B"
+									: false,
+					} as never,
+					resolve,
+				);
+			}),
+	};
+	return {
+		ui,
+		press: (data: string) => component?.handleInput(data),
+		frame: () => component?.render(80).join("\n") ?? "",
+	};
+}
+
+describe("settings overview modal", () => {
+	test("stays open after a row action and shows the new value and status", async () => {
+		let play = false;
+		const h = harness();
+		const result = showSettingsPicker(h.ui, {
+			title: "Voice",
+			rows: () => [{ key: "play", section: "TTS", label: "play", value: play ? "on" : "off" }],
+			status: () => ["meter ██░░"],
+			onAction: () => {
+				play = !play;
+				return undefined;
+			},
+		});
+		h.press("\r");
+		await Bun.sleep(0);
+		expect(h.frame()).toMatch(/play.*<success>on<\/success>[\s\S]*meter ██░░/);
+		h.press("\x1b");
+		expect(await result).toBeNull();
+	});
+
+	test("picks a value from the in-modal list, filtered by typing", async () => {
+		let language = "auto";
+		const h = harness();
+		const result = showSettingsPicker(h.ui, {
+			title: "Voice",
+			rows: () => [
+				{
+					key: "stt:language",
+					section: "STT",
+					label: "language",
+					value: language,
+					editable: true,
+					choices: [
+						{ value: "auto", hint: "detect" },
+						{ value: "en", hint: "English" },
+						{ value: "id", hint: "Indonesian" },
+					],
+				},
+			],
+			onAction: ({ value }) => {
+				language = value ?? language;
+				return undefined;
+			},
+		});
+		h.press("\r");
+		for (const char of "indo") h.press(char);
+		// Only "id" and the custom item match "indo". The cursor is on "id".
+		const frame = h.frame().replace(/<\/?[a-z]+>|[│╭╮╰╯─]/g, "");
+		expect(frame).toMatch(/filter: indo█\s+▸ id\s+Indonesian\s+type a value…/);
+		h.press("\r");
+		await Bun.sleep(0);
+		expect(language).toBe("id");
+		expect(h.frame()).toMatch(/language.*<success>id<\/success>/);
+		h.press("\x1b");
+		expect(await result).toBeNull();
+	});
+
+	test("closes with the action only when onAction returns close", async () => {
+		const h = harness();
+		const result = showSettingsPicker(h.ui, {
+			title: "Web",
+			rows: () => [{ key: "search:provider", section: "Search", label: "provider", value: "exa" }],
+			onAction: () => "close",
+		});
+		h.press("\r");
+		expect(await result).toEqual({ key: "search:provider" });
+	});
+});
+
+describe("filterChoices", () => {
+	test("matches the value or the hint, case-insensitive", () => {
+		const choices = [
+			{ value: "en", hint: "English" },
+			{ value: "es", hint: "Spanish" },
+		];
+		expect(filterChoices(choices, "SPAN")).toEqual([{ value: "es", hint: "Spanish" }]);
+		expect(filterChoices(choices, "e")).toHaveLength(2);
+		expect(filterChoices(choices, "")).toBe(choices);
+	});
+});
 
 describe("settings overview rows", () => {
 	test("groups rows by section and colors each value by its tone", () => {

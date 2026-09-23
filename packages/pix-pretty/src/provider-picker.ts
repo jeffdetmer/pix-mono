@@ -8,7 +8,13 @@
  * example. A provider row with a `model` also shows a model row when expanded.
  */
 
-import { Input, Key, type KeybindingsManager, matchesKey } from "@earendil-works/pi-tui";
+import {
+	decodeKittyPrintable,
+	Input,
+	Key,
+	type KeybindingsManager,
+	matchesKey,
+} from "@earendil-works/pi-tui";
 import {
 	frameModal,
 	MIN_MODAL_HEIGHT,
@@ -60,6 +66,7 @@ export interface ProviderPickerUI {
 			render(width: number): string[];
 			invalidate(): void;
 			handleInput(data: string): void;
+			dispose?(): void;
 		},
 		opts?: { overlay?: boolean; overlayOptions?: ReturnType<typeof modalOverlayOptions> },
 	): Promise<T | undefined>;
@@ -153,6 +160,30 @@ export interface SettingsRow {
 	tone?: "success" | "warning" | "muted";
 	/** Enter edits `value` in a text field inside the row, not in a new dialog. */
 	editable?: boolean;
+	/**
+	 * Enter opens a list under the row, inside the same modal. Typing filters it. With
+	 * `editable`, the list also has a "type a value…" item that opens the text field.
+	 */
+	choices?: SettingsChoice[];
+}
+
+export interface SettingsChoice {
+	value: string;
+	/** Readable text shown in place of `value`, for example a device name. */
+	label?: string;
+	/** Muted text after the label, for example the language name. */
+	hint?: string;
+}
+
+const CUSTOM_CHOICE = "\u0000custom";
+
+/** Choices that match `query` by value or hint, case-insensitive. Exported for tests. */
+export function filterChoices(choices: SettingsChoice[], query: string): SettingsChoice[] {
+	const q = query.trim().toLowerCase();
+	if (!q) return choices;
+	return choices.filter((choice) =>
+		[choice.value, choice.label, choice.hint].some((text) => text?.toLowerCase().includes(q)),
+	);
 }
 
 export type SettingsAction = { key: string; value?: string };
@@ -164,10 +195,12 @@ export function renderSettingsRows(
 	selected: number,
 	field?: { render(width: number): string[] },
 	width = 80,
-): { lines: string[]; rowLines: number[] } {
+	list?: { choices: SettingsChoice[]; cursor: number; query: string; max?: number },
+): { lines: string[]; rowLines: number[]; listLine?: number } {
 	const labelWidth = Math.max(...rows.map((row) => row.label.length));
 	const lines: string[] = [];
 	const rowLines: number[] = [];
+	let listLine: number | undefined;
 	let section = "";
 	rows.forEach((row, index) => {
 		if (row.section !== section) {
@@ -184,24 +217,81 @@ export function renderSettingsRows(
 				? `${label}${editing.render(Math.max(10, width - labelWidth - 4))[0] ?? ""}`
 				: `${label}${theme.fg(row.tone ?? "success", row.value)}`,
 		);
+		if (!active || !list) return;
+		// ponytail: a window of `max` items around the cursor. Add a scrollbar if lists grow past ~50.
+		const max = list.max ?? 8;
+		const start = Math.max(
+			0,
+			Math.min(list.cursor - Math.floor(max / 2), list.choices.length - max),
+		);
+		const pad = " ".repeat(labelWidth + 4);
+		lines.push(`${pad}${theme.fg("muted", "filter:")} ${list.query}${theme.fg("accent", "█")}`);
+		list.choices.slice(start, start + max).forEach((choice, offset) => {
+			const on = start + offset === list.cursor;
+			if (on) listLine = lines.length;
+			const text =
+				choice.value === CUSTOM_CHOICE
+					? theme.fg(on ? "accent" : "dim", "type a value…")
+					: `${theme.fg(on ? "accent" : "text", choice.label ?? choice.value)}${choice.hint ? theme.fg("muted", `  ${choice.hint}`) : ""}`;
+			lines.push(`${pad}${on ? theme.fg("accent", "▸") : " "} ${text}`);
+		});
+		if (list.choices.length === 0) lines.push(`${pad}  ${theme.fg("muted", "no match")}`);
 	});
-	return { lines, rowLines };
+	return { lines, rowLines, listLine };
+}
+
+export interface SettingsPickerOptions {
+	title: string;
+	/** Rows are read again after each action, so a changed value shows at once. */
+	rows: () => SettingsRow[];
+	/**
+	 * Run a row action while the modal stays open. Return `"close"` to close it and
+	 * resolve with the action, for example to open another view.
+	 */
+	onAction: (action: SettingsAction) => Promise<"close" | undefined> | "close" | undefined;
+	/** Extra lines under the rows, for example a live level meter. Read on each render. */
+	status?: () => string[];
+	/** Called with a redraw function while the modal is open, for live status lines. */
+	onMount?: (redraw: () => void) => () => void;
+	/** Start row. */
+	selected?: number;
 }
 
 /**
- * Show the sectioned settings overview. Resolves the chosen row key, or null on escape.
- * For an `editable` row, enter opens a text field in the row and resolves with its value.
- * `selected` restores the cursor when the caller shows the overview again.
+ * Show the sectioned settings overview. It stays open until esc, or until
+ * `onAction` returns `"close"`. For an `editable` row, enter opens a text field in
+ * the row. Resolves with the closing action, or null on escape.
  */
 export async function showSettingsPicker(
 	ui: ProviderPickerUI,
-	title: string,
-	rows: SettingsRow[],
-	selected = 0,
+	opts: SettingsPickerOptions,
 ): Promise<SettingsAction | null> {
 	const result = await ui.custom<SettingsAction | null>(
 		(tui, theme, keybindings, done) => {
+			let rows = opts.rows();
+			let selected = Math.min(opts.selected ?? 0, Math.max(0, rows.length - 1));
 			let field: Input | undefined;
+			let list: { row: SettingsRow; query: string; cursor: number } | undefined;
+			let busy = false;
+			let error = "";
+			const redraw = () => tui.requestRender();
+			const unmount = opts.onMount?.(redraw);
+			const close = (value: SettingsAction | null) => {
+				unmount?.();
+				done(value);
+			};
+			const run = async (action: SettingsAction) => {
+				busy = true;
+				error = "";
+				try {
+					if ((await opts.onAction(action)) === "close") return close(action);
+				} catch (cause) {
+					error = cause instanceof Error ? cause.message : String(cause);
+				}
+				busy = false;
+				rows = opts.rows();
+				redraw();
+			};
 			const edit = (row: SettingsRow) => {
 				const input = new Input({ prompt: "" });
 				input.setValue(row.value);
@@ -212,19 +302,66 @@ export async function showSettingsPicker(
 				input.onSubmit = (raw) => {
 					const value = raw.trim();
 					field = undefined;
-					if (value && value !== row.value) done({ key: row.key, value });
+					if (value && value !== row.value) void run({ key: row.key, value });
 				};
 				field = input;
+			};
+			const listChoices = () => {
+				if (!list) return [];
+				const shown = filterChoices(list.row.choices ?? [], list.query);
+				return list.row.editable ? [...shown, { value: CUSTOM_CHOICE }] : shown;
+			};
+			const openList = (row: SettingsRow) => {
+				const index = (row.choices ?? []).findIndex((choice) => choice.value === row.value);
+				list = { row, query: "", cursor: Math.max(0, index) };
+			};
+			const listInput = (data: string) => {
+				if (!list) return;
+				const choices = listChoices();
+				if (keybindings.matches(data, "tui.select.cancel")) list = undefined;
+				else if (keybindings.matches(data, "tui.select.up"))
+					list.cursor = (list.cursor - 1 + choices.length) % Math.max(1, choices.length);
+				else if (keybindings.matches(data, "tui.select.down"))
+					list.cursor = (list.cursor + 1) % Math.max(1, choices.length);
+				else if (matchesKey(data, Key.enter)) {
+					const choice = choices[list.cursor];
+					const { row, query } = list;
+					list = undefined;
+					if (!choice) return;
+					if (choice.value === CUSTOM_CHOICE) {
+						edit(row);
+						if (query) field?.setValue(query);
+					} else if (choice.value !== row.value) void run({ key: row.key, value: choice.value });
+				} else if (matchesKey(data, Key.backspace)) {
+					list.query = list.query.slice(0, -1);
+					list.cursor = 0;
+				} else {
+					const char = decodeKittyPrintable(data) ?? data;
+					if (char.length !== 1 || char < " ") return;
+					list.query += char;
+					list.cursor = 0;
+				}
+				redraw();
 			};
 			return {
 				render(width: number) {
 					const mw = modalWidth(width);
-					const body = renderSettingsRows(rows, theme, selected, field, mw - 4);
+					const body = renderSettingsRows(
+						rows,
+						theme,
+						selected,
+						field,
+						mw - 4,
+						list && { choices: listChoices(), cursor: list.cursor, query: list.query },
+					);
+					const status = opts.status?.() ?? [];
+					if (error) status.push(theme.fg("error", error));
+					if (status.length) body.lines.push("", ...status);
 					return frameModal({
 						width: mw,
 						maxHeight: terminalModalHeight(tui.terminal?.rows),
 						minHeight: MIN_MODAL_HEIGHT,
-						title,
+						title: opts.title,
 						titleColor: (text) => theme.fg("accent", theme.bold(text)),
 						header: [""],
 						body: body.lines,
@@ -232,34 +369,42 @@ export async function showSettingsPicker(
 							"",
 							theme.fg(
 								"muted",
-								field ? "enter save · esc cancel" : "↑↓ move · enter change · esc close",
+								field
+									? "enter save · esc cancel"
+									: list
+										? "type to filter · ↑↓ move · enter pick · esc cancel"
+										: "↑↓ move · enter change · esc close",
 							),
 						],
-						selectedBodyLine: body.rowLines[selected],
+						selectedBodyLine: body.listLine ?? body.rowLines[selected],
 						color: (text) => theme.fg("accent", text),
 						bg: (text) => theme.bg("customMessageBg", text),
 					}).lines;
 				},
 				invalidate() {},
+				dispose: unmount,
 				handleInput(data: string) {
 					if (field) {
 						field.handleInput(data);
-						return tui.requestRender();
+						return redraw();
 					}
-					if (keybindings.matches(data, "tui.select.cancel")) return done(null);
+					if (list) return listInput(data);
+					if (keybindings.matches(data, "tui.select.cancel")) return close(null);
+					if (busy) return;
 					const row = rows[selected];
 					if (matchesKey(data, Key.enter)) {
 						if (!row) return;
-						if (!row.editable) return done({ key: row.key });
-						edit(row);
-						return tui.requestRender();
+						if (row.choices?.length) openList(row);
+						else if (row.editable) edit(row);
+						else void run({ key: row.key });
+						return redraw();
 					}
 					if (keybindings.matches(data, "tui.select.up"))
 						selected = (selected - 1 + rows.length) % rows.length;
 					else if (keybindings.matches(data, "tui.select.down"))
 						selected = (selected + 1) % rows.length;
 					else return;
-					tui.requestRender();
+					redraw();
 				},
 			};
 		},
