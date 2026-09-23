@@ -1,9 +1,13 @@
 {
-	"name": "@xynogen/pix-9router",
-	"version": "0.7.0",
-	"description": "Pi extension — 9Router model provider",
+	"name": "@xynogen/pix-voice",
+	"version": "0.1.0",
+	"description": "Provider-neutral speech-to-text and text-to-speech tools for Pi",
 	"type": "module",
 	"main": "src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./providers": "./src/providers.ts"
+	},
 	"scripts": {
 		"test": "bun test"
 	},
@@ -22,16 +26,19 @@
 		"pi",
 		"pi-package",
 		"pi-extension",
-		"9router"
+		"speech",
+		"tts",
+		"stt",
+		"transcribe"
 	],
 	"author": "xynogen",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/xynogen/pix-mono.git",
-		"directory": "packages/pix-9router"
+		"directory": "packages/pix-voice"
 	},
-	"homepage": "https://github.com/xynogen/pix-mono/tree/main/packages/pix-9router#readme",
+	"homepage": "https://github.com/xynogen/pix-mono/tree/main/packages/pix-voice#readme",
 	"bugs": {
 		"url": "https://github.com/xynogen/pix-mono/issues"
 	},
@@ -44,6 +51,8 @@
 		"@earendil-works/pi-tui": "*"
 	},
 	"dependencies": {
-		"@xynogen/pix-runtime": "^0.10.2"
+		"@xynogen/pix-pretty": "^1.26.0",
+		"@xynogen/pix-runtime": "^0.10.2",
+		"typebox": "^1.1.38"
 	}
 }

@@ -1,37 +1,13 @@
 # pix-9router
 
-Pi extension with a 9Router model provider, speech-to-text, and text-to-speech tools.
+Pi extension with a 9Router model provider.
 
-## Tools
+Other 9Router features live in separate packages. Each one reuses
+`NINEROUTER_URL` and `NINEROUTER_KEY`:
 
-| Tool | Default controlled by `/9router` |
-|---|---|
-| `transcribe` | STT model |
-| `tts` | TTS model or voice, plus automatic playback |
-
-Tool arguments override saved defaults. Tool calls never fetch the model catalog.
-The `/9router` menu fetches live models or voices only when you open a setting,
-then saves the choice in `~/.pi/agent/9router.json`.
-
-## Settings
-
-Run:
-
-```text
-/9router
-```
-
-The menu controls:
-
-- STT model
-- TTS model or voice
-- TTS playback (`on` by default)
-
-Catalogs come from `/v1/models/stt` and `/v1/models/tts`.
-
-Web search and fetch moved to `@xynogen/pix-web`. Its `/search` and `/fetch`
-commands include a 9Router provider that reuses `NINEROUTER_URL` and
-`NINEROUTER_KEY`.
+- Speech tools (`transcribe`, `tts`, `/stt`) moved to `@xynogen/pix-voice` in
+  0.7.0. Pick `9router` as the provider in its `/voice` command.
+- Web search and fetch live in `@xynogen/pix-web`.
 
 ## Environment
 

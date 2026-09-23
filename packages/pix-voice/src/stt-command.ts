@@ -6,7 +6,7 @@ import {
 	modalWidth,
 	terminalModalHeight,
 } from "@xynogen/pix-pretty/modal-frame";
-import { routerDefaults, saveDefaults } from "./defaults.js";
+import { saveConfig, voiceConfig } from "./config.js";
 import { microphoneDevices, type Recording, startRecording } from "./recorder.js";
 import { transcribeAudioFile } from "./transcribe.js";
 
@@ -23,7 +23,7 @@ async function record(
 	return (
 		(await ctx.ui.custom<string | null>(
 			(tui, theme, _keybindings, done) => {
-				let deviceIndex = Math.max(0, devices.indexOf(routerDefaults.sttDevice));
+				let deviceIndex = Math.max(0, devices.indexOf(voiceConfig.sttDevice));
 				let recording: Recording | undefined;
 				let level: number | undefined;
 				let error = "";
@@ -87,8 +87,8 @@ async function record(
 										level = db;
 										tui.requestRender();
 									});
-									routerDefaults.sttDevice = device;
-									saveDefaults(routerDefaults);
+									voiceConfig.sttDevice = device;
+									saveConfig(voiceConfig);
 								} catch (cause) {
 									error = cause instanceof Error ? cause.message : String(cause);
 								}
@@ -113,14 +113,17 @@ export default function registerSttCommand(pi: ExtensionAPI): void {
 			try {
 				const audio = await record(ctx, await microphoneDevices());
 				if (!audio) return;
-				ctx.ui.setStatus("9router-stt", "Transcribing microphone…");
-				const transcript = await transcribeAudioFile(audio);
-				ctx.ui.setEditorText(transcript);
-				ctx.ui.notify("The transcript is in the prompt editor.", "info");
+				ctx.ui.setStatus("voice-stt", "Transcribing microphone…");
+				const result = await transcribeAudioFile(audio);
+				ctx.ui.setEditorText(result.text);
+				ctx.ui.notify(
+					`The transcript is in the prompt editor (${result.provider}/${result.model}).`,
+					"info",
+				);
 			} catch (error) {
 				ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
 			} finally {
-				ctx.ui.setStatus("9router-stt", undefined);
+				ctx.ui.setStatus("voice-stt", undefined);
 			}
 		},
 	});

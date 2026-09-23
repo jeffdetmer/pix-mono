@@ -17,11 +17,9 @@
     },
     "packages/pix-9router": {
       "name": "@xynogen/pix-9router",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "dependencies": {
-        "@xynogen/pix-pretty": "^1.25.0",
-        "@xynogen/pix-runtime": "^0.10.1",
-        "typebox": "^1.1.38",
+        "@xynogen/pix-runtime": "^0.10.2",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "*",
@@ -58,7 +56,7 @@
     },
     "packages/pix-astgrep": {
       "name": "@xynogen/pix-astgrep",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@ast-grep/napi": "^0.45.0",
         "@xynogen/pix-pretty": "^1.26.0",
@@ -209,7 +207,7 @@
     },
     "packages/pix-footer": {
       "name": "@xynogen/pix-footer",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "dependencies": {
         "@xynogen/pix-data": "^0.5.0",
         "@xynogen/pix-pretty": "^1.11.2",
@@ -404,7 +402,7 @@
     },
     "packages/pix-runtime": {
       "name": "@xynogen/pix-runtime",
-      "version": "0.10.1",
+      "version": "0.10.2",
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": "*",
         "@earendil-works/pi-tui": "*",
@@ -450,7 +448,7 @@
     },
     "packages/pix-subagent": {
       "name": "@xynogen/pix-subagent",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "dependencies": {
         "@xynogen/pix-data": "^0.5.0",
         "@xynogen/pix-pretty": "^1.25.0",
@@ -516,9 +514,23 @@
         "@earendil-works/pi-tui": "*",
       },
     },
+    "packages/pix-voice": {
+      "name": "@xynogen/pix-voice",
+      "version": "0.1.0",
+      "dependencies": {
+        "@xynogen/pix-pretty": "^1.26.0",
+        "@xynogen/pix-runtime": "^0.10.2",
+        "typebox": "^1.1.38",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-ai": "*",
+        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-tui": "*",
+      },
+    },
     "packages/pix-web": {
       "name": "@xynogen/pix-web",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@xynogen/pix-pretty": "^1.26.0",
         "@xynogen/pix-runtime": "^0.10.1",
@@ -921,6 +933,8 @@
     "@xynogen/pix-toolbox": ["@xynogen/pix-toolbox@workspace:packages/pix-toolbox"],
 
     "@xynogen/pix-update": ["@xynogen/pix-update@workspace:packages/pix-update"],
+
+    "@xynogen/pix-voice": ["@xynogen/pix-voice@workspace:packages/pix-voice"],
 
     "@xynogen/pix-web": ["@xynogen/pix-web@workspace:packages/pix-web"],
 

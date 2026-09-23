@@ -10,8 +10,9 @@ import {
 	selectListTheme,
 	terminalModalHeight,
 } from "@xynogen/pix-pretty/modal-frame";
-import { catalogModels, catalogVoices } from "./catalog.js";
-import { routerDefaults, saveDefaults } from "./defaults.js";
+import { groupVoice } from "./catalog.js";
+import { saveConfig, voiceConfig } from "./config.js";
+import { isConfigured, listProviders, type VoiceKind } from "./providers.js";
 
 async function pick(
 	ctx: ExtensionContext,
@@ -107,7 +108,7 @@ async function pickSetting(ctx: ExtensionContext, rows: SettingRow[]): Promise<s
 							width: modalWidth(width),
 							maxHeight: terminalModalHeight(tui.terminal?.rows),
 							minHeight: MIN_MODAL_HEIGHT,
-							title: `${icon("settings")} 9Router Settings`,
+							title: `${icon("settings")} Voice Settings`,
 							titleColor: (text) => theme.fg("accent", theme.bold(text)),
 							header: [""],
 							body,
@@ -136,73 +137,138 @@ async function pickSetting(ctx: ExtensionContext, rows: SettingRow[]): Promise<s
 	);
 }
 
-async function choose(
-	ctx: ExtensionContext,
-	title: string,
-	current: string,
-	load: () => Promise<string[]>,
-): Promise<string | undefined> {
-	return pick(ctx, `${title} · current: ${current}`, await load(), current);
+const MANUAL = "enter a model id…";
+const AUTO = "auto · first configured";
+
+function selectedProvider(kind: VoiceKind) {
+	const selected = kind === "stt" ? voiceConfig.sttProvider : voiceConfig.ttsProvider;
+	const providers = listProviders(kind);
+	return selected === "auto"
+		? providers.find(isConfigured)
+		: providers.find((item) => item.id === selected);
 }
 
-export default function registerRouterCommand(pi: ExtensionAPI): void {
-	pi.registerCommand("9router", {
-		description: "Set default models, voice, and TTS playback",
+function modelLabel(kind: VoiceKind): string {
+	const provider = selectedProvider(kind);
+	if (!provider) return "no configured provider";
+	const models = kind === "stt" ? voiceConfig.sttModels : voiceConfig.ttsModels;
+	return `${provider.id}/${models[provider.id] || provider.defaultModel}`;
+}
+
+async function pickProvider(ctx: ExtensionContext, kind: VoiceKind): Promise<string | undefined> {
+	const current = kind === "stt" ? voiceConfig.sttProvider : voiceConfig.ttsProvider;
+	const byLabel = new Map<string, string>([[AUTO, "auto"]]);
+	for (const provider of listProviders(kind)) {
+		// ponytail: show only env presence. Pix never reads or stores the secret value.
+		const unset = (provider.env ?? []).filter((name) => !process.env[name]);
+		const status = isConfigured(provider) ? "ready" : `needs ${unset.join(", ")}`;
+		byLabel.set(`${provider.id} · ${status}`, provider.id);
+	}
+	const currentLabel = [...byLabel].find(([, id]) => id === current)?.[0];
+	const choice = await pick(
+		ctx,
+		`${kind.toUpperCase()} provider · current: ${current}`,
+		[...byLabel.keys()],
+		currentLabel,
+	);
+	return choice ? byLabel.get(choice) : undefined;
+}
+
+async function pickModel(ctx: ExtensionContext, kind: VoiceKind): Promise<void> {
+	const provider = selectedProvider(kind);
+	if (!provider) {
+		ctx.ui.notify(`No configured ${kind} provider. Pick a provider first.`, "warning");
+		return;
+	}
+	const models = kind === "stt" ? voiceConfig.sttModels : voiceConfig.ttsModels;
+	const current = models[provider.id] || provider.defaultModel;
+	const choices = [...((await provider.models?.()) ?? [])];
+	let value: string | undefined;
+	if (kind === "tts" && provider.id === "9router" && choices.length > 0) {
+		// The 9Router catalog lists hundreds of voices: narrow by language, then upstream provider.
+		const voices = choices.map(groupVoice);
+		const language = await pick(
+			ctx,
+			"TTS · 1/3 · language",
+			[...new Set(voices.map((voice) => voice.language))].sort(),
+		);
+		if (!language) return;
+		const inLanguage = voices.filter((voice) => voice.language === language);
+		const upstream = await pick(
+			ctx,
+			`TTS · 2/3 · ${language} · provider`,
+			[...new Set(inLanguage.map((voice) => voice.provider))].sort(),
+		);
+		if (!upstream) return;
+		value = await pick(
+			ctx,
+			`TTS · 3/3 · ${language} · ${upstream}`,
+			inLanguage.filter((voice) => voice.provider === upstream).map((voice) => voice.id),
+			current,
+		);
+	} else {
+		value = await pick(
+			ctx,
+			`${provider.id} ${kind.toUpperCase()} model · current: ${current}`,
+			[...choices, MANUAL],
+			current,
+		);
+		if (value === MANUAL) value = (await ctx.ui.input(`${provider.id} model id`, current))?.trim();
+	}
+	if (!value) return;
+	models[provider.id] = value;
+	saveConfig(voiceConfig);
+}
+
+export default function registerVoiceCommand(pi: ExtensionAPI): void {
+	pi.registerCommand("voice", {
+		description: "Set the speech-to-text and text-to-speech providers, models, and playback",
 		handler: async (_args, ctx) => {
 			while (true) {
 				const setting = await pickSetting(ctx, [
-					{ key: "stt", section: "Audio", label: "STT model", value: routerDefaults.sttModel },
 					{
-						key: "tts",
-						section: "Audio",
-						label: "TTS voice",
-						value: routerDefaults.ttsModel,
+						key: "sttProvider",
+						section: "Speech to text",
+						label: "provider",
+						value: voiceConfig.sttProvider,
+					},
+					{ key: "sttModel", section: "Speech to text", label: "model", value: modelLabel("stt") },
+					{
+						key: "ttsProvider",
+						section: "Text to speech",
+						label: "provider",
+						value: voiceConfig.ttsProvider,
+					},
+					{
+						key: "ttsModel",
+						section: "Text to speech",
+						label: "model or voice",
+						value: modelLabel("tts"),
 					},
 					{
 						key: "playback",
-						section: "Audio",
+						section: "Text to speech",
 						label: "play after generation",
-						value: routerDefaults.ttsPlay ? "on" : "off",
+						value: voiceConfig.ttsPlay ? "on" : "off",
 					},
 				]);
 				if (!setting) return;
-
 				try {
-					let value: string | undefined;
-					if (setting === "stt") {
-						value = await choose(ctx, "STT model", routerDefaults.sttModel, () =>
-							catalogModels("stt"),
-						);
-						if (value) routerDefaults.sttModel = value;
-					} else if (setting === "tts") {
-						const voices = await catalogVoices();
-						const language = await pick(
-							ctx,
-							"TTS · 1/3 · language",
-							[...new Set(voices.map((voice) => voice.language))].sort(),
-						);
-						if (!language) continue;
-						const languageVoices = voices.filter((voice) => voice.language === language);
-						const provider = await pick(
-							ctx,
-							`TTS · 2/3 · ${language} · provider`,
-							[...new Set(languageVoices.map((voice) => voice.provider))].sort(),
-						);
-						if (!provider) continue;
-						value = await pick(
-							ctx,
-							`TTS · 3/3 · ${language} · ${provider}`,
-							languageVoices
-								.filter((voice) => voice.provider === provider)
-								.map((voice) => voice.id),
-							routerDefaults.ttsModel,
-						);
-						if (value) routerDefaults.ttsModel = value;
+					if (setting === "sttProvider" || setting === "ttsProvider") {
+						const kind = setting === "sttProvider" ? "stt" : "tts";
+						const id = await pickProvider(ctx, kind);
+						if (!id) continue;
+						if (kind === "stt") voiceConfig.sttProvider = id;
+						else voiceConfig.ttsProvider = id;
+						saveConfig(voiceConfig);
+					} else if (setting === "sttModel" || setting === "ttsModel") {
+						await pickModel(ctx, setting === "sttModel" ? "stt" : "tts");
 					} else if (setting === "playback") {
-						value = await pick(ctx, "Play generated speech by default", ["on", "off"]);
-						if (value) routerDefaults.ttsPlay = value === "on";
+						const value = await pick(ctx, "Play generated speech by default", ["on", "off"]);
+						if (!value) continue;
+						voiceConfig.ttsPlay = value === "on";
+						saveConfig(voiceConfig);
 					}
-					if (value) saveDefaults(routerDefaults);
 				} catch (error) {
 					ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
 				}

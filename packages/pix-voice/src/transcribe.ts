@@ -1,30 +1,19 @@
 /**
- * transcribe.ts — speech-to-text tool via 9Router audio transcription API, with curl fallback.
- *
- * Uses the OpenAI-compatible /audio/transcriptions endpoint through the router.
- * Accepts a file path to an audio file and returns the transcribed text.
- *
- * Default model: dg/nova-3 (Deepgram Nova 3)
- *
- * Environment:
- *   ROUTER_API_BASE  — router API base URL (default: https://9router.example.com/v1)
- *   ROUTER_API_KEY   — bearer token for the router
+ * transcribe.ts — speech-to-text tool. The provider comes from /voice or the
+ * `provider` argument; the result names the provider and model that ran.
  */
 
 import { constants as fsConstants } from "node:fs";
-import { access, lstat, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, extname, isAbsolute, resolve } from "node:path";
+import { basename, dirname, isAbsolute, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
 import { Type } from "typebox";
-import { routerBaseUrl } from "./data.js";
-import { routerDefaults } from "./defaults.js";
-import { auth, curl } from "./http.js";
+import { voiceConfig } from "./config.js";
+import { resolveProvider } from "./providers.js";
 import { makeRenderCall, makeRenderResult } from "./render.js";
 
 const CHAT_TRUNCATE_LIMIT = 50_000; // only when no output_file is provided
-const DEFAULT_MODEL = "dg/nova-3";
 
 type TranscribeOutcome = "running" | "success" | "cancelled" | "error";
 
@@ -34,7 +23,7 @@ export interface TranscribeResultDetails {
 	file: string;
 	model: string;
 	language?: string;
-	source?: "api" | "curl-fallback" | "failed";
+	provider: string;
 	chars?: number;
 	truncated?: boolean;
 	output_path?: string;
@@ -45,65 +34,6 @@ interface TranscribeResult {
 	content: { type: "text"; text: string }[];
 	details: TranscribeResultDetails;
 	isError?: boolean;
-}
-
-/** Map file extension to MIME type for common audio formats. */
-export function mimeType(filePath: string): string {
-	const ext = extname(filePath).toLowerCase();
-	const types: Record<string, string> = {
-		".mp3": "audio/mpeg",
-		".wav": "audio/wav",
-		".flac": "audio/flac",
-		".ogg": "audio/ogg",
-		".m4a": "audio/mp4",
-		".webm": "audio/webm",
-		".mp4": "audio/mp4",
-		".mpga": "audio/mpeg",
-	};
-	return types[ext] ?? "application/octet-stream";
-}
-
-export async function apiMultipart(
-	path: string,
-	filePath: string,
-	model: string,
-	language: string | undefined,
-	signal?: AbortSignal,
-): Promise<string> {
-	const url = `${routerBaseUrl()}${path}`;
-	const key = auth();
-	const requestSignal = ioTimeoutSignal(signal);
-	const fileData = await readFile(filePath, { signal: requestSignal });
-	const blob = new Blob([fileData], { type: mimeType(filePath) });
-
-	const form = new FormData();
-	form.append("file", blob, basename(filePath));
-	form.append("model", model);
-	if (language) form.append("language", language);
-
-	const res = await fetch(url, {
-		method: "POST",
-		headers: {
-			...(key ? { Authorization: `Bearer ${key}` } : {}),
-		},
-		body: form,
-		signal: requestSignal,
-	});
-	if (!res.ok) {
-		const errText = await res.text().catch(() => "");
-		throw new Error(`API ${res.status}: ${errText.slice(0, 500)}`);
-	}
-	return res.text();
-}
-
-/** Extract the `text` field from a JSON envelope, or return the raw string. */
-export function parseTranscriptionResponse(raw: string): string {
-	try {
-		const parsed = JSON.parse(raw) as { text?: string };
-		return parsed.text ?? raw;
-	} catch {
-		return raw;
-	}
 }
 
 /** Resolve a possibly-relative `output_file` to an absolute path. */
@@ -242,7 +172,7 @@ export async function writeTranscriptionFile(outputFile: string, text: string): 
 export async function buildTranscriptionResult(
 	text: string,
 	model: string,
-	source: "api" | "curl-fallback",
+	provider: string,
 	outputFile: string | undefined,
 	file = "audio",
 	language?: string,
@@ -253,7 +183,7 @@ export async function buildTranscriptionResult(
 		file,
 		model,
 		...(language ? { language } : {}),
-		source,
+		provider,
 		chars: text.length,
 		truncated: !outputFile && text.length > CHAT_TRUNCATE_LIMIT,
 	};
@@ -296,14 +226,15 @@ export async function buildTranscriptionResult(
 	};
 }
 
+/** Transcribe with the saved default provider and model. Used by /stt. */
 export async function transcribeAudioFile(
-	filePath: string,
-	model = routerDefaults.sttModel,
-	language?: string,
+	file: string,
 	signal?: AbortSignal,
-): Promise<string> {
-	const raw = await apiMultipart("/audio/transcriptions", filePath, model, language, signal);
-	return parseTranscriptionResponse(raw);
+): Promise<{ text: string; provider: string; model: string }> {
+	const provider = resolveProvider("stt", voiceConfig.sttProvider);
+	const model = voiceConfig.sttModels[provider.id] || provider.defaultModel;
+	const text = await provider.transcribe({ file, model, signal });
+	return { text, provider: provider.id, model };
 }
 
 function compactChars(chars: number | undefined): string {
@@ -324,7 +255,7 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 			const chars = `${compactChars(details.chars)} chars`;
 			return details.output_path
 				? `${chars} · wrote ${basename(details.output_path)}`
-				: `${chars} · ${details.model}`;
+				: `${chars} · ${details.provider}/${details.model}`;
 		},
 		status: (details) =>
 			details.outcome === "error"
@@ -339,9 +270,9 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 		label: "Transcribe",
 		renderShell: "self",
 		description:
-			"Convert speech to text. Transcribes an audio file using the 9Router audio transcription API (Deepgram Nova 3). Optionally writes the full text to a file on disk.",
+			"Convert speech to text. Transcribes an audio file with the provider the user picked in /voice. Optionally writes the full text to a file on disk.",
 		promptSnippet:
-			"transcribe(file, output_file?, model?, language?) — Transcribe an audio file to text. Supports mp3, wav, flac, ogg, m4a, webm. Default model: dg/nova-3. If output_file is set, the full text is written to that path (parent dirs created) and only a short path summary is returned to the model.",
+			"transcribe(file, output_file?, model?, language?) — Transcribe an audio file to text. Supports mp3, wav, flac, ogg, m4a, webm. Omit model to use the /voice default. If output_file is set, the full text is written to that path (parent dirs created) and only a short path summary is returned to the model.",
 		renderCall: makeRenderCall("transcribe", (args) => basename(String(args.file ?? ""))),
 		renderResult: (result, options, theme, context) =>
 			renderTerminal(result, options, theme, {
@@ -364,10 +295,7 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 				}),
 			),
 			model: Type.Optional(
-				Type.String({
-					description: "Transcription model to use (default: dg/nova-3)",
-					default: DEFAULT_MODEL,
-				}),
+				Type.String({ description: "Provider model id. Omit to use the /voice default." }),
 			),
 			language: Type.Optional(
 				Type.String({
@@ -377,93 +305,49 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 		}),
 
 		async execute(_toolCallId, params, signal, onUpdate) {
-			const model = params.model ?? routerDefaults.sttModel;
 			const filePath = params.file;
-			const outputFile = params.output_file;
-			let apiMsg = "";
-
-			const run = async (source: "api" | "curl-fallback", raw: string) =>
-				buildTranscriptionResult(
-					parseTranscriptionResponse(raw),
-					model,
-					source,
-					outputFile,
-					filePath,
-					params.language,
-				);
-
+			const base = {
+				_type: "transcribeResult" as const,
+				file: filePath,
+				provider: voiceConfig.sttProvider,
+				model: params.model ?? "",
+				...(params.language ? { language: params.language } : {}),
+			};
 			try {
+				const provider = resolveProvider("stt", voiceConfig.sttProvider);
+				const model =
+					params.model?.trim() || voiceConfig.sttModels[provider.id] || provider.defaultModel;
+				Object.assign(base, { provider: provider.id, model });
 				onUpdate?.({
 					content: [
-						{
-							type: "text",
-							text: `Transcribing: ${filePath} (model: ${model})...`,
-						},
+						{ type: "text", text: `Transcribing ${filePath} with ${provider.id}/${model}...` },
 					],
-					details: {
-						_type: "transcribeResult",
-						outcome: "running",
-						file: filePath,
-						model,
-						...(params.language ? { language: params.language } : {}),
-					},
+					details: { ...base, outcome: "running" },
 				});
-
-				const raw = await apiMultipart(
-					"/audio/transcriptions",
-					filePath,
+				const text = await provider.transcribe({
+					file: filePath,
 					model,
-					params.language,
+					language: params.language,
 					signal,
-				);
-
-				return await run("api", raw);
-			} catch (apiErr: unknown) {
-				apiMsg = apiErr instanceof Error ? apiErr.message : String(apiErr);
-				onUpdate?.({
-					content: [
-						{
-							type: "text",
-							text: `API failed: ${apiMsg}\nFalling back to curl...`,
-						},
-					],
-					details: undefined,
 				});
-			}
-
-			// curl fallback — uses multipart form upload
-			try {
-				const curlArgs = [
-					"-X",
-					"POST",
-					...(auth() ? ["-H", `Authorization: Bearer ${auth()}`] : []),
-					"-F",
-					`file=@${filePath}`,
-					"-F",
-					`model=${model}`,
-					...(params.language ? ["-F", `language=${params.language}`] : []),
-					`${routerBaseUrl()}/audio/transcriptions`,
-				];
-
-				const raw = await curl(curlArgs);
-				return await run("curl-fallback", raw);
-			} catch (curlErr: unknown) {
-				const curlMsg = curlErr instanceof Error ? curlErr.message : String(curlErr);
+				return await buildTranscriptionResult(
+					text,
+					model,
+					provider.id,
+					params.output_file,
+					filePath,
+					params.language,
+				);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
 				return {
 					content: [
 						{
 							type: "text",
-							text: `Transcription failed (both API and curl).\nAPI: ${apiMsg}\nCurl: ${curlMsg}`,
+							text: `Transcription failed (${base.provider}/${base.model}): ${message}`,
 						},
 					],
-					details: {
-						_type: "transcribeResult",
-						outcome: signal?.aborted ? "cancelled" : "error",
-						file: filePath,
-						model,
-						...(params.language ? { language: params.language } : {}),
-						source: "failed",
-					},
+					details: { ...base, outcome: signal?.aborted ? "cancelled" : "error" },
 					isError: true,
 				};
 			}

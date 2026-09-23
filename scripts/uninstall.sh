@@ -87,6 +87,7 @@ npm:@xynogen/pix-aria2
 npm:@xynogen/pix-proc
 npm:@xynogen/pix-search
 npm:@xynogen/pix-web
+npm:@xynogen/pix-voice
 npm:@xynogen/pix-gate
 "
 

@@ -1,10 +1,9 @@
 /**
- * pix-9router — Pi extension bundle
+ * pix-9router — Pi extension
  *
- * Registers:
- *   - 9router provider  (model list from self-hosted router API)
- *   - transcribe tool   (speech-to-text via audio transcription API)
- *   - tts tool          (text-to-speech via audio speech API)
+ * Registers the 9router model provider (model list from the self-hosted router API).
+ * Speech tools moved to @xynogen/pix-voice. Web search and fetch live in
+ * @xynogen/pix-web. Both reuse the same 9Router environment variables.
  *
  * Environment:
  *   NINEROUTER_URL   — canonical base URL
@@ -13,16 +12,8 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerRouterCommand from "./command.js";
 import registerProvider from "./provider.js";
-import registerSttCommand from "./stt-command.js";
-import registerTranscribe from "./transcribe.js";
-import registerTts from "./tts.js";
 
 export default async function (pi: ExtensionAPI): Promise<void> {
 	await registerProvider(pi);
-	registerRouterCommand(pi);
-	registerSttCommand(pi);
-	registerTranscribe(pi);
-	registerTts(pi);
 }

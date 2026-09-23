@@ -4,10 +4,9 @@ import { chmod, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { mimeType, parseTranscriptionResponse } from "./http.js";
 import registerTranscribe, {
 	buildTranscriptionResult,
-	mimeType,
-	parseTranscriptionResponse,
 	resolveOutputPath,
 	validateOutputPath,
 	writeTranscriptionFile,
@@ -201,7 +200,7 @@ describe("buildTranscriptionResult", () => {
 
 	it("returns inline text (truncated at 50_000) when no output_file is set", async () => {
 		const text = "a".repeat(60_000);
-		const result = await buildTranscriptionResult(text, "dg/nova-3", "api", undefined);
+		const result = await buildTranscriptionResult(text, "dg/nova-3", "9router", undefined);
 		expect(result.content).toHaveLength(1);
 		expect(result.content[0]?.type).toBe("text");
 		expect(result.content[0]?.text.length).toBe(50_000);
@@ -209,7 +208,7 @@ describe("buildTranscriptionResult", () => {
 			_type: "transcribeResult",
 			outcome: "success",
 			model: "dg/nova-3",
-			source: "api",
+			provider: "9router",
 			chars: 60_000,
 			truncated: true,
 		});
@@ -217,7 +216,7 @@ describe("buildTranscriptionResult", () => {
 
 	it("returns inline text (untruncated) when short and no output_file", async () => {
 		const text = "short transcript";
-		const result = await buildTranscriptionResult(text, "dg/nova-3", "api", undefined);
+		const result = await buildTranscriptionResult(text, "dg/nova-3", "9router", undefined);
 		expect(result.content[0]?.text).toBe("short transcript");
 		expect(result.details.chars).toBe(text.length);
 	});
@@ -225,7 +224,7 @@ describe("buildTranscriptionResult", () => {
 	it("writes full text to file and returns short path summary when output_file is set", async () => {
 		const text = "a".repeat(100_000); // way over 50k
 		const file = join(tmpRoot, "result-a.txt");
-		const result = await buildTranscriptionResult(text, "dg/nova-3", "api", file);
+		const result = await buildTranscriptionResult(text, "dg/nova-3", "9router", file);
 
 		// content is a short summary, not the full text
 		expect(result.content).toHaveLength(1);
@@ -242,20 +241,19 @@ describe("buildTranscriptionResult", () => {
 		// details includes resolved absolute path
 		expect(result.details.output_path).toBe(file);
 		expect(result.details.chars).toBe(100_000);
-		expect(result.details.source).toBe("api");
+		expect(result.details.provider).toBe("9router");
 	});
 
-	it("passes through curl-fallback source label", async () => {
-		const text = "hi";
-		const result = await buildTranscriptionResult(text, "dg/nova-3", "curl-fallback", undefined);
-		expect(result.details.source).toBe("curl-fallback");
+	it("names the provider that ran", async () => {
+		const result = await buildTranscriptionResult("hi", "whisper-1", "openai", undefined);
+		expect(result.details).toMatchObject({ provider: "openai", model: "whisper-1" });
 	});
 
 	it("relative output_file is resolved against cwd and created", async () => {
 		const text = "relative path content";
 		const relDir = join(tmpRoot, "rel", "sub");
 		const relFile = join(relDir, "out.txt");
-		const result = await buildTranscriptionResult(text, "dg/nova-3", "api", relFile);
+		const result = await buildTranscriptionResult(text, "dg/nova-3", "9router", relFile);
 
 		expect(result.details.output_path).toBe(relFile);
 		expect(await readFile(relFile, "utf-8")).toBe("relative path content");
@@ -390,7 +388,7 @@ describe("buildTranscriptionResult — write failure path", () => {
 		const result = await buildTranscriptionResult(
 			text,
 			"dg/nova-3",
-			"api",
+			"9router",
 			"/etc/passwd",
 			"meeting.mp3",
 		);
@@ -464,14 +462,14 @@ describe("transcribe compact renderer", () => {
 				outcome: "success",
 				file: "/recordings/meeting.mp3",
 				model: "dg/nova-3",
-				source: "api",
+				provider: "9router",
 				chars: 12_400,
 				truncated: false,
 			},
 		});
 		expect(inline).toContain("✓");
 		expect(inline).toContain("meeting.mp3");
-		expect(inline).toContain("12.4K chars · dg/nova-3");
+		expect(inline).toContain("12.4K chars · 9router/dg/nova-3");
 
 		const written = renderTranscribe({
 			content: [{ type: "text", text: "Transcribed 12400 chars → /tmp/notes.md" }],
@@ -480,7 +478,7 @@ describe("transcribe compact renderer", () => {
 				outcome: "success",
 				file: "/recordings/meeting.mp3",
 				model: "dg/nova-3",
-				source: "api",
+				provider: "9router",
 				chars: 12_400,
 				truncated: false,
 				output_path: "/tmp/notes.md",
@@ -500,7 +498,7 @@ describe("transcribe compact renderer", () => {
 				outcome: "error",
 				file: "/recordings/meeting.mp3",
 				model: "dg/nova-3",
-				source: "api",
+				provider: "9router",
 				chars: 20,
 				truncated: false,
 				write_error: "permission denied",
