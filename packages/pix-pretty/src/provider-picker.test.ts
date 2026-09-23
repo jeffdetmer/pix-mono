@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { type ProviderPickerOptions, renderProviderRows } from "./provider-picker.ts";
+import {
+	type ProviderPickerOptions,
+	renderProviderRows,
+	renderSettingsRows,
+} from "./provider-picker.ts";
 
 // Tag every color role so assertions check the semantic theme role, not ANSI bytes.
 const theme = { fg: (role: string, text: string) => `<${role}>${text}</${role}>` };
@@ -23,6 +27,29 @@ function options(): ProviderPickerOptions {
 		],
 	};
 }
+
+describe("settings overview rows", () => {
+	test("groups rows by section and colors each value by its tone", () => {
+		const { lines, rowLines } = renderSettingsRows(
+			[
+				{ key: "a", section: "Web search", label: "provider", value: "exa · connected" },
+				{ key: "b", section: "Web search", label: "9router model", value: "exa", tone: "muted" },
+				{ key: "c", section: "Web fetch", label: "provider", value: "jina", tone: "warning" },
+			],
+			theme,
+			0,
+		);
+		expect(lines).toEqual([
+			"<dim>  Web search</dim>",
+			"<accent>→</accent> <accent>provider     </accent>  <success>exa · connected</success>",
+			"  <text>9router model</text>  <muted>exa</muted>",
+			"",
+			"<dim>  Web fetch</dim>",
+			"  <text>provider     </text>  <warning>jina</warning>",
+		]);
+		expect(rowLines).toEqual([1, 2, 5]);
+	});
+});
 
 describe("provider picker rows", () => {
 	test("colors each provider status by its state", () => {

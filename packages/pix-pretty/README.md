@@ -49,9 +49,10 @@ problem on terminals without a Nerd Font, becomes a one-file edit here.
   `{ action: "approved" | "denied" | "timeout", password? }`. Padded with
   `Box` `paddingX=2`, `paddingY=1`. The simpler `./confirm` export is the
   plain boolean Yes/No dialog.
-- **Provider picker** (`./provider-picker`) — the color-coded provider tree
-  shared by `/fetch`, `/search`, and `/voice`: default dot, connection status,
-  and expandable shell variables with set state and an export example.
+- **Provider picker** (`./provider-picker`) — the color-coded settings UI
+  shared by `/web` and `/voice`: a sectioned settings overview, and a provider
+  tree with a default dot, connection status, and expandable shell variables
+  with set state and an export example.
 
 UI features that used to live here have moved to [`pix-display`](packages/pix-display):
 paste chip rendering and reasoning-tag (`<think>`/`<thinking>`) → native

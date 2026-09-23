@@ -1,5 +1,7 @@
 /**
- * pix-pretty/provider-picker — color-coded provider tree used by /fetch, /search, and /voice.
+ * pix-pretty/provider-picker — color-coded provider settings used by /web and /voice.
+ *
+ * `showSettingsPicker` shows the sectioned overview. `showProviderPicker` shows the tree:
  *
  * One row per provider: default dot, status (connected / no API key needed / N variables
  * not set), and an expandable list of shell variables with set state and an export
@@ -142,6 +144,84 @@ export function renderProviderRows(
 		if (index === state.cursor) selected = { start, end: lines.length };
 	});
 	return { lines, nodes, selected };
+}
+
+export interface SettingsRow {
+	key: string;
+	section: string;
+	label: string;
+	value: string;
+	/** Theme role for the value. Default `success`. */
+	tone?: "success" | "warning" | "muted";
+}
+
+/** Render the sectioned settings overview body. Exported for tests. */
+export function renderSettingsRows(
+	rows: SettingsRow[],
+	theme: Pick<PickerTheme, "fg">,
+	selected: number,
+): { lines: string[]; rowLines: number[] } {
+	const labelWidth = Math.max(...rows.map((row) => row.label.length));
+	const lines: string[] = [];
+	const rowLines: number[] = [];
+	let section = "";
+	rows.forEach((row, index) => {
+		if (row.section !== section) {
+			if (section) lines.push("");
+			lines.push(theme.fg("dim", `  ${row.section}`));
+			section = row.section;
+		}
+		const active = index === selected;
+		rowLines[index] = lines.length;
+		lines.push(
+			`${active ? theme.fg("accent", "→") : " "} ${theme.fg(active ? "accent" : "text", row.label.padEnd(labelWidth))}  ${theme.fg(row.tone ?? "success", row.value)}`,
+		);
+	});
+	return { lines, rowLines };
+}
+
+/** Show the sectioned settings overview. Resolves the chosen row key, or null on escape. */
+export async function showSettingsPicker(
+	ui: ProviderPickerUI,
+	title: string,
+	rows: SettingsRow[],
+): Promise<string | null> {
+	const result = await ui.custom<string | null>(
+		(tui, theme, keybindings, done) => {
+			let selected = 0;
+			return {
+				render(width: number) {
+					const body = renderSettingsRows(rows, theme, selected);
+					return frameModal({
+						width: modalWidth(width),
+						maxHeight: terminalModalHeight(tui.terminal?.rows),
+						minHeight: MIN_MODAL_HEIGHT,
+						title,
+						titleColor: (text) => theme.fg("accent", theme.bold(text)),
+						header: [""],
+						body: body.lines,
+						footer: ["", theme.fg("muted", "↑↓ move · enter change · esc close")],
+						selectedBodyLine: body.rowLines[selected],
+						color: (text) => theme.fg("accent", text),
+						bg: (text) => theme.bg("customMessageBg", text),
+					}).lines;
+				},
+				invalidate() {},
+				handleInput(data: string) {
+					if (keybindings.matches(data, "tui.select.cancel")) return done(null);
+					if (matchesKey(data, Key.enter)) return done(rows[selected]?.key ?? null);
+					if (keybindings.matches(data, "tui.select.up"))
+						selected = (selected - 1 + rows.length) % rows.length;
+					else if (keybindings.matches(data, "tui.select.down"))
+						selected = (selected + 1) % rows.length;
+					else return;
+					tui.requestRender();
+				},
+			};
+		},
+		{ overlay: true, overlayOptions: modalOverlayOptions() },
+	);
+	return result ?? null;
 }
 
 /** Show the provider tree. Resolves the chosen action, or null on escape. */

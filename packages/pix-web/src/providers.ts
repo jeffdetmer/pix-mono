@@ -17,7 +17,7 @@ export interface FetchProvider {
 	id: string;
 	fetch: (request: FetchRequest) => Promise<FetchResponse>;
 	isConfigured?: () => boolean;
-	/** Env var names this provider reads, editable from the /fetch settings modal. */
+	/** Env var names this provider reads, shown in the /web settings view. */
 	env?: string[];
 }
 

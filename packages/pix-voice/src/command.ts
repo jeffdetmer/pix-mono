@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, type SelectItem, SelectList } from "@earendil-works/pi-tui";
+import { matchesKey, type SelectItem, SelectList } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import {
 	frameModal,
@@ -10,7 +10,11 @@ import {
 	selectListTheme,
 	terminalModalHeight,
 } from "@xynogen/pix-pretty/modal-frame";
-import { showProviderPicker } from "@xynogen/pix-pretty/provider-picker";
+import {
+	type SettingsRow,
+	showProviderPicker,
+	showSettingsPicker,
+} from "@xynogen/pix-pretty/provider-picker";
 import { groupVoice } from "./catalog.js";
 import { saveConfig, voiceConfig } from "./config.js";
 import { isConfigured, listProviders, type VoiceKind } from "./providers.js";
@@ -70,76 +74,6 @@ async function pick(
 	);
 }
 
-interface SettingRow {
-	key: string;
-	section: string;
-	label: string;
-	value: string;
-	/** Theme role for the value. Default `success`. */
-	tone?: "success" | "warning" | "muted";
-}
-
-async function pickSetting(ctx: ExtensionContext, rows: SettingRow[]): Promise<string | undefined> {
-	return (
-		(await ctx.ui.custom<string | null>(
-			(tui, theme, keybindings, done) => {
-				let selected = 0;
-				const move = (direction: -1 | 1) => {
-					selected = (selected + direction + rows.length) % rows.length;
-				};
-				return {
-					render(width: number) {
-						const labelWidth = Math.max(...rows.map((row) => row.label.length));
-						const body: string[] = [];
-						const rowLines: number[] = [];
-						let section = "";
-						for (let index = 0; index < rows.length; index++) {
-							const row = rows[index];
-							if (!row) continue;
-							if (row.section !== section) {
-								if (section) body.push("");
-								body.push(theme.fg("dim", `  ${row.section}`));
-								section = row.section;
-							}
-							const active = index === selected;
-							rowLines[index] = body.length;
-							body.push(
-								`${active ? theme.fg("accent", "→") : " "} ${theme.fg(active ? "accent" : "text", row.label.padEnd(labelWidth))}  ${theme.fg(row.tone ?? "success", row.value)}`,
-							);
-						}
-						const result = frameModal({
-							width: modalWidth(width),
-							maxHeight: terminalModalHeight(tui.terminal?.rows),
-							minHeight: MIN_MODAL_HEIGHT,
-							title: `${icon("settings")} Voice Settings`,
-							titleColor: (text) => theme.fg("accent", theme.bold(text)),
-							header: [""],
-							body,
-							footer: ["", theme.fg("muted", "↑↓ move · enter change · esc close")],
-							selectedBodyLine: rowLines[selected],
-							color: (text) => theme.fg("accent", text),
-							bg: (text) => theme.bg("customMessageBg", text),
-						});
-						return result.lines;
-					},
-					invalidate: () => {},
-					handleInput(data: string) {
-						if (keybindings.matches(data, "tui.select.cancel")) done(null);
-						else if (keybindings.matches(data, "tui.select.up")) move(-1);
-						else if (keybindings.matches(data, "tui.select.down")) move(1);
-						else if (matchesKey(data, "enter")) done(rows[selected]?.key ?? null);
-						else if (matchesKey(data, Key.left) || matchesKey(data, Key.right))
-							done(rows[selected]?.key ?? null);
-						else return;
-						tui.requestRender();
-					},
-				};
-			},
-			{ overlay: true, overlayOptions: modalOverlayOptions() },
-		)) ?? undefined
-	);
-}
-
 const MANUAL = "enter a model id…";
 
 function selectedProvider(kind: VoiceKind) {
@@ -151,7 +85,7 @@ function selectedProvider(kind: VoiceKind) {
 }
 
 /** Provider value plus its status color: connected, or which variables are missing. */
-function providerValue(kind: VoiceKind): Pick<SettingRow, "value" | "tone"> {
+function providerValue(kind: VoiceKind): Pick<SettingsRow, "value" | "tone"> {
 	const id = kind === "stt" ? voiceConfig.sttProvider : voiceConfig.ttsProvider;
 	const provider = selectedProvider(kind);
 	if (!provider) return { value: `${id} · not configured`, tone: "warning" };
@@ -170,7 +104,7 @@ function modelLabel(kind: VoiceKind): string {
 
 const ROUTER_ALIASES = { NINEROUTER_URL: "ROUTER_API_BASE", NINEROUTER_KEY: "ROUTER_API_KEY" };
 
-/** Color-coded provider tree, the same view as /fetch and /search. */
+/** Color-coded provider tree, the same view as /web. */
 async function pickProvider(ctx: ExtensionContext, kind: VoiceKind): Promise<void> {
 	const models = kind === "stt" ? voiceConfig.sttModels : voiceConfig.ttsModels;
 	const action = await showProviderPicker(ctx.ui, {
@@ -247,7 +181,7 @@ export default function registerVoiceCommand(pi: ExtensionAPI): void {
 		description: "Set the speech-to-text and text-to-speech providers, models, and playback",
 		handler: async (_args, ctx) => {
 			while (true) {
-				const setting = await pickSetting(ctx, [
+				const setting = await showSettingsPicker(ctx.ui, `${icon("settings")} Voice Settings`, [
 					{
 						key: "sttProvider",
 						section: "Speech to text",

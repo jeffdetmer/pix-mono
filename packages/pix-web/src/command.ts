@@ -1,7 +1,10 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import {
 	type ProviderPickerOptions,
+	type SettingsRow,
 	showProviderPicker,
+	showSettingsPicker,
 } from "@xynogen/pix-pretty/provider-picker";
 import { fetchConfig, saveFetchConfig } from "./config.js";
 import { listAllFetchProviders } from "./providers.js";
@@ -10,9 +13,9 @@ import { listAllSearchProviders } from "./search-providers.js";
 
 type ProviderRow = { id: string; configured: boolean; env: string[] };
 type ProviderConfig = { provider: string; nineRouterModel: string };
-type PickerSettings = {
-	command: "fetch" | "search";
-	title: string;
+type Service = {
+	kind: "fetch" | "search";
+	section: string;
 	config: ProviderConfig;
 	save: (config: ProviderConfig) => void;
 	providers: () => ProviderRow[];
@@ -20,100 +23,12 @@ type PickerSettings = {
 	noKey: Set<string>;
 };
 
-function providerRows(settings: PickerSettings): ProviderRow[] {
-	const providers = settings.providers().sort((a, b) => {
-		const aIndex = settings.order.indexOf(a.id);
-		const bIndex = settings.order.indexOf(b.id);
-		if (aIndex === -1 && bIndex === -1) return 0;
-		if (aIndex === -1) return 1;
-		if (bIndex === -1) return -1;
-		return aIndex - bIndex;
-	});
-	return [{ id: "auto", configured: true, env: [] }, ...providers];
-}
-
-const LEGACY_ENV: Record<string, string> = {
-	NINEROUTER_URL: "ROUTER_API_BASE",
-	NINEROUTER_KEY: "ROUTER_API_KEY",
-};
-
-function envExample(name: string): string {
-	if (name === "SEARXNG_URL") return `export ${name}="https://search.example.com"`;
-	if (name === "GOOGLE_PSE_CX") return `export ${name}="your-search-engine-id"`;
-	return name.endsWith("_URL")
-		? `export ${name}="https://9router.example.com/v1"`
-		: `export ${name}="your-api-key"`;
-}
-
 const NINE_ROUTER = "9router";
 
-function pickerOptions(settings: PickerSettings): ProviderPickerOptions {
-	return {
-		title: settings.title,
-		subtitle: `Default ${settings.command} provider \u00b7 shell variables \u00b7 provider settings`,
-		rows: providerRows(settings).map((row) => ({
-			...row,
-			noKey: settings.noKey.has(row.id),
-			model: row.id === NINE_ROUTER ? settings.config.nineRouterModel : undefined,
-		})),
-		current: settings.config.provider,
-		envAliases: LEGACY_ENV,
-		envExample,
-		modelEdit: "inline",
-	};
-}
-
-function registerProviderCommand(pi: ExtensionAPI, settings: PickerSettings): void {
-	pi.registerCommand(settings.command, {
-		description: `Set the default ${settings.command} provider and 9Router model`,
-		handler: async (_args, ctx) => {
-			if (typeof ctx.ui.custom !== "function") {
-				const provider = await ctx.ui.select(
-					`Default ${settings.command} provider`,
-					providerRows(settings).map(({ id }) => id),
-				);
-				if (provider) {
-					settings.config.provider = provider;
-					settings.save(settings.config);
-				}
-				return;
-			}
-
-			while (true) {
-				const action = await showProviderPicker(ctx.ui, pickerOptions(settings));
-				if (!action) return;
-				if (action.kind === "model") {
-					if (!action.value) continue;
-					settings.config.nineRouterModel = action.value;
-					settings.save(settings.config);
-					ctx.ui.notify(`Default model: ${settings.config.nineRouterModel}`, "info");
-					continue;
-				}
-				settings.config.provider = action.id;
-				settings.save(settings.config);
-				ctx.ui.notify(`Default provider: ${action.id}`, "info");
-				return;
-			}
-		},
-	});
-}
-
-export function registerFetchCommand(pi: ExtensionAPI): void {
-	registerProviderCommand(pi, {
-		command: "fetch",
-		title: "Web Fetch",
-		config: fetchConfig,
-		save: saveFetchConfig,
-		providers: listAllFetchProviders,
-		order: ["curl", "jina-reader", "9router"],
-		noKey: new Set(["curl", "jina-reader"]),
-	});
-}
-
-export function registerSearchCommand(pi: ExtensionAPI): void {
-	registerProviderCommand(pi, {
-		command: "search",
-		title: "Web Search",
+const SERVICES: Service[] = [
+	{
+		kind: "search",
+		section: "Web search",
 		config: searchConfig,
 		save: saveSearchConfig,
 		providers: listAllSearchProviders,
@@ -133,5 +48,138 @@ export function registerSearchCommand(pi: ExtensionAPI): void {
 			"ollama-search",
 		],
 		noKey: new Set(["searxng"]),
+	},
+	{
+		kind: "fetch",
+		section: "Web fetch",
+		config: fetchConfig,
+		save: saveFetchConfig,
+		providers: listAllFetchProviders,
+		order: ["curl", "jina-reader", "9router"],
+		noKey: new Set(["curl", "jina-reader"]),
+	},
+];
+
+const LEGACY_ENV: Record<string, string> = {
+	NINEROUTER_URL: "ROUTER_API_BASE",
+	NINEROUTER_KEY: "ROUTER_API_KEY",
+};
+
+function envExample(name: string): string {
+	if (name === "SEARXNG_URL") return `export ${name}="https://search.example.com"`;
+	if (name === "GOOGLE_PSE_CX") return `export ${name}="your-search-engine-id"`;
+	return name.endsWith("_URL")
+		? `export ${name}="https://9router.example.com/v1"`
+		: `export ${name}="your-api-key"`;
+}
+
+function providerRows(service: Service): ProviderRow[] {
+	const rank = (id: string) => {
+		const index = service.order.indexOf(id);
+		return index === -1 ? service.order.length : index;
+	};
+	const providers = service.providers().sort((a, b) => rank(a.id) - rank(b.id));
+	return [{ id: "auto", configured: true, env: [] }, ...providers];
+}
+
+/** Provider value plus its status color, the same as the /voice overview. */
+function providerValue(service: Service): Pick<SettingsRow, "value" | "tone"> {
+	const id = service.config.provider;
+	if (id === "auto") return { value: "auto \u00b7 first configured", tone: "success" };
+	const row = service.providers().find((provider) => provider.id === id);
+	if (!row) return { value: `${id} \u00b7 not registered`, tone: "warning" };
+	if (!row.configured) return { value: `${id} \u00b7 set ${row.env.join(", ")}`, tone: "warning" };
+	const status = service.noKey.has(id) ? "no API key needed" : "connected";
+	return { value: `${id} \u00b7 ${status}`, tone: "success" };
+}
+
+function pickerOptions(service: Service): ProviderPickerOptions {
+	return {
+		title: `${icon("settings")} ${service.section}`,
+		subtitle: `Default ${service.kind} provider \u00b7 shell variables \u00b7 provider settings`,
+		rows: providerRows(service).map((row) => ({
+			...row,
+			noKey: service.noKey.has(row.id),
+			model: row.id === NINE_ROUTER ? service.config.nineRouterModel : undefined,
+		})),
+		current: service.config.provider,
+		envAliases: LEGACY_ENV,
+		envExample,
+		modelEdit: "inline",
+	};
+}
+
+async function editService(ctx: ExtensionContext, service: Service): Promise<void> {
+	while (true) {
+		const action = await showProviderPicker(ctx.ui, pickerOptions(service));
+		if (!action) return;
+		if (action.kind === "model") {
+			if (!action.value) continue;
+			service.config.nineRouterModel = action.value;
+			service.save(service.config);
+			continue;
+		}
+		service.config.provider = action.id;
+		service.save(service.config);
+		return;
+	}
+}
+
+function settingsRows(): SettingsRow[] {
+	return SERVICES.flatMap((service) => [
+		{
+			key: `${service.kind}:provider`,
+			section: service.section,
+			label: "provider",
+			...providerValue(service),
+		},
+		{
+			key: `${service.kind}:model`,
+			section: service.section,
+			label: "9router model",
+			value: service.config.nineRouterModel,
+			tone: service.config.provider === NINE_ROUTER ? "success" : "muted",
+		},
+	]);
+}
+
+export function registerWebCommand(pi: ExtensionAPI): void {
+	pi.registerCommand("web", {
+		description: "Set the default web search and fetch providers and 9Router models",
+		handler: async (_args, ctx) => {
+			if (typeof ctx.ui.custom !== "function") {
+				for (const service of SERVICES) {
+					const provider = await ctx.ui.select(
+						`Default ${service.kind} provider`,
+						providerRows(service).map(({ id }) => id),
+					);
+					if (!provider) return;
+					service.config.provider = provider;
+					service.save(service.config);
+				}
+				return;
+			}
+			while (true) {
+				const key = await showSettingsPicker(
+					ctx.ui,
+					`${icon("settings")} Web Settings`,
+					settingsRows(),
+				);
+				if (!key) return;
+				const [kind, field] = key.split(":");
+				const service = SERVICES.find((item) => item.kind === kind);
+				if (!service) continue;
+				if (field === "provider") {
+					await editService(ctx, service);
+					continue;
+				}
+				const value = (
+					await ctx.ui.input(`9router ${service.kind} model`, service.config.nineRouterModel)
+				)?.trim();
+				if (!value) continue;
+				service.config.nineRouterModel = value;
+				service.save(service.config);
+			}
+		},
 	});
 }

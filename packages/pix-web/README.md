@@ -23,12 +23,12 @@ fetch({
 });
 ```
 
-The user picks the provider, not the model. Use `/fetch` to set the default
+The user picks the provider, not the model. Use `/web` to set the default
 fetch provider and the 9Router fetch model. When no API provider is configured,
 automatic selection uses `curl`. Other packages can register providers through
 `@xynogen/pix-web/providers`.
 
-Use `/fetch` to set the package's default provider and 9Router fetch model.
+`/web` sets the fetch and search defaults in one settings view.
 The settings stay separate from `pix-9router` in `~/.pi/agent/fetch.json`:
 
 ```json
@@ -102,7 +102,7 @@ search({
 });
 ```
 
-The user picks the provider, not the model. Use `/search` to set the default
+The user picks the provider, not the model. Use `/web` to set the default
 search provider and the 9Router search model. The 9Router provider handles its
 own fallback. When no API provider is configured, automatic selection uses
 SearXNG.
