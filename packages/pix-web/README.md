@@ -89,6 +89,7 @@ Built-in search providers:
 - Linkup through `LINKUP_API_KEY`
 - Xquik (X posts) through `XQUIK_API_KEY`
 - Ollama Search through `OLLAMA_API_KEY`
+- GLM (z.ai Coding plan) through `ZAI_API_KEY`
 - 9Router through `NINEROUTER_URL` and `NINEROUTER_KEY`
 
 The model calls `search` with three fields only:

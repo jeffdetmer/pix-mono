@@ -38,6 +38,7 @@ describe("built-in search providers", () => {
 			"searchapi",
 			"xquik",
 			"ollama-search",
+			"glm",
 		]) {
 			expect(ids.has(id)).toBe(true);
 		}
@@ -100,6 +101,38 @@ describe("built-in search providers", () => {
 			result: [{ title: "Pi", url: "https://example.com", snippet: "agent" }],
 		});
 		delete process.env.BRAVE_API_KEY;
+	});
+
+	test("builds a GLM MCP request and unwraps its text envelope", async () => {
+		process.env.ZAI_API_KEY = "zai-key";
+		let captured: { body: Record<string, unknown>; headers: Headers } | undefined;
+		globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+			captured = { body: JSON.parse(String(init?.body)), headers: new Headers(init?.headers) };
+			const hits = [
+				{ title: "Pi", link: "https://example.com", content: "agent", publish_date: "2024" },
+			];
+			return Response.json({ result: { content: [{ type: "text", text: JSON.stringify(hits) }] } });
+		}) as unknown as typeof fetch;
+		registerBuiltinSearchProviders();
+
+		const result = await getSearchProvider("glm")?.search({
+			query: "Pi",
+			searchType: "web",
+			maxResults: 3,
+		});
+
+		expect({
+			auth: captured?.headers.get("authorization"),
+			method: captured?.body.method,
+			params: captured?.body.params,
+			result,
+		}).toEqual({
+			auth: "Bearer zai-key",
+			method: "tools/call",
+			params: { name: "web_search_prime", arguments: { search_query: "Pi", count: 3 } },
+			result: [{ title: "Pi", url: "https://example.com", snippet: "agent", publishedAt: "2024" }],
+		});
+		delete process.env.ZAI_API_KEY;
 	});
 
 	test("offers SearXNG without an API key when its URL is set", () => {

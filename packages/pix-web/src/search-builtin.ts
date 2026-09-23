@@ -314,6 +314,53 @@ const ollamaSearch: SearchProvider = {
 	},
 };
 
+// ── GLM Coding plan web search (MCP JSON-RPC, reuses the z.ai chat key) ────
+
+const glm: SearchProvider = {
+	id: "glm",
+	env: ["ZAI_API_KEY"],
+	isConfigured: () => Boolean(process.env.ZAI_API_KEY),
+	async search(request) {
+		const data = await jsonResponse("https://api.z.ai/api/mcp/web_search_prime/mcp", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Accept: "application/json, text/event-stream",
+				Authorization: `Bearer ${env("ZAI_API_KEY")}`,
+			},
+			body: JSON.stringify({
+				jsonrpc: "2.0",
+				id: `pix-${Date.now()}`,
+				method: "tools/call",
+				params: {
+					name: "web_search_prime",
+					arguments: { search_query: request.query, count: request.maxResults },
+				},
+			}),
+			signal: request.signal,
+		});
+		// The MCP envelope carries the result list as JSON text in result.content[0].text.
+		const result = data.result as { content?: Array<{ text?: unknown }> } | undefined;
+		const raw = text(result?.content?.[0]?.text);
+		let payload: unknown = data;
+		if (raw) {
+			try {
+				payload = JSON.parse(raw);
+			} catch {
+				throw new Error(`glm returned non-JSON content: ${raw.slice(0, 200)}`);
+			}
+		}
+		const record = payload as Record<string, unknown>;
+		const list = Array.isArray(payload) ? items(payload) : items(record.results ?? record.news);
+		return list.slice(0, request.maxResults).map((item) => ({
+			title: text(item.title),
+			url: text(item.link) || text(item.url),
+			snippet: text(item.content),
+			...(text(item.publish_date) ? { publishedAt: text(item.publish_date) } : {}),
+		}));
+	},
+};
+
 // ── 9Router aggregator (provider IS the model) ──────────────────────────────
 
 function routerBaseUrl(): string {
@@ -361,6 +408,7 @@ export function registerBuiltinSearchProviders(): void {
 		searchapi,
 		xquik,
 		ollamaSearch,
+		glm,
 	]) {
 		registerSearchProvider(provider);
 	}
