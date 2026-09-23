@@ -17,20 +17,20 @@
  */
 
 import { join } from "node:path";
-import { CACHE_DIR, DataSource } from "../../pix-data/src/index.ts";
+import { CACHE_DIR, DataSource } from "@xynogen/pix-data";
 
 export type {
 	ModelGrepModel,
 	ModelsDevApi,
 	ModelsDevModel,
-} from "../../pix-data/src/index.ts";
+} from "@xynogen/pix-data";
 // Re-export the shared models.dev API so existing consumers (provider.ts)
 // can keep importing these names from "./data".
 export {
 	buildModelsDevIndex,
 	fetchModelsDevIndex,
 	lookupInIndex,
-} from "../../pix-data/src/index.ts";
+} from "@xynogen/pix-data";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

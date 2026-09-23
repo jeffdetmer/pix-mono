@@ -155,7 +155,14 @@ export interface Recording {
 	stop(): Promise<number | undefined>;
 }
 
-export function startRecording(device: string, onLevel: (db: number) => void): Recording {
+/** Keep the end of the ffmpeg log for the error message. The level meter writes a line per frame. */
+const STDERR_TAIL = 4096;
+
+export function startRecording(
+	device: string,
+	onLevel: (db: number) => void,
+	onExit?: (error: Error) => void,
+): Recording {
 	const ffmpeg = findExecutableSync("ffmpeg");
 	if (!ffmpeg) throw new Error("Microphone recording needs ffmpeg on PATH.");
 	const path = join(tmpdir(), `pix-stt-${randomUUID()}.wav`);
@@ -166,24 +173,35 @@ export function startRecording(device: string, onLevel: (db: number) => void): R
 	let lastLevel: number | undefined;
 	child.stderr.on("data", (data) => {
 		const text = String(data);
-		stderr += text;
+		stderr = (stderr + text).slice(-STDERR_TAIL);
 		const level = parseRmsDb(text);
 		if (level !== undefined) {
 			lastLevel = level;
 			onLevel(level);
 		}
 	});
+	let stopping = false;
 	const exit = new Promise<void>((resolve, reject) => {
 		child.once("error", reject);
 		child.once("exit", (code) =>
 			code === 0 ? resolve() : reject(new Error(stderr.trim() || `ffmpeg exited ${code}`)),
 		);
 	});
+	// ffmpeg can die before stop(), for example on a bad device. Report it at once.
+	exit.then(
+		() => (stopping ? undefined : onExit?.(new Error("ffmpeg stopped before the recording ended"))),
+		(error: Error) => (stopping ? undefined : onExit?.(error)),
+	);
+	// An exited ffmpeg closes stdin. A late write must not crash Pi with EPIPE.
+	child.stdin.on("error", () => undefined);
 	return {
 		path,
 		async stop() {
-			child.stdin.write("q");
-			child.stdin.end();
+			stopping = true;
+			if (child.exitCode === null && child.signalCode === null) {
+				child.stdin.write("q");
+				child.stdin.end();
+			}
 			await exit;
 			return lastLevel;
 		},

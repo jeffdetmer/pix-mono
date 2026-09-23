@@ -47,7 +47,7 @@ type Phase =
 			level?: number;
 			limit: ReturnType<typeof setTimeout>;
 	  }
-	| { kind: "transcribing"; step: string };
+	| { kind: "transcribing"; step: string; abort: AbortController };
 
 let phase: Phase | undefined;
 let redraw: (() => void) | undefined;
@@ -105,10 +105,28 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 	if (!ctx.hasUI || phase?.kind === "transcribing") return;
 	if (!phase) {
 		try {
-			const recording = startRecording(voiceConfig.sttDevice, (db) => {
-				if (phase?.kind === "recording") phase.level = db;
-				redraw?.();
-			});
+			const recording = startRecording(
+				voiceConfig.sttDevice,
+				(db) => {
+					if (phase?.kind === "recording") phase.level = db;
+					redraw?.();
+				},
+				(error) => {
+					// ffmpeg died on its own. Clear the widget, so it does not show "recording".
+					if (phase?.kind !== "recording" || phase.recording !== recording) return;
+					clearTimeout(phase.limit);
+					phase = undefined;
+					heldSince = undefined;
+					redraw = undefined;
+					void rm(recording.path, { force: true });
+					try {
+						ctx.ui.setWidget(WIDGET, undefined);
+						showTransientMessage(ctx.ui, `Recording failed: ${message(error)}`, "error");
+					} catch {
+						// The session ended. There is no UI to update.
+					}
+				},
+			);
 			const limit = setTimeout(() => {
 				if (phase?.kind !== "recording" || phase.recording !== recording) return;
 				heldSince = undefined;
@@ -129,11 +147,14 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 
 	const { recording, limit } = phase;
 	clearTimeout(limit);
-	phase = { kind: "transcribing", step: "transcribing" };
+	const abort = new AbortController();
+	const { signal } = abort;
+	phase = { kind: "transcribing", step: "transcribing", abort };
 	redraw?.();
 	try {
 		await recording.stop();
-		const result = await transcribeAudioFile(recording.path);
+		const result = await transcribeAudioFile(recording.path, signal);
+		signal.throwIfAborted();
 		let text = result.text.trim();
 		let model = `${result.provider}/${result.model} · ${result.language ?? "auto"}`;
 		if (!text) {
@@ -145,9 +166,13 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 			const cleaner = cleanupModel(voiceConfig.sttCleanup, ctx);
 			if (cleaner && !hasSlip(text)) model += " · cleanup skipped, no slip found";
 			else if (cleaner) {
-				phase = { kind: "transcribing", step: `cleaning up · ${cleaner.provider}/${cleaner.id}` };
+				phase = {
+					kind: "transcribing",
+					step: `cleaning up · ${cleaner.provider}/${cleaner.id}`,
+					abort,
+				};
 				redraw?.();
-				const cleanup = await cleanTranscript(text, cleaner, ctx);
+				const cleanup = await cleanTranscript(text, cleaner, ctx, signal);
 				text = cleanup.text;
 				model += cleanup.applied
 					? ` · cleaned by ${cleanup.model} (${cleanup.tokens} tok)`
@@ -155,6 +180,7 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 				if (!cleanup.applied) level = "warning";
 			}
 		} catch (error) {
+			if (signal.aborted) throw error;
 			// Keep the dictation. A cleanup failure must not lose what the user said.
 			model += ` · cleanup failed, raw text kept: ${message(error)}`;
 			level = "warning";
@@ -163,13 +189,15 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 		ctx.ui.pasteToEditor(dictationInsert(ctx.ui.getEditorText(), text));
 		showTransientMessage(ctx.ui, `Dictation added to the prompt · ${model}`, level);
 	} catch (error) {
-		showTransientMessage(ctx.ui, `Dictation failed: ${message(error)}`, "error");
+		// An abort means the session ended. Its UI is gone, so show nothing.
+		if (!signal.aborted)
+			showTransientMessage(ctx.ui, `Dictation failed: ${message(error)}`, "error");
 	} finally {
-		phase = undefined;
-		redraw = undefined;
-		ctx.ui.setWidget(WIDGET, undefined);
-		// The recording is the user's voice. Do not leave it in the temp directory.
+		// The recording is the user's voice. Delete it first: a stale ctx can throw below.
 		await rm(recording.path, { force: true });
+		if (phase?.kind === "transcribing" && phase.abort === abort) phase = undefined;
+		redraw = undefined;
+		if (!signal.aborted) ctx.ui.setWidget(WIDGET, undefined);
 	}
 }
 
@@ -217,6 +245,12 @@ export default function registerSttCommand(pi: ExtensionAPI): void {
 		unlisten?.();
 		unlisten = undefined;
 		heldSince = undefined;
+		if (phase?.kind === "transcribing") {
+			// The transcription owns the file. Its finally block deletes it.
+			phase.abort.abort();
+			phase = undefined;
+			return;
+		}
 		if (phase?.kind !== "recording") return;
 		const { recording, limit } = phase;
 		clearTimeout(limit);

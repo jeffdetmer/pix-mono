@@ -126,6 +126,7 @@ export async function cleanTranscript(
 	raw: string,
 	model: Model<Api>,
 	ctx: Pick<ExtensionContext, "modelRegistry">,
+	signal?: AbortSignal,
 ): Promise<Cleanup> {
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(`cleanup auth failed: ${auth.error}`);
@@ -147,7 +148,9 @@ export async function cleanTranscript(
 			env: auth.env,
 			maxTokens: MAX_TOKENS,
 			cacheRetention: "none",
-			signal: AbortSignal.timeout(30_000),
+			signal: signal
+				? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+				: AbortSignal.timeout(30_000),
 		},
 	);
 	if (response.stopReason === "error") throw new Error(response.errorMessage ?? "cleanup failed");
