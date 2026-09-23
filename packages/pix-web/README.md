@@ -1,4 +1,4 @@
-# pix-fetch
+# pix-web
 
 Provider-neutral `fetch` tool for Pi. It returns plain text for model input.
 
@@ -26,7 +26,7 @@ fetch({
 The user picks the provider, not the model. Use `/fetch` to set the default
 fetch provider and the 9Router fetch model. When no API provider is configured,
 automatic selection uses `curl`. Other packages can register providers through
-`@xynogen/pix-fetch/providers`.
+`@xynogen/pix-web/providers`.
 
 Use `/fetch` to set the package's default provider and 9Router fetch model.
 The settings stay separate from `pix-9router` in `~/.pi/agent/fetch.json`:
@@ -48,7 +48,7 @@ export NINEROUTER_KEY="your-api-key"
 Replace the example URL and key with the values for your 9Router server.
 
 ```ts
-import { registerFetchProvider } from "@xynogen/pix-fetch/providers";
+import { registerFetchProvider } from "@xynogen/pix-web/providers";
 
 registerFetchProvider({
   id: "example",
@@ -116,12 +116,12 @@ Search settings stay separate from fetch in `~/.pi/agent/search.json`:
 ```
 
 Other packages can register search providers through
-`@xynogen/pix-fetch/search-providers`.
+`@xynogen/pix-web/search-providers`.
 
 Install:
 
 ```bash
-pi install npm:@xynogen/pix-fetch
+pi install npm:@xynogen/pix-web
 ```
 
 This package is standalone. It is not bundled by `@xynogen/pix-core`.

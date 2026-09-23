@@ -77,7 +77,7 @@ RECOMMENDED_PACKAGES="
 # Format: "<spec>|<why it's opt-in>"
 OPTIN_PIX_PACKAGES="
 npm:@xynogen/pix-mcp|Token-efficient MCP gateway — external servers can execute commands or access sensitive services, so configure and enable it explicitly.
-npm:@xynogen/pix-fetch|Provider-neutral fetch tool — supports Exa, Tavily, 9Router, and basic HTTP.
+npm:@xynogen/pix-web|Provider-neutral fetch and search tools — supports Exa, Tavily, You.com, Brave, SearXNG, 9Router, and basic HTTP.
 npm:@xynogen/pix-9router|9Router LLM provider plus audio tools — needs a 9Router API key.
 npm:@xynogen/pix-env|Secret broker — reads local .env values and injects approved references into tool calls, so enable it explicitly.
 npm:@xynogen/pix-ssh|ssh_run — remote command execution with optional root access, so enable this privileged capability explicitly.

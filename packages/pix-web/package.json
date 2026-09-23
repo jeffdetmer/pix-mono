@@ -1,5 +1,5 @@
 {
-	"name": "@xynogen/pix-fetch",
+	"name": "@xynogen/pix-web",
 	"version": "0.1.0",
 	"description": "Provider-neutral web fetch and search tools with plain-text output for Pi",
 	"type": "module",
@@ -29,16 +29,17 @@
 		"pi",
 		"pi-package",
 		"pi-extension",
-		"fetch"
+		"fetch",
+		"search"
 	],
 	"author": "xynogen",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/xynogen/pix-mono.git",
-		"directory": "packages/pix-fetch"
+		"directory": "packages/pix-web"
 	},
-	"homepage": "https://github.com/xynogen/pix-mono/tree/main/packages/pix-fetch#readme",
+	"homepage": "https://github.com/xynogen/pix-mono/tree/main/packages/pix-web#readme",
 	"bugs": {
 		"url": "https://github.com/xynogen/pix-mono/issues"
 	},

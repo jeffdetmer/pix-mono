@@ -21,7 +21,7 @@ export interface FetchProvider {
 	env?: string[];
 }
 
-const REGISTRY = Symbol.for("@xynogen/pix-fetch/providers");
+const REGISTRY = Symbol.for("@xynogen/pix-web/providers");
 
 function providers(): Map<string, FetchProvider> {
 	const root = globalThis as typeof globalThis & { [REGISTRY]?: Map<string, FetchProvider> };

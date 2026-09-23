@@ -29,7 +29,7 @@ The menu controls:
 
 Catalogs come from `/v1/models/stt` and `/v1/models/tts`.
 
-Web search and fetch moved to `@xynogen/pix-fetch`. Its `/search` and `/fetch`
+Web search and fetch moved to `@xynogen/pix-web`. Its `/search` and `/fetch`
 commands include a 9Router provider that reuses `NINEROUTER_URL` and
 `NINEROUTER_KEY`.
 

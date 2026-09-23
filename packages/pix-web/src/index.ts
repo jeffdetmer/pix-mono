@@ -12,7 +12,7 @@ export * from "./runner.js";
 export default function registerPixFetch(pi: ExtensionAPI): void {
 	registerBuiltinProviders();
 	registerBuiltinSearchProviders();
-	once(pi, "pix-fetch", () => {
+	once(pi, "pix-web", () => {
 		registerFetchCommand(pi);
 		registerSearchCommand(pi);
 		registerFetchTool(pi);

@@ -6,14 +6,14 @@ import { loadFetchConfig, saveFetchConfig } from "./config.ts";
 
 describe("fetch config", () => {
 	test("uses standalone defaults when no file exists", () => {
-		expect(loadFetchConfig(join(tmpdir(), "missing-pix-fetch.json"))).toEqual({
+		expect(loadFetchConfig(join(tmpdir(), "missing-pix-web.json"))).toEqual({
 			provider: "auto",
 			nineRouterModel: "exa",
 		});
 	});
 
 	test("persists provider and 9Router model", () => {
-		const directory = mkdtempSync(join(tmpdir(), "pix-fetch-"));
+		const directory = mkdtempSync(join(tmpdir(), "pix-web-"));
 		const path = join(directory, "fetch.json");
 		try {
 			saveFetchConfig({ provider: "9router", nineRouterModel: "custom-fetch" }, path);

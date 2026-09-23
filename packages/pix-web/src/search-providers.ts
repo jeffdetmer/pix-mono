@@ -21,7 +21,7 @@ export interface SearchProvider {
 	env?: string[];
 }
 
-const REGISTRY = Symbol.for("@xynogen/pix-fetch/search-providers");
+const REGISTRY = Symbol.for("@xynogen/pix-web/search-providers");
 
 function providers(): Map<string, SearchProvider> {
 	const root = globalThis as typeof globalThis & { [REGISTRY]?: Map<string, SearchProvider> };
