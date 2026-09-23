@@ -30,7 +30,7 @@ Standalone, zero deps.
 
 | Package | Description |
 | --- | --- |
-| [`@xynogen/pix-themes`](packages/pix-themes) | Theme pack — 7 dark themes |
+| [`@xynogen/pix-themes`](https://www.npmjs.com/package/@xynogen/pix-themes) | Theme pack — 7 dark themes |
 
 ### UI / UX extensions
 
@@ -38,32 +38,32 @@ Widgets, slash commands, and display changes for the TUI.
 
 | Package | Description |
 | --- | --- |
-| [`@xynogen/pix-welcome`](packages/pix-welcome) | ASCII π banner + startup health checks (version, auth, models, tools, skills, gitignore) |
-| [`@xynogen/pix-footer`](packages/pix-footer) | Status bar — mode, git branch, model, tokens, cost, live TPS |
-| [`@xynogen/pix-models`](packages/pix-models) | `/models` — enhanced model picker with coding score/rank, context window, cost |
-| [`@xynogen/pix-update`](packages/pix-update) | `/update` — self-update Pi + all extensions, detects install method |
-| [`@xynogen/pix-commands`](packages/pix-commands) | `/clear` slash command (flushes `~/.cache/pi`) |
-| [`@xynogen/pix-nudge`](packages/pix-nudge) | Tools nudge + capability nudge hooks to steer model toward correct tools |
-| [`@xynogen/pix-diagnostics`](packages/pix-diagnostics) | Lazy LSP diagnostics, navigation, and a compact session widget — replaces the pi-lens LSP core |
-| [`@xynogen/pix-display`](packages/pix-display) | Paste chip rendering (`[paste image #1]`) + leaked `<think>` tag → native thinking blocks |
-| [`@xynogen/pix-prompts`](packages/pix-prompts) | System-prompt injection — bundled `SOP.md` baseline + repo directive files |
-| [`@xynogen/pix-skills`](packages/pix-skills) | `read_skills` discovery and loading — includes references, bundled resources, and on-demand TOON guidance |
+| [`@xynogen/pix-welcome`](https://www.npmjs.com/package/@xynogen/pix-welcome) | ASCII π banner + startup health checks (version, auth, models, tools, skills, gitignore) |
+| [`@xynogen/pix-footer`](https://www.npmjs.com/package/@xynogen/pix-footer) | Status bar — mode, git branch, model, tokens, cost, live TPS |
+| [`@xynogen/pix-models`](https://www.npmjs.com/package/@xynogen/pix-models) | `/models` — enhanced model picker with coding score/rank, context window, cost |
+| [`@xynogen/pix-update`](https://www.npmjs.com/package/@xynogen/pix-update) | `/update` — self-update Pi + all extensions, detects install method |
+| [`@xynogen/pix-commands`](https://www.npmjs.com/package/@xynogen/pix-commands) | `/clear` slash command (flushes `~/.cache/pi`) |
+| [`@xynogen/pix-nudge`](https://www.npmjs.com/package/@xynogen/pix-nudge) | Tools nudge + capability nudge hooks to steer model toward correct tools |
+| [`@xynogen/pix-diagnostics`](https://www.npmjs.com/package/@xynogen/pix-diagnostics) | Lazy LSP diagnostics, navigation, and a compact session widget — replaces the pi-lens LSP core |
+| [`@xynogen/pix-display`](https://www.npmjs.com/package/@xynogen/pix-display) | Paste chip rendering (`[paste image #1]`) + leaked `<think>` tag → native thinking blocks |
+| [`@xynogen/pix-prompts`](https://www.npmjs.com/package/@xynogen/pix-prompts) | System-prompt injection — bundled `SOP.md` baseline + repo directive files |
+| [`@xynogen/pix-skills`](https://www.npmjs.com/package/@xynogen/pix-skills) | `read_skills` discovery and loading — includes references, bundled resources, and on-demand TOON guidance |
 
 ### Tool suite
 
-These packages replace Pi's built-in tools under the same names. So model calls stay unchanged. [`pix-pretty`](packages/pix-pretty) improves their output: highlighting, diffs, icon trees, and FFF search.
+These packages replace Pi's built-in tools under the same names. So model calls stay unchanged. [`pix-pretty`](https://www.npmjs.com/package/@xynogen/pix-pretty) improves their output: highlighting, diffs, icon trees, and FFF search.
 
 | Package | Description |
 | --- | --- |
-| [`@xynogen/pix-bash`](packages/pix-bash) | `bash` — shell execution with framed output block and exit-code summary |
-| [`@xynogen/pix-read`](packages/pix-read) | `read` — file read with syntax highlighting, image mime + size metadata |
-| [`@xynogen/pix-write`](packages/pix-write) | `write` — file write with split-diff rendering on overwrite |
-| [`@xynogen/pix-edit`](packages/pix-edit) | `edit` — precise text replacement with side-by-side diff per edit |
-| [`@xynogen/pix-find`](packages/pix-find) | `find` — glob search with FFF acceleration and file icons |
-| [`@xynogen/pix-grep`](packages/pix-grep) | `grep` — pattern search with FFF-prioritised results |
-| [`@xynogen/pix-ls`](packages/pix-ls) | `ls` — directory listing as an indented icon tree |
-| [`@xynogen/pix-ask`](packages/pix-ask) | `ask_user` — structured TUI questionnaire (multi-choice, multi-select, previews) |
-| [`@xynogen/pix-todo`](packages/pix-todo) | `todo` — durable execution checklist, survives context compaction |
+| [`@xynogen/pix-bash`](https://www.npmjs.com/package/@xynogen/pix-bash) | `bash` — shell execution with framed output block and exit-code summary |
+| [`@xynogen/pix-read`](https://www.npmjs.com/package/@xynogen/pix-read) | `read` — file read with syntax highlighting, image mime + size metadata |
+| [`@xynogen/pix-write`](https://www.npmjs.com/package/@xynogen/pix-write) | `write` — file write with split-diff rendering on overwrite |
+| [`@xynogen/pix-edit`](https://www.npmjs.com/package/@xynogen/pix-edit) | `edit` — precise text replacement with side-by-side diff per edit |
+| [`@xynogen/pix-find`](https://www.npmjs.com/package/@xynogen/pix-find) | `find` — glob search with FFF acceleration and file icons |
+| [`@xynogen/pix-grep`](https://www.npmjs.com/package/@xynogen/pix-grep) | `grep` — pattern search with FFF-prioritised results |
+| [`@xynogen/pix-ls`](https://www.npmjs.com/package/@xynogen/pix-ls) | `ls` — directory listing as an indented icon tree |
+| [`@xynogen/pix-ask`](https://www.npmjs.com/package/@xynogen/pix-ask) | `ask_user` — structured TUI questionnaire (multi-choice, multi-select, previews) |
+| [`@xynogen/pix-todo`](https://www.npmjs.com/package/@xynogen/pix-todo) | `todo` — durable execution checklist, survives context compaction |
 
 ### Behaviour
 
@@ -71,9 +71,9 @@ How the agent acts — output optimization, permission gate, and sub-agents.
 
 | Package | Description |
 | --- | --- |
-| [`@xynogen/pix-optimizer`](packages/pix-optimizer) | Caveman mode + RTK tool rewriting + ponytail lazy-dev mode (`/optimizer` overlay) |
-| [`@xynogen/pix-gate`](packages/pix-gate) | Permission gate for dangerous bash + path commands — 4 severity tiers (block/critical/dangerous/risky) + sudo redirect, configurable |
-| [`@xynogen/pix-subagent`](packages/pix-subagent) | Sub-agent spawning — 2 tools (`agent`, `agent_control`), live model widget, work-splitting |
+| [`@xynogen/pix-optimizer`](https://www.npmjs.com/package/@xynogen/pix-optimizer) | Caveman mode + RTK tool rewriting + ponytail lazy-dev mode (`/optimizer` overlay) |
+| [`@xynogen/pix-gate`](https://www.npmjs.com/package/@xynogen/pix-gate) | Permission gate for dangerous bash + path commands — 4 severity tiers (block/critical/dangerous/risky) + sudo redirect, configurable |
+| [`@xynogen/pix-subagent`](https://www.npmjs.com/package/@xynogen/pix-subagent) | Sub-agent spawning — 2 tools (`agent`, `agent_control`), live model widget, work-splitting |
 
 ### Standalone extensions (opt-in)
 
@@ -81,18 +81,18 @@ Not bundled by `pix-core`. Install each one only if you want it. Each one stays 
 
 | Package | Why it's opt-in |
 | --- | --- |
-| [`@xynogen/pix-web`](packages/pix-web) | Provider-neutral `fetch` and `search` tools with Exa, Tavily, You.com, Brave, SearXNG, 9Router, and more adapters |
-| [`@xynogen/pix-9router`](packages/pix-9router) | 9Router LLM provider plus audio tools — needs a 9Router API key |
-| [`@xynogen/pix-sudo`](packages/pix-sudo) | `sudo_run` — root execution via a PAM password overlay (blocked in non-interactive mode) |
-| [`@xynogen/pix-ssh`](packages/pix-ssh) | `ssh_run` — run commands on a remote host over SSH (key/password auth + remote `sudo`) |
-| [`@xynogen/pix-env`](packages/pix-env) | Broker `.env` secrets to tools via `$KEY` references, keeping the values out of the model's context |
-| [`@xynogen/pix-toolbox`](packages/pix-toolbox) | `/toolbox` — fuzzy-search picker to enable/disable tools at runtime |
-| [`@xynogen/pix-mcp`](packages/pix-mcp) | Token-efficient MCP gateway — external servers can execute commands or reach sensitive services |
-| [`@xynogen/pix-graph`](packages/pix-graph) | `graph` tool — native-TS code knowledge graph (build/query, no Python); TS/JS only |
-| [`@xynogen/pix-astgrep`](packages/pix-astgrep) | `ast_grep_search` / `read_symbol` / `symbol_search` — structural code search and symbol reads; needs the `@ast-grep/napi` native addon |
-| [`@xynogen/pix-hunk`](packages/pix-hunk) | `hunk` tool — live Hunk diff-review bridge; needs the external Hunk CLI and an active review session |
-| [`@xynogen/pix-aria2`](packages/pix-aria2) | `download` tool — fast, resumable downloads via an auto-managed aria2 RPC daemon; needs the external `aria2c` binary |
-| [`@xynogen/pix-proc`](packages/pix-proc) | `proc` tool — run and manage long-lived processes (`npm run dev`, `vite`, `python`) that outlive a turn; spawns background processes |
+| [`@xynogen/pix-web`](https://www.npmjs.com/package/@xynogen/pix-web) | Provider-neutral `fetch` and `search` tools with Exa, Tavily, You.com, Brave, SearXNG, 9Router, and more adapters |
+| [`@xynogen/pix-9router`](https://www.npmjs.com/package/@xynogen/pix-9router) | 9Router LLM provider plus audio tools — needs a 9Router API key |
+| [`@xynogen/pix-sudo`](https://www.npmjs.com/package/@xynogen/pix-sudo) | `sudo_run` — root execution via a PAM password overlay (blocked in non-interactive mode) |
+| [`@xynogen/pix-ssh`](https://www.npmjs.com/package/@xynogen/pix-ssh) | `ssh_run` — run commands on a remote host over SSH (key/password auth + remote `sudo`) |
+| [`@xynogen/pix-env`](https://www.npmjs.com/package/@xynogen/pix-env) | Broker `.env` secrets to tools via `$KEY` references, keeping the values out of the model's context |
+| [`@xynogen/pix-toolbox`](https://www.npmjs.com/package/@xynogen/pix-toolbox) | `/toolbox` — fuzzy-search picker to enable/disable tools at runtime |
+| [`@xynogen/pix-mcp`](https://www.npmjs.com/package/@xynogen/pix-mcp) | Token-efficient MCP gateway — external servers can execute commands or reach sensitive services |
+| [`@xynogen/pix-graph`](https://www.npmjs.com/package/@xynogen/pix-graph) | `graph` tool — native-TS code knowledge graph (build/query, no Python); TS/JS only |
+| [`@xynogen/pix-astgrep`](https://www.npmjs.com/package/@xynogen/pix-astgrep) | `ast_grep_search` / `read_symbol` / `symbol_search` — structural code search and symbol reads; needs the `@ast-grep/napi` native addon |
+| [`@xynogen/pix-hunk`](https://www.npmjs.com/package/@xynogen/pix-hunk) | `hunk` tool — live Hunk diff-review bridge; needs the external Hunk CLI and an active review session |
+| [`@xynogen/pix-aria2`](https://www.npmjs.com/package/@xynogen/pix-aria2) | `download` tool — fast, resumable downloads via an auto-managed aria2 RPC daemon; needs the external `aria2c` binary |
+| [`@xynogen/pix-proc`](https://www.npmjs.com/package/@xynogen/pix-proc) | `proc` tool — run and manage long-lived processes (`npm run dev`, `vite`, `python`) that outlive a turn; spawns background processes |
 
 ### Roadmap — third-party extensions
 
@@ -108,9 +108,9 @@ Installed with any feature package. Install one directly only when you build you
 
 | Package | Depends on | Description |
 | --- | --- | --- |
-| [`@xynogen/pix-runtime`](packages/pix-runtime) | — (zero deps) | Base runtime used by every feature package — `pix.json` config, `once()` guard, collapse policy |
-| [`@xynogen/pix-pretty`](packages/pix-pretty) | `pix-runtime` + `chalk`, `cli-highlight`, `@ff-labs/fff-node`, `diff` | Rendering lib — syntax highlighting, icons, tree views, diff, FFF, gate-overlay |
-| [`@xynogen/pix-data`](packages/pix-data) | `pix-runtime` | Model data layer (modelgrep catalog + coding score), cached at `~/.cache/pi` |
+| [`@xynogen/pix-runtime`](https://www.npmjs.com/package/@xynogen/pix-runtime) | — (zero deps) | Base runtime used by every feature package — `pix.json` config, `once()` guard, collapse policy |
+| [`@xynogen/pix-pretty`](https://www.npmjs.com/package/@xynogen/pix-pretty) | `pix-runtime` + `chalk`, `cli-highlight`, `@ff-labs/fff-node`, `diff` | Rendering lib — syntax highlighting, icons, tree views, diff, FFF, gate-overlay |
+| [`@xynogen/pix-data`](https://www.npmjs.com/package/@xynogen/pix-data) | `pix-runtime` | Model data layer (modelgrep catalog + coding score), cached at `~/.cache/pi` |
 
 ## Install
 
