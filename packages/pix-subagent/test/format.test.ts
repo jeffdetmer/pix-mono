@@ -344,7 +344,7 @@ test("foreground live row separates description from every stat like completed r
 	);
 });
 
-test("background launch row follows the running agent through completion", () => {
+test("background launch row stays launched while the widget runs, then finishes", () => {
 	const record = {
 		id: "bg-1",
 		type: "general",
@@ -394,7 +394,10 @@ test("background launch row follows the running agent through completion", () =>
 		{} as never,
 	);
 
-	expect(component?.render(160).join("\n")).toContain("Agent [luna] · Inspect renderers");
+	// The ● Agents widget is the one live surface while the agent runs.
+	expect(component?.render(160).join("\n")).toMatch(
+		/^ {2}⎿ {2}Launched \[luna\] — result auto-delivered/,
+	);
 	record.status = "completed";
 	(record as typeof record & { completedAt: number }).completedAt = Date.now();
 	expect(component?.render(160).join("\n")).toContain("completed");

@@ -917,8 +917,9 @@ export function createAgentTool(
 				return new Text(formatAgentRunningLine(details, theme), 0, 0);
 			}
 
-			// Background launches return before the child completes, so this transcript
-			// component follows the manager record instead of freezing as “Launched”.
+			// Background launches return before the child completes. While it runs, the
+			// ● Agents widget is the one live surface, so this card stays “Launched”.
+			// It follows the manager record only to show the finished line.
 			if (details.status === "background" && details.agentId) {
 				let terminalLine: string | undefined;
 				const launchedLine = theme.fg(
@@ -929,7 +930,8 @@ export function createAgentTool(
 					render: (width: number) => {
 						if (terminalLine) return [truncateToWidth(terminalLine, width)];
 						const record = manager.getRecord(details.agentId as string);
-						if (!record) return [truncateToWidth(launchedLine, width)];
+						if (!record || record.status === "running" || record.status === "queued")
+							return [truncateToWidth(launchedLine, width)];
 						const activity = agentActivity.get(record.id);
 						const liveDetails = buildDetails(
 							{
@@ -942,20 +944,8 @@ export function createAgentTool(
 							record,
 							activity,
 						);
-						if (record.status === "running" || record.status === "queued") {
-							liveDetails.activity = activity
-								? describeActivity(activity.activeTools, activity.responseText)
-								: record.status === "queued"
-									? "queued"
-									: "thinking…";
-							liveDetails.spinnerFrame = Math.floor((Date.now() - record.startedAt) / 80);
-						}
-						const isRunning = record.status === "running" || record.status === "queued";
-						const line = isRunning
-							? formatAgentRunningLine(liveDetails, theme)
-							: formatAgentFinishedLine(liveDetails, theme);
-						if (!isRunning) terminalLine = line;
-						return [truncateToWidth(line, width)];
+						terminalLine = formatAgentFinishedLine(liveDetails, theme);
+						return [truncateToWidth(terminalLine, width)];
 					},
 					invalidate() {},
 				};
