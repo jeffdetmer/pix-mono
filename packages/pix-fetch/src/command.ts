@@ -13,9 +13,28 @@ import { listAllFetchProviders } from "./providers.js";
 
 type ProviderRow = { id: string; configured: boolean; env: string[] };
 
-/** Provider rows the picker shows: `auto` first (no env), then every registered provider. */
+/** Provider rows the picker shows: no-key and default providers first, then every other provider. */
 function providerRows(): ProviderRow[] {
-	return [{ id: "auto", configured: true, env: [] }, ...listAllFetchProviders()];
+	const order = ["curl", "jina-reader", "9router"];
+	const providers = listAllFetchProviders().sort((a, b) => {
+		const aIndex = order.indexOf(a.id);
+		const bIndex = order.indexOf(b.id);
+		if (aIndex === -1 && bIndex === -1) return 0;
+		if (aIndex === -1) return 1;
+		if (bIndex === -1) return -1;
+		return aIndex - bIndex;
+	});
+	return [{ id: "auto", configured: true, env: [] }, ...providers];
+}
+
+const LEGACY_ENV: Record<string, string> = {
+	NINEROUTER_URL: "ROUTER_API_BASE",
+	NINEROUTER_KEY: "ROUTER_API_KEY",
+};
+
+function envIsSet(name: string): boolean {
+	const legacy = LEGACY_ENV[name];
+	return Boolean(process.env[name] || (legacy && process.env[legacy]));
 }
 
 function envExample(name: string): string {
@@ -37,7 +56,7 @@ const NINE_ROUTER = "9router";
 
 /** A provider row opens when it has unset env, or when it owns extra settings. */
 function canExpand(row: ProviderRow): boolean {
-	return row.id === NINE_ROUTER || row.env.some((name) => !process.env[name]);
+	return row.id === NINE_ROUTER || row.env.some((name) => !envIsSet(name));
 }
 
 /** Flatten providers into visible rows. Open providers list unset env names and own settings. */
@@ -46,9 +65,7 @@ function buildNodes(expanded: Set<string>): Node[] {
 	for (const row of providerRows()) {
 		nodes.push({ kind: "provider", row });
 		if (!expanded.has(row.id)) continue;
-		for (const name of row.env) {
-			if (!process.env[name]) nodes.push({ kind: "env", name });
-		}
+		for (const name of row.env) nodes.push({ kind: "env", name });
 		if (row.id === NINE_ROUTER) nodes.push({ kind: "model" });
 	}
 	return nodes;
@@ -65,19 +82,23 @@ function renderNode(
 	const mute = (s: string) => theme.fg("muted", s);
 	const marker = cursor ? theme.fg("accent", "\u25B6") : " ";
 	if (node.kind === "model") {
-		const label = `${marker}     ${theme.fg("accent", "model")}`;
+		const label = `${marker}     ${theme.fg("accent", "model")}:`;
 		if (!field) return [`${label} ${mute(fetchConfig.nineRouterModel)}`];
-		return [label, ...field.render(Math.max(10, width - 8)).map((line) => `        ${line}`)];
+		return [`${label} ${field.render(Math.max(10, width - 15))[0] ?? ""}`];
 	}
 	if (node.kind === "env") {
-		// ponytail: procedure only. Pix never reads or stores the secret value.
+		// ponytail: show only presence. Pix never reads or stores the secret value.
+		const names = LEGACY_ENV[node.name] ? `${node.name} / ${LEGACY_ENV[node.name]}` : node.name;
+		if (envIsSet(node.name)) {
+			return [`${marker}     ${theme.fg("accent", names)} ${theme.fg("success", "\u25CF set")}`];
+		}
 		return [
-			`${marker}     ${theme.fg("accent", node.name)} ${mute("\u25CB not set")}`,
+			`${marker}     ${theme.fg("accent", names)} ${mute("\u25CB not set")}`,
 			`        ${theme.fg("warning", envExample(node.name))}`,
 		];
 	}
 	const { id, configured, env } = node.row;
-	const setCount = env.filter((name) => Boolean(process.env[name])).length;
+	const setCount = env.filter(envIsSet).length;
 	const unset = env.length - setCount;
 	const arrow = canExpand(node.row) ? mute(expanded.has(id) ? "\u25BE" : "\u25B8") : " ";
 	const isDefault = fetchConfig.provider === id;
@@ -86,7 +107,10 @@ function renderNode(
 		id === "auto"
 			? mute("choice")
 			: configured
-				? theme.fg("success", "connected")
+				? theme.fg(
+						"success",
+						id === "curl" || id === "jina-reader" ? "no API key needed" : "connected",
+					)
 				: theme.fg("warning", `${unset} variable${unset === 1 ? "" : "s"} not set`);
 	const tail = isDefault ? mute(" \u00b7 default") : "";
 	return [`${marker} ${arrow} ${dot} ${theme.fg("accent", id)} ${status}${tail}`];
@@ -115,7 +139,7 @@ async function showPicker(ctx: ExtensionContext): Promise<Action | null> {
 			};
 
 			const openField = () => {
-				const input = new Input({ prompt: theme.fg("accent", "> ") });
+				const input = new Input({ prompt: "" });
 				input.setValue(fetchConfig.nineRouterModel);
 				input.focused = true;
 				input.onEscape = () => {
