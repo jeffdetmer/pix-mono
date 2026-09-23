@@ -82,7 +82,7 @@ Not bundled by `pix-core`. Install each one only if you want it. Each one stays 
 | Package | Why it's opt-in |
 | --- | --- |
 | [`@xynogen/pix-web`](https://www.npmjs.com/package/@xynogen/pix-web) | Provider-neutral `fetch` and `search` tools with Exa, Tavily, You.com, Brave, SearXNG, 9Router, and more adapters |
-| [`@xynogen/pix-voice`](https://www.npmjs.com/package/@xynogen/pix-voice) | Provider-neutral `transcribe` and `tts` tools plus `/stt` microphone input, with 9Router, OpenAI, Groq, Deepgram, ElevenLabs, Gemini, and more adapters |
+| [`@xynogen/pix-voice`](https://www.npmjs.com/package/@xynogen/pix-voice) | Provider-neutral `transcribe` and `speak` tools plus `/stt` microphone input, with 9Router, OpenAI, Groq, Deepgram, ElevenLabs, Gemini, and more adapters |
 | [`@xynogen/pix-9router`](https://www.npmjs.com/package/@xynogen/pix-9router) | 9Router LLM provider — needs a 9Router API key |
 | [`@xynogen/pix-sudo`](https://www.npmjs.com/package/@xynogen/pix-sudo) | `sudo_run` — root execution via a PAM password overlay (blocked in non-interactive mode) |
 | [`@xynogen/pix-ssh`](https://www.npmjs.com/package/@xynogen/pix-ssh) | `ssh_run` — run commands on a remote host over SSH (key/password auth + remote `sudo`) |

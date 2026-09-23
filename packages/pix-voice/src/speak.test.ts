@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { setIconMode } from "@xynogen/pix-pretty/icon-catalog";
 import { voiceConfig } from "./config.js";
 import { registerProvider, type SpeechRequest } from "./providers.js";
-import registerTts, { playerCommand, saveSpeech } from "./tts.js";
+import registerSpeak, { playerCommand, saveSpeech } from "./speak.js";
 
 const oldPath = process.env.PATH;
 const oldProvider = voiceConfig.ttsProvider;
@@ -36,12 +36,12 @@ type Execute = (
 
 function captureExecute(): Execute {
 	let execute: Execute | undefined;
-	registerTts({
+	registerSpeak({
 		registerTool(tool: { execute: Execute }) {
 			execute = tool.execute;
 		},
 	} as never);
-	if (!execute) throw new Error("TTS tool was not registered");
+	if (!execute) throw new Error("speak tool was not registered");
 	return execute;
 }
 
@@ -60,7 +60,7 @@ function fakeProvider(id: string, format: string, size = 21_168) {
 	return calls;
 }
 
-describe("tts tool", () => {
+describe("speak tool", () => {
 	test("selects one supported local player command", () => {
 		expect(playerCommand("/tmp/speech.mp3", new Set(["ffplay"]))).toEqual([
 			"ffplay",

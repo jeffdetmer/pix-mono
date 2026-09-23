@@ -66,26 +66,26 @@ async function playSpeech(path: string): Promise<void> {
 	throw new Error("no supported audio player found (pw-play, paplay, ffplay, or mpv)");
 }
 
-export default function registerTts(pi: ExtensionAPI): void {
+export default function registerSpeak(pi: ExtensionAPI): void {
 	const renderResult = makeRenderResult<TtsDetails>({
-		tool: "tts",
+		tool: "speak",
 		target: (details) => basename(details.output_path),
 		meta: (details) => `${humanSize(details.bytes ?? 0)} · ${details.provider}/${details.model}`,
 		status: (details) => (details.outcome === "error" ? "error" : "success"),
 	});
 
 	pi.registerTool({
-		name: "tts",
+		name: "speak",
 		label: "Text to speech",
 		renderShell: "self",
 		description:
 			"Convert text to speech with the provider the user picked in /voice and save the audio file.",
 		promptSnippet:
-			"tts(input, model?, output_file?, response_format?, play?) — Generate speech with saved /voice defaults.",
+			"speak(input, model?, output_file?, response_format?, play?) — Generate speech with saved /voice defaults.",
 		promptGuidelines: [
-			'tts: Omit model to use the /voice default. A model is "model/voice" for most providers. The tool saves and plays audio by default; set play=false for file-only output. Some providers return wav or mp3 regardless of response_format; the result reports the real format. Sensitive paths and symlinks are rejected.',
+			'speak: Omit model to use the /voice default. A model is "model/voice" for most providers. The tool saves and plays audio by default; set play=false for file-only output. Some providers return wav or mp3 regardless of response_format; the result reports the real format. Sensitive paths and symlinks are rejected.',
 		],
-		renderCall: makeRenderCall("tts", (args) => String(args.model ?? "")),
+		renderCall: makeRenderCall("speak", (args) => String(args.model ?? "")),
 		renderResult,
 		parameters: Type.Object({
 			input: Type.String({ description: "Text to speak" }),

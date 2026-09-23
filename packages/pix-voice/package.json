@@ -28,6 +28,7 @@
 		"pi-extension",
 		"speech",
 		"tts",
+		"speak",
 		"stt",
 		"transcribe"
 	],

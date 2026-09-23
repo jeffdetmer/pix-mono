@@ -1,6 +1,6 @@
 # pix-voice
 
-Provider-neutral speech tools for Pi: `transcribe` (speech to text), `tts`
+Provider-neutral speech tools for Pi: `transcribe` (speech to text), `speak`
 (text to speech), and the `/stt` microphone command.
 
 ## Tools
@@ -9,7 +9,7 @@ The model calls the tools with these fields:
 
 ```ts
 transcribe({ file: string, output_file?: string, model?: string, language?: string });
-tts({ input: string, model?: string, output_file?: string, response_format?: "mp3" | "wav" | "opus" | "aac" | "flac", play?: boolean });
+speak({ input: string, model?: string, output_file?: string, response_format?: "mp3" | "wav" | "opus" | "aac" | "flac", play?: boolean });
 ```
 
 The user picks the provider, not the model. A tool call uses the provider set in
@@ -72,7 +72,7 @@ the old `~/.pi/agent/9router.json`.
 
 `/stt` records from a PulseAudio source through `ffmpeg`. It then puts the
 transcript in the prompt editor. It needs `ffmpeg` on `PATH`, and `pactl` to
-list input devices. Playback after `tts` uses `pw-play`, `paplay`, `ffplay`, or
+list input devices. Playback after `speak` uses `pw-play`, `paplay`, `ffplay`, or
 `mpv`.
 
 ## Custom providers

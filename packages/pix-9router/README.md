@@ -5,7 +5,7 @@ Pi extension with a 9Router model provider.
 Other 9Router features live in separate packages. Each one reuses
 `NINEROUTER_URL` and `NINEROUTER_KEY`:
 
-- Speech tools (`transcribe`, `tts`, `/stt`) moved to `@xynogen/pix-voice` in
+- Speech tools (`transcribe`, `speak`, `/stt`) moved to `@xynogen/pix-voice` in
   0.7.0. Pick `9router` as the provider in its `/voice` command.
 - Web search and fetch live in `@xynogen/pix-web`.
 
