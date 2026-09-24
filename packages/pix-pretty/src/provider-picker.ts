@@ -14,6 +14,8 @@ import {
 	Key,
 	type KeybindingsManager,
 	matchesKey,
+	truncateToWidth,
+	visibleWidth,
 } from "@earendil-works/pi-tui";
 import {
 	frameModal,
@@ -212,10 +214,12 @@ export function renderSettingsRows(
 		rowLines[index] = lines.length;
 		const label = `${active ? theme.fg("accent", "→") : " "} ${theme.fg(active ? "accent" : "text", row.label.padEnd(labelWidth))}  `;
 		const editing = active ? field : undefined;
+		const valueWidth = Math.max(10, width - labelWidth - 4);
 		lines.push(
 			editing
-				? `${label}${editing.render(Math.max(10, width - labelWidth - 4))[0] ?? ""}`
-				: `${label}${theme.fg(row.tone ?? "success", row.value)}`,
+				? `${label}${editing.render(valueWidth)[0] ?? ""}`
+				: // One line per row. A long value (a device name) wraps and breaks the cursor math.
+					`${label}${theme.fg(row.tone ?? "success", truncateToWidth(row.value, valueWidth, "…"))}`,
 		);
 		if (!active || !list) return;
 		// ponytail: a window of `max` items around the cursor. Add a scrollbar if lists grow past ~50.
@@ -229,10 +233,16 @@ export function renderSettingsRows(
 		list.choices.slice(start, start + max).forEach((choice, offset) => {
 			const on = start + offset === list.cursor;
 			if (on) listLine = lines.length;
+			// One line per choice, like the row value. A long device name must not wrap.
+			// Cut plain text before the color, so the cut never splits a style.
+			const room = Math.max(10, width - pad.length - 2);
+			const name = truncateToWidth(choice.label ?? choice.value, room, "…");
+			const left = room - visibleWidth(name);
+			const hint = choice.hint && left > 3 ? truncateToWidth(`  ${choice.hint}`, left, "…") : "";
 			const text =
 				choice.value === CUSTOM_CHOICE
 					? theme.fg(on ? "accent" : "dim", "type a value…")
-					: `${theme.fg(on ? "accent" : "text", choice.label ?? choice.value)}${choice.hint ? theme.fg("muted", `  ${choice.hint}`) : ""}`;
+					: `${theme.fg(on ? "accent" : "text", name)}${hint ? theme.fg("muted", hint) : ""}`;
 			lines.push(`${pad}${on ? theme.fg("accent", "▸") : " "} ${text}`);
 		});
 		if (list.choices.length === 0) lines.push(`${pad}  ${theme.fg("muted", "no match")}`);

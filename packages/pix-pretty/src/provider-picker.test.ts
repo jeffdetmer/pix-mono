@@ -172,6 +172,33 @@ describe("settings overview rows", () => {
 		);
 		expect(lines[1]).toBe("<accent>→</accent> <accent>model</accent>  > dg/nova-2█");
 	});
+
+	test("cuts a long dropdown choice to one line with an ellipsis", () => {
+		const { lines } = renderSettingsRows(
+			[{ key: "d", section: "STT", label: "mic", value: "a" }],
+			theme,
+			0,
+			undefined,
+			40,
+			{ choices: [{ value: "x".repeat(100) }], cursor: 0, query: "" },
+		);
+		expect(lines.at(-1)).toMatch(
+			/^ {7}<accent>▸<\/accent> <accent>x{20,35}(\x1b\[0m)?…(\x1b\[0m)?<\/accent>$/,
+		);
+	});
+
+	test("cuts a long value to one line with an ellipsis", () => {
+		const { lines } = renderSettingsRows(
+			[{ key: "d", section: "STT", label: "mic", value: "x".repeat(100) }],
+			theme,
+			0,
+			undefined,
+			40,
+		);
+		expect(lines[1]).toMatch(
+			/^<accent>→<\/accent> <accent>mic<\/accent> {2}<success>x{30,35}(\x1b\[0m)?…(\x1b\[0m)?<\/success>$/,
+		);
+	});
 });
 
 describe("provider picker rows", () => {

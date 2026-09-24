@@ -41,7 +41,8 @@ export function microphoneLabel(source: PulseSource): string {
 		FORM[props["device.form_factor"] ?? ""] ??
 		(props["device.bus"] === "bluetooth" ? "Headset" : undefined) ??
 		(port && /line/i.test(port) ? "Line In" : "Microphone");
-	return name.toLowerCase().startsWith(kind.toLowerCase()) ? name : `${kind} - ${name}`;
+	// "... Digital Microphone" already names its kind. Skip the prefix.
+	return name.toLowerCase().includes(kind.toLowerCase()) ? name : `${kind} - ${name}`;
 }
 
 /** An output monitor records what plays, not a microphone. PulseAudio and PipeWire both name it `*.monitor`. */

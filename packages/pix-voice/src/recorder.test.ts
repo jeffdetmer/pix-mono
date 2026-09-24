@@ -100,6 +100,11 @@ describe("microphone list", () => {
 			source("alsa_input.pci-b", "Sound Card Analog Surround 5.1"),
 			"Microphone - Sound Card",
 		],
+		[
+			"a description that already ends in its kind",
+			source("alsa_input.pci-c", "Family 17h/19h HD Audio Controller Digital Microphone"),
+			"Family 17h/19h HD Audio Controller Digital Microphone",
+		],
 		["a source with no description", { name: "virtual_mic" }, "Microphone - virtual_mic"],
 	])("labels %s", (_case, item, label) => {
 		expect(microphoneLabel(item)).toBe(label);
