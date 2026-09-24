@@ -1,0 +1,19 @@
+# Normalize text to LF in the repo and working tree on every platform.
+# Biome enforces LF, and CRLF checkouts (core.autocrlf=true) break `bun run check`.
+* text=auto eol=lf
+
+# PowerShell scripts: CRLF on checkout so Windows PowerShell 5.1 tooling and
+# editors handle them natively (PowerShell itself accepts either).
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Shell scripts must stay LF or `sh`/`bash` fail with `$'\r': command not found`.
+*.sh text eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

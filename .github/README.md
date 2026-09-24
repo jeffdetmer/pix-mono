@@ -129,6 +129,22 @@ Or from a local clone:
 sh scripts/install.sh   # or: bun run distro:install
 ```
 
+### Windows (PowerShell)
+
+Runs in Windows PowerShell 5.1 or PowerShell 7. Pi itself installs through Pi's official Windows installer (`pi.dev/install.ps1`), which also sets up Node.js and Git Bash when missing.
+
+```powershell
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
+
+Or from a local clone:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install.ps1   # or: bun run distro:install:win
+```
+
+`pix-sudo` is not offered on Windows (it needs sudo/PAM); the installer prints the manual `pi install` command instead. `pix-voice` and `pix-ssh` are offered with a Windows caveat.
+
 ## Uninstall
 
 Removes every `@xynogen/pix-*` package from Pi. It also removes sub-packages from an older install that listed them one by one.
@@ -141,6 +157,13 @@ Or from a local checkout:
 
 ```bash
 sh scripts/uninstall.sh   # or: bun run distro:uninstall
+```
+
+On Windows:
+
+```powershell
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/uninstall.ps1 | iex
+# or: bun run distro:uninstall:win
 ```
 
 ### Upgrade / clean reinstall

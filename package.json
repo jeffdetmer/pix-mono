@@ -25,6 +25,8 @@
 		"ci": "biome ci",
 		"distro:install": "bash scripts/install.sh",
 		"distro:uninstall": "bash scripts/uninstall.sh",
+		"distro:install:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1",
+		"distro:uninstall:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/uninstall.ps1",
 		"dev:link": "bash scripts/dev-link.sh",
 		"dev:unlink": "bash scripts/dev-link.sh --unlink",
 		"publish:all": "bun scripts/publish-all.ts",
