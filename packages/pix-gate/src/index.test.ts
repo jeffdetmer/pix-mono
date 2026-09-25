@@ -6,6 +6,81 @@ afterEach(() => {
 	delete (globalThis as { __pixAgentState?: WeakMap<object, unknown> }).__pixAgentState;
 });
 
+type Result = { block?: boolean; reason?: string } | undefined;
+
+/** Register the gate with the given tools, run one tool call, and count dialogs. */
+async function run(
+	toolName: string,
+	input: Record<string, unknown>,
+	opts: { tools?: string[]; dialog?: "approved" | "denied" } = {},
+): Promise<{ result: Result; dialogs: number }> {
+	const handlers: Array<(event: any, ctx: any) => Promise<unknown>> = [];
+	const pi = {
+		events: createEventBus(),
+		getAllTools: () => (opts.tools ?? []).map((name) => ({ name })),
+		on(event: string, handler: (event: any, ctx: any) => Promise<unknown>) {
+			if (event === "tool_call") handlers.push(handler);
+		},
+	};
+	registerGate(pi as never);
+	let dialogs = 0;
+	const ctx = {
+		hasUI: true,
+		ui: {
+			custom: async () => {
+				dialogs++;
+				return { action: opts.dialog ?? "denied" };
+			},
+			notify() {},
+			theme: { fg: (_color: string, text: string) => text },
+		},
+	};
+	let result: Result;
+	for (const handler of handlers) {
+		const r = (await handler({ toolName, input }, ctx)) as Result;
+		if (r?.block) result = r;
+	}
+	return { result, dialogs };
+}
+
+describe("gate flow", () => {
+	test("plain ssh redirects to ssh_run even with no matching rule", async () => {
+		const { result } = await run("bash", { command: "ssh host uptime" }, { tools: ["ssh_run"] });
+		expect(result?.reason).toContain("ssh_run");
+	});
+
+	test("plain ssh passes when ssh_run is not installed", async () => {
+		const { result, dialogs } = await run("bash", { command: "ssh host uptime" });
+		expect([result, dialogs]).toEqual([undefined, 0]);
+	});
+
+	test("quoted sudo is not redirected", async () => {
+		const { result, dialogs } = await run(
+			"bash",
+			{ command: 'git commit -m "remove sudo from docs"' },
+			{ tools: ["sudo_run"] },
+		);
+		expect([result, dialogs]).toEqual([undefined, 0]);
+	});
+});
+
+describe("file tool path gate", () => {
+	test("read with a batch `paths` entry hits the .env block", async () => {
+		const { result, dialogs } = await run("read", { paths: ["src/a.ts", ".env"] });
+		expect([result?.block, dialogs]).toEqual([true, 1]);
+	});
+
+	test("ls on ~/.ssh asks", async () => {
+		const { dialogs } = await run("ls", { path: "~/.ssh" });
+		expect(dialogs).toBe(1);
+	});
+
+	test("grep in src passes", async () => {
+		const { result, dialogs } = await run("grep", { pattern: "x", path: "src" });
+		expect([result, dialogs]).toEqual([undefined, 0]);
+	});
+});
+
 describe("gate agent state", () => {
 	test("reports blocked while waiting for command approval", async () => {
 		const events = createEventBus();

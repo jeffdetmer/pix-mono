@@ -1,8 +1,9 @@
 /**
  * pix-gate — Pi extension
  *
- * Intercepts bash `tool_call` events and gates dangerous commands behind a
- * TUI confirmation dialog before they run.
+ * Intercepts shell `tool_call` events (bash, powershell, proc) and gates
+ * dangerous commands behind a TUI confirmation dialog before they run. Also
+ * gates secret paths for the read/write/edit/grep/find/ls tools.
  *
  * Severity tiers (user always has final say via dialog):
  *   critical  — red, deny-first dialog
@@ -14,13 +15,15 @@
  * Config: ~/.pi/agent/pix.json (the `gate` section)
  *   guardrails: "off"              — disable built-in rules entirely
  *   extraRules: [{ pattern, flags?, severity?, reason? }]  — append extra rules
- *   autoApprove: ["regex"]         — bypass gate for matching commands
+ *   autoApprove: ["regex"]         — bypass gate for matching simple commands
+ *                                    (never for chained commands or the circuit breaker)
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { withAgentBlock } from "@xynogen/pix-runtime";
 import {
 	buildRules,
+	canAutoApprove,
 	classify,
 	classifyPath,
 	extractPathsFromBash,
@@ -63,30 +66,35 @@ export default function (pi: ExtensionAPI): void {
 		{ match: isSshCommand, tool: "ssh_run", label: "ssh" },
 	] as const;
 
-	// ── Path protection (read/write/edit tools only — bash handled below) ───
+	// ── Path protection (file tools — shell tools handled below) ───
+	// grep/find/ls take a directory, so `~/.ssh` also tests as `~/.ssh/`.
+	const PATH_TOOLS: Record<string, "read" | "write"> = {
+		read: "read",
+		grep: "read",
+		find: "read",
+		ls: "read",
+		write: "write",
+		edit: "write",
+	};
+	const DIR_TOOLS = new Set(["grep", "find", "ls"]);
+	const PATH_ORDER = { block: 0, warn: 1, info: 2 } as const;
 	pi.on("tool_call", async (event, ctx) => {
 		const tool = String(event.toolName);
+		const op = PATH_TOOLS[tool];
+		if (!op) return undefined;
 		const input = event.input as Record<string, unknown>;
 
-		// bash is handled by the unified gate below
-		if (tool === "bash") return undefined;
-
-		let path: string | undefined;
-		let op: "read" | "write";
-
-		if (tool === "read") {
-			path = String(input.path ?? "");
-			op = "read";
-		} else if (tool === "write" || tool === "edit") {
-			path = String(input.path ?? "");
-			op = "write";
-		} else {
-			return undefined;
-		}
-
-		if (!path) return undefined;
-		const hit = classifyPath(path, op, pathRules);
-		if (!hit) return undefined;
+		// `paths` is the batch form of pix-read / pix-ls.
+		const raw = [input.path, input.file_path, ...(Array.isArray(input.paths) ? input.paths : [])];
+		const targets = raw.filter((p): p is string => typeof p === "string" && p.length > 0);
+		const hits = targets
+			.flatMap((p) => (DIR_TOOLS.has(tool) ? [p, `${p.replace(/[\\/]$/, "")}/`] : [p]))
+			.map((p) => ({ p, h: classifyPath(p, op, pathRules) }))
+			.filter((x): x is { p: string; h: NonNullable<typeof x.h> } => x.h !== undefined)
+			.sort((a, b) => PATH_ORDER[a.h.severity] - PATH_ORDER[b.h.severity]);
+		const top = hits[0];
+		if (!top) return undefined;
+		const { p: path, h: hit } = top;
 
 		if (hit.severity === "info") {
 			ctx.ui.notify(`${PATH_SEVERITY_ICON.info} ${hit.reason}: ${path}`, "info");
@@ -141,9 +149,11 @@ export default function (pi: ExtensionAPI): void {
 	// action carries a shell command in `event.input.command`, identical to bash.
 	// proc's other actions (list/logs/stop/rm) carry no command and pass straight
 	// through. Install pix-proc without pix-gate = ungated, same as bash.
-	const GATED_COMMAND_TOOLS = new Set(["bash", "proc"]);
+	// Pi's built-in `powershell` tool uses the same `input.command` shape.
+	const GATED_COMMAND_TOOLS = new Set(["bash", "proc", "powershell"]);
 	pi.on("tool_call", async (event, ctx) => {
-		if (!GATED_COMMAND_TOOLS.has(String(event.toolName))) return undefined;
+		const toolName = String(event.toolName);
+		if (!GATED_COMMAND_TOOLS.has(toolName)) return undefined;
 
 		const command = String((event.input as Record<string, unknown>).command ?? "");
 		if (!command.trim()) return undefined;
@@ -151,8 +161,16 @@ export default function (pi: ExtensionAPI): void {
 		// Collect all concerns: path hits + command hit
 		const concerns: Concern[] = [];
 
-		// Path concerns
+		// Path concerns. A redirect or `tee` target counts as a write.
 		const candidates = extractPathsFromBash(command);
+		const writeTargets = new Set(
+			[
+				...command
+					.replace(/\\/g, "/")
+					.matchAll(/(?:>>?|\btee\s+(?:-\S+\s+)*)\s*["']?([^\s"'`;&|<>)]+)/g),
+			].map((m) => m[1]),
+		);
+		const opFor = (p: string): "read" | "write" => (writeTargets.has(p) ? "write" : "read");
 
 		// Steer a blocked ssh-config read toward the dedicated `ssh info` tool
 		// (ssh_run action:"info"), which reads the effective config without touching
@@ -164,7 +182,7 @@ export default function (pi: ExtensionAPI): void {
 				? ' Use the ssh_run tool with action:"info" to read the effective SSH config instead of reading ~/.ssh/config in bash.'
 				: "";
 		for (const p of candidates) {
-			const hit = classifyPath(p, "read", pathRules);
+			const hit = classifyPath(p, opFor(p), pathRules);
 			if (!hit) continue;
 			if (hit.severity === "info") {
 				ctx.ui.notify(`${PATH_SEVERITY_ICON.info} ${hit.reason}: ${p}`, "info");
@@ -189,25 +207,27 @@ export default function (pi: ExtensionAPI): void {
 			});
 		}
 
-		if (concerns.length === 0) return undefined;
-
-		const highest = concerns.reduce((a, b) => (a.tier > b.tier ? a : b));
-
 		// Privileged auth redirect — hard block, no prompt, no bypass. Even YOLO
 		// cannot run bare sudo/ssh in bash (password/passphrase can't be auto-typed);
 		// it must use the dedicated tool. Only fires when that tool is installed.
+		// Runs before the empty-concerns exit: plain `ssh host` matches no rule.
 		for (const redirect of AUTH_REDIRECTS) {
 			if (!redirect.match(command) || !isRegistered(redirect.tool)) continue;
-			if (unattendedGateDecision(pi.events, highest.tier) === "deny") {
+			const tier = Math.max(SEVERITY_TIER.dangerous, ...concerns.map((c) => c.tier));
+			if (unattendedGateDecision(pi.events, tier) === "deny") {
 				return { block: true, reason: `[AFK] ${redirect.label} is denied while user is away.` };
 			}
 			// One surface only: the block reason renders as the tool-error card and
 			// reaches the model. A separate notify would duplicate the warning.
 			return {
 				block: true,
-				reason: `DANGEROUS — use the ${redirect.tool} tool instead of ${redirect.label} in bash (it handles auth securely).`,
+				reason: `DANGEROUS — use the ${redirect.tool} tool instead of ${redirect.label} in ${toolName} (it handles auth securely).`,
 			};
 		}
+
+		if (concerns.length === 0) return undefined;
+
+		const highest = concerns.reduce((a, b) => (a.tier > b.tier ? a : b));
 
 		// Circuit breaker: catastrophic commands never auto-approve, even under YOLO.
 		// They fall through to the interactive dialog (or the no-UI block below).
@@ -227,7 +247,7 @@ export default function (pi: ExtensionAPI): void {
 			};
 		}
 
-		if (autoApprove.some((re) => re.test(command))) return undefined;
+		if (canAutoApprove(command, autoApprove)) return undefined;
 
 		// No UI: auto-block block+ severity, pass anything lower.
 		if (!ctx.hasUI) {
@@ -252,7 +272,7 @@ export default function (pi: ExtensionAPI): void {
 		} else if (concerns.length === 1 && !cmdHit) {
 			// Single path hit — reuse path dialog
 			const ph = candidates
-				.map((p) => ({ p, h: classifyPath(p, "read", pathRules) }))
+				.map((p) => ({ p, h: classifyPath(p, opFor(p), pathRules) }))
 				.find((x) => x.h?.severity !== "info" && x.h);
 			if (ph?.h) {
 				decision = await withAgentBlock(
