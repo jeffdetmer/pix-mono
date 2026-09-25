@@ -13,14 +13,17 @@ import {
 	type KeyId,
 	matchesKey,
 	parseKey,
+	truncateToWidth,
 } from "@earendil-works/pi-tui";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { cleanTranscript, cleanupModel, hasSlip } from "./cleanup.js";
 import { voiceConfig } from "./config.js";
-import { type Recording, startRecording } from "./recorder.js";
+import { microphoneDevices, type Recording, startRecording } from "./recorder.js";
 import { transcribeAudioFile } from "./transcribe.js";
 
 const WIDGET = "voice-stt";
+/** Device name column width. Pad and cut to it, so the level bar does not move. */
+const DEVICE_WIDTH = 32;
 
 export function levelBar(db: number | undefined, width = 16): string {
 	if (db === undefined) return "░".repeat(width);
@@ -45,6 +48,8 @@ type Phase =
 			kind: "recording";
 			recording: Recording;
 			level?: number;
+			/** Readable device name, the same as in the settings modal. */
+			device?: string;
 			limit: ReturnType<typeof setTimeout>;
 	  }
 	| { kind: "transcribing"; step: string; abort: AbortController };
@@ -117,7 +122,7 @@ function showWidget(ctx: ExtensionContext): void {
 					const loud = phase.level !== undefined && phase.level > -12;
 					const db = phase.level === undefined ? "" : ` ${phase.level.toFixed(0)} dB`;
 					return [
-						`${theme.fg("error", "●")} ${theme.fg("toolTitle", "recording")} ${theme.fg("dim", voiceConfig.sttDevice)} ${theme.fg(loud ? "warning" : "success", levelBar(phase.level))}${theme.fg("muted", `${db} · ${heldSince === undefined ? `${voiceConfig.sttShortcut} stop` : "release to stop"} · esc cancel`)}`,
+						`${theme.fg("error", "●")} ${theme.fg("toolTitle", "recording")} ${theme.fg("dim", truncateToWidth(phase.device ?? voiceConfig.sttDevice, DEVICE_WIDTH, "…", true))} ${theme.fg(loud ? "warning" : "success", levelBar(phase.level))}${theme.fg("muted", `${db} · ${heldSince === undefined ? `${voiceConfig.sttShortcut} stop` : "release to stop"} · esc cancel`)}`,
 					];
 				},
 				invalidate() {},
@@ -165,6 +170,14 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 			}, MAX_RECORDING_MS);
 			phase = { kind: "recording", recording, limit };
 			showWidget(ctx);
+			// The raw id shows until pactl answers. On a pactl failure the id stays.
+			void microphoneDevices()
+				.then((devices) => {
+					if (phase?.kind !== "recording" || phase.recording !== recording) return;
+					phase.device = devices.find((d) => d.id === voiceConfig.sttDevice)?.label;
+					redraw?.();
+				})
+				.catch(() => undefined);
 		} catch (error) {
 			showTransientMessage(ctx.ui, message(error), "error");
 		}
