@@ -6,7 +6,7 @@ import {
 	makeTheme,
 	makeToolContext,
 } from "@xynogen/pix-pretty/test-utils";
-import type { ThemeLike, ToolResultLike } from "@xynogen/pix-pretty/types";
+import type { ToolResultLike } from "@xynogen/pix-pretty/types";
 import {
 	collapseProgressFrames,
 	formatBashDuration,
@@ -17,12 +17,6 @@ import {
 const okFactory = () => ({
 	execute: async () => ({ content: [{ type: "text" as const, text: "ok" }], details: undefined }),
 });
-const emptyFactory = () => ({ execute: async () => ({ content: [], details: undefined }) });
-// Tag each fg() call so the rule's status color / hierarchy role is observable.
-const keyedTheme: ThemeLike = {
-	fg: (key: string, value: string) => `[${key}]${value}[/]`,
-	bold: (value: string) => value,
-};
 
 describe("bash summaries", () => {
 	it("summarizes command chains instead of repeating the full command", () => {
@@ -113,188 +107,6 @@ describe("registerBashTool", () => {
 		expect(result?.getText()).toContain("✓  bash <dim>bun test · +2 steps</dim>");
 		expect(result?.getText()).toContain("<muted>2 lines · 2.5s</muted>");
 		expect(result?.getText()).not.toContain("git diff --check");
-	});
-
-	it("restores full output when an elapsed card is expanded", () => {
-		const { pi, tool } = capturePi();
-		registerBashTool(pi, okFactory, makeToolContext());
-		const result = tool.renderResult?.(
-			{
-				content: [{ type: "text", text: "one\ntwo" }],
-				details: {
-					_type: "bashResult",
-					text: "one\ntwo",
-					exitCode: 0,
-					command: "printf one",
-					durationMs: 100,
-				},
-			},
-			undefined,
-			makeTheme(),
-			makeRenderCtx({ expanded: true, state: { collapsed: true } }),
-		);
-
-		expect(result?.getText()).toContain("one");
-		expect(result?.getText()).toContain("two");
-		expect(result?.getText()).not.toContain("✓ bash");
-	});
-
-	it("collapses structured errors and restores the exact diagnostic on expansion", () => {
-		const { pi, tool } = capturePi();
-		registerBashTool(pi, emptyFactory, makeToolContext());
-		const theme = makeTheme();
-		const diagnostic = "AssertionError: expected 1 to equal 2";
-		const result = {
-			content: [{ type: "text", text: diagnostic }],
-			details: {
-				_type: "bashResult",
-				text: diagnostic,
-				exitCode: 1,
-				command: "bun test",
-				durationMs: 100,
-			},
-		};
-		const render = (state: Record<string, unknown>, expanded = false) => {
-			const component = tool.renderResult?.(
-				result,
-				{ isPartial: false },
-				theme,
-				makeRenderCtx({ isError: true, expanded, state }),
-			);
-			return component?.render(120).join("\n") ?? "";
-		};
-
-		expect(render({ timer: 1 })).toContain(diagnostic);
-		expect(render({ timer: 1 })).toContain("- -");
-		expect(render({ collapsed: true })).toContain("✗  bash bun test · exit 1");
-		expect(render({ collapsed: true }, true)).toContain(diagnostic);
-
-		const partial =
-			tool
-				.renderResult?.(result, { isPartial: true }, theme, makeRenderCtx({ isError: true }))
-				?.getText() ?? "";
-		expect(partial).toContain(diagnostic);
-		expect(partial.split("\n")).toHaveLength(1);
-	});
-
-	it("frames single-line output like multi-line (no inline row)", () => {
-		const { pi, tool } = capturePi();
-		registerBashTool(pi, emptyFactory, makeToolContext());
-		const theme = makeTheme();
-		const strip = (s: string) => s.replace(/\u001b\[[0-9;]*m/g, "");
-		const single = {
-			content: [{ type: "text", text: "Checked 382 files" }],
-			details: {
-				_type: "bashResult",
-				text: "Checked 382 files",
-				exitCode: 0,
-				command: "bun run check",
-				durationMs: 0,
-			},
-		};
-		const collapsed =
-			tool.renderResult?.(single, { isPartial: false }, theme, makeRenderCtx())?.getText() ?? "";
-		// Single-line output is now framed just like multi-line — no inline row,
-		// no "✓ exit 0" header; the rules carry status by color.
-		expect(collapsed).toContain("- -");
-		expect(collapsed).toContain("Checked 382 files");
-		expect(strip(collapsed)).not.toContain("✓ exit 0");
-		const expanded =
-			tool
-				.renderResult?.(single, { isPartial: false }, theme, makeRenderCtx({ expanded: true }))
-				?.getText() ?? "";
-		// expanded single-line should still have the dashed close
-		expect(expanded).toContain("- -");
-		const multi = {
-			content: [{ type: "text", text: "a\nb\nc" }],
-			details: {
-				_type: "bashResult",
-				text: "a\nb\nc",
-				exitCode: 0,
-				command: "echo",
-				durationMs: 0,
-			},
-		};
-		const multiOut =
-			tool.renderResult?.(multi, { isPartial: false }, theme, makeRenderCtx())?.getText() ?? "";
-		expect(multiOut).toContain("- -");
-		// Framed view drops the `✓ exit 0` header — the collapsed row already carries it.
-		expect(multiOut).not.toContain("✓ exit 0");
-	});
-
-	it("frames completed generic results but leaves partial results open", () => {
-		const { pi, tool } = capturePi();
-		registerBashTool(pi, emptyFactory, makeToolContext());
-		if (!tool.renderResult) throw new Error("renderResult not registered");
-		const renderResult = tool.renderResult;
-		const render = (isError: boolean, isPartial: boolean) =>
-			renderResult(
-				{ content: [{ type: "text", text: isError ? "failed" : "done" }], details: undefined },
-				{ isPartial },
-				keyedTheme,
-				makeRenderCtx({ isError }),
-			)
-				.render(20)
-				.join("\n");
-
-		expect(render(false, false)).toContain("[success]- -");
-		expect(render(false, false)).not.toContain("└─");
-		expect(render(true, false)).toContain("[error]- -");
-		expect(render(true, false)).not.toContain("└─");
-		expect(render(false, true)).not.toContain("[success]- -");
-	});
-
-	it("shows the latest five lines while a command runs", () => {
-		const { pi, tool } = capturePi();
-		registerBashTool(pi, emptyFactory, makeToolContext());
-		const rendered = tool
-			.renderResult?.(
-				{
-					content: [{ type: "text", text: "one\ntwo\nthree\nfour\nfive\nsix" }],
-					details: undefined,
-				},
-				{ isPartial: true },
-				makeTheme(),
-				makeRenderCtx(),
-			)
-			?.getText();
-
-		expect(
-			rendered
-				?.replace(/\u001b\[[0-9;]*m/g, "")
-				.split("\n")
-				.map((line) => line.trim()),
-		).toEqual(["two", "three", "four", "five", "six"]);
-	});
-
-	it("tints the frame rules green on success and red on failure", () => {
-		const { pi, tool } = capturePi();
-		registerBashTool(pi, emptyFactory, makeToolContext());
-		// exitCode drives the rule tint; isError:false keeps the framed (non-error) branch
-		// so a non-zero exit still renders framed output with red rules.
-		const render = (exitCode: number | null) =>
-			tool
-				.renderResult?.(
-					{
-						content: [{ type: "text", text: "a\nb\nc" }],
-						details: {
-							_type: "bashResult",
-							text: "a\nb\nc",
-							exitCode,
-							command: "x",
-							durationMs: 0,
-						},
-					},
-					{ isPartial: false },
-					keyedTheme,
-					makeRenderCtx(),
-				)
-				?.getText() ?? "";
-		expect(render(0)).toContain("[success]- -"); // close painted success
-		expect(render(0)).not.toContain("└─");
-		expect(render(1)).toContain("[error]- -"); // non-zero exit → red close
-		expect(render(1)).not.toContain("└─");
-		expect(render(null)).toContain("[success]- -"); // completed return without a failure is success
 	});
 
 	it("collapses a non-zero exit thrown by Pi's built-in bash tool", async () => {

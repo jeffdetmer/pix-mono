@@ -69,6 +69,7 @@ npm:@xynogen/pix-9router
 npm:@xynogen/pix-pretty
 npm:@xynogen/pix-runtime
 npm:@xynogen/pix-bash
+npm:@xynogen/pix-powershell
 npm:@xynogen/pix-read
 npm:@xynogen/pix-write
 npm:@xynogen/pix-edit

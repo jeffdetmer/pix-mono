@@ -1,7 +1,7 @@
 {
-	"name": "@xynogen/pix-bash",
-	"version": "0.2.8",
-	"description": "Pi tool — bash shell execution with pretty output",
+	"name": "@xynogen/pix-powershell",
+	"version": "0.1.0",
+	"description": "Pi tool — PowerShell execution with pretty output (renders Pi's built-in powershell tool like pix-bash)",
 	"type": "module",
 	"main": "src/index.ts",
 	"exports": {
@@ -26,14 +26,15 @@
 		"pi",
 		"pi-package",
 		"pi-extension",
-		"bash"
+		"powershell",
+		"windows"
 	],
 	"author": "xynogen",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/xynogen/pix-mono.git",
-		"directory": "packages/pix-bash"
+		"directory": "packages/pix-powershell"
 	},
 	"publishConfig": {
 		"access": "public"

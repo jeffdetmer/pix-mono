@@ -56,6 +56,7 @@ These packages replace Pi's built-in tools under the same names. So model calls 
 | Package | Description |
 | --- | --- |
 | [`@xynogen/pix-bash`](https://www.npmjs.com/package/@xynogen/pix-bash) | `bash` — shell execution with framed output block and exit-code summary |
+| [`@xynogen/pix-powershell`](https://www.npmjs.com/package/@xynogen/pix-powershell) | `powershell` — same framed rendering for Pi's optional Windows tool; inert unless you enable `powershell` |
 | [`@xynogen/pix-read`](https://www.npmjs.com/package/@xynogen/pix-read) | `read` — file read with syntax highlighting, image mime + size metadata |
 | [`@xynogen/pix-write`](https://www.npmjs.com/package/@xynogen/pix-write) | `write` — file write with split-diff rendering on overwrite |
 | [`@xynogen/pix-edit`](https://www.npmjs.com/package/@xynogen/pix-edit) | `edit` — precise text replacement with side-by-side diff per edit |

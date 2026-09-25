@@ -28,6 +28,7 @@ import registerLs from "@xynogen/pix-ls/extension";
 import registerModels from "@xynogen/pix-models/extension";
 import registerNudge from "@xynogen/pix-nudge/extension";
 import registerOptimizer from "@xynogen/pix-optimizer";
+import registerPowerShell from "@xynogen/pix-powershell/extension";
 import registerPretty from "@xynogen/pix-pretty";
 import registerPrompts from "@xynogen/pix-prompts/extension";
 import registerRead from "@xynogen/pix-read/extension";
@@ -70,6 +71,8 @@ const MEMBERS = [
 	registerGrep,
 	registerLs,
 	registerBash,
+	// No-op unless Windows AND the user enabled Pi's optional `powershell` tool.
+	registerPowerShell,
 	registerTodo,
 	registerAsk,
 	registerOptimizer,

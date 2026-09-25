@@ -41,7 +41,7 @@ fi
 #                        (including /btw), pix-nudge, pix-diagnostics,
 #                        pix-prompts, pix-skills),
 #                        the standard tool suite (pix-read, pix-write, pix-edit,
-#                        pix-find, pix-grep, pix-ls, pix-bash, pix-todo,
+#                        pix-find, pix-grep, pix-ls, pix-bash, pix-powershell, pix-todo,
 #                        pix-ask), plus pix-optimizer and pix-gate — and pulls
 #                        pix-data/pix-pretty transitively. A single
 #                        `pi install` fetches the whole tree;

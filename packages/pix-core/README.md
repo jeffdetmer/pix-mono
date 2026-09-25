@@ -36,6 +36,7 @@ Pi activates extensions per installed package via each package's `pi.extensions`
 | `pix-grep` | `grep` — pattern search with FFF-prioritised results |
 | `pix-ls` | `ls` — directory listing as an icon tree |
 | `pix-bash` | `bash` — shell execution with framed output + exit-code summary |
+| `pix-powershell` | `powershell` — same rendering for Pi's optional Windows tool; inert unless you enable `powershell` |
 | `pix-todo` | `todo` — durable execution checklist |
 | `pix-ask` | `ask_user` — structured TUI questionnaire |
 

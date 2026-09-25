@@ -64,7 +64,7 @@ Product promise: **No hidden intent. No silent routing. No blind automation.**
 
 Per-package catalog (names, descriptions, bundled vs standalone, dependency tree) lives in [`.github/README.md`](.github/README.md) — do not duplicate it here. What matters for agent work:
 
-- **Bundled by `pix-core`** (Pi built-in replacements + UI/UX + behaviour): tool suite (`pix-bash/read/write/edit/find/grep/ls/ask/todo`), UI (`pix-welcome/footer/models/update/commands/nudge/diagnostics/display/prompts/skills`), behaviour (`pix-optimizer/gate/subagent`).
+- **Bundled by `pix-core`** (Pi built-in replacements + UI/UX + behaviour): tool suite (`pix-bash/powershell/read/write/edit/find/grep/ls/ask/todo`), UI (`pix-welcome/footer/models/update/commands/nudge/diagnostics/display/prompts/skills`), behaviour (`pix-optimizer/gate/subagent`).
 - **Shared layers** (see Package Independence): `pix-runtime`, `pix-data`, `pix-pretty`, `pix-core`.
 - **Standalone, opt-in, NOT bundled:** `pix-9router`, `pix-voice`, `pix-web`, `pix-sudo`, `pix-ssh`, `pix-toolbox`, `pix-graph`, `pix-hunk`, `pix-mcp`, `pix-aria2`, `pix-proc`.
 
@@ -288,7 +288,7 @@ Owned by `pix-runtime` (init/reload/flush + the `/pix` settings command). Auto-c
 
 | Section | Consumers |
 |---|---|
-| `collapse` | pix-bash, pix-read, pix-grep, pix-edit, pix-write, pix-find, pix-ls, pix-todo, pix-sudo, pix-ssh, pix-skills, pix-subagent, pix-voice, pix-web |
+| `collapse` | pix-bash, pix-powershell, pix-read, pix-grep, pix-edit, pix-write, pix-find, pix-ls, pix-todo, pix-sudo, pix-ssh, pix-skills, pix-subagent, pix-voice, pix-web |
 | `pretty` | pix-pretty (icons, preview/render limits, diff split thresholds) |
 | `optimizer` | pix-optimizer (caveman/rtk/ponytail state) |
 | `gate` | pix-gate (rules, auto-approve patterns) |

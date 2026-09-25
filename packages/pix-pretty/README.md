@@ -130,6 +130,7 @@ The package exposes its sub-modules via `exports`:
 @xynogen/pix-pretty/gate-overlay
 @xynogen/pix-pretty/modal-frame
 @xynogen/pix-pretty/provider-picker
+@xynogen/pix-pretty/shell-tool   (shared bash/powershell tool registrar + renderer)
 ```
 
 ## Full distro
