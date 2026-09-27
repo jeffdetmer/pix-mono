@@ -1,8 +1,26 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { stripBuiltinModelCommand } from "./patch-builtin.ts";
+import { managedInstallRoot, stripBuiltinModelCommand } from "./patch-builtin.ts";
+
+describe("managed install discovery", () => {
+	it("resolves the current release package root", () => {
+		const install = mkdtempSync(join(tmpdir(), "pix-install-"));
+		writeFileSync(join(install, "current-version"), "0.87.1\n", "utf8");
+		expect(managedInstallRoot(install)).toBe(
+			join(install, "releases", "0.87.1", "node_modules", "@earendil-works", "pi-coding-agent"),
+		);
+	});
+
+	it("is undefined without a valid current-version", () => {
+		const install = mkdtempSync(join(tmpdir(), "pix-install-"));
+		expect(managedInstallRoot(install)).toBeUndefined();
+		mkdirSync(join(install, "releases"));
+		writeFileSync(join(install, "current-version"), "..", "utf8");
+		expect(managedInstallRoot(install)).toBeUndefined();
+	});
+});
 
 const UNPATCHED = `export const BUILTIN_SLASH_COMMANDS = [
     { name: "settings", description: "Open settings menu" },

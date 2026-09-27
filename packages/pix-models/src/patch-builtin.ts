@@ -14,16 +14,46 @@
  * only fall back to dist/core/ for older hosts that lack a bundle dir.
  *
  * Package-root resolution (in order):
- *   1. `pi` binary via PATH → realpath → split at /dist/ to get the pkg root.
- *   2. Well-known global install locations (bun, npm).
- *   3. createRequire against the extension's own node_modules.
+ *   1. The running CLI script (`process.argv[1]`) → split at /dist/.
+ *   2. Pi managed install: `<PI_MANAGED_INSTALL_ROOT | agentDir/install>/
+ *      releases/<current-version>/node_modules/@earendil-works/pi-coding-agent`.
+ *   3. `pi` binary via PATH → realpath → split at /dist/ to get the pkg root.
+ *   4. Well-known global install locations (bun, npm).
+ *   5. createRequire against the extension's own node_modules.
  */
 
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join, sep } from "node:path";
+import { agentDir } from "@xynogen/pix-runtime/paths";
 import { findExecutableSync } from "@xynogen/pix-runtime/which";
+
+const PI_PACKAGE = ["@earendil-works", "pi-coding-agent"] as const;
+
+/** Package root before `/dist/` in a path, if any. */
+function rootBeforeDist(path: string | undefined): string | undefined {
+	if (!path) return undefined;
+	const idx = path.indexOf(`${sep}dist${sep}`);
+	return idx >= 0 ? path.slice(0, idx) : undefined;
+}
+
+/**
+ * Package root of Pi's managed install (`releases-v1` layout), or undefined
+ * when the install dir or its `current-version` file is absent.
+ */
+export function managedInstallRoot(
+	installRoot: string = process.env.PI_MANAGED_INSTALL_ROOT || join(agentDir(), "install"),
+): string | undefined {
+	try {
+		const version = readFileSync(join(installRoot, "current-version"), "utf8").trim();
+		if (!/^[0-9A-Za-z._+-]+$/.test(version) || version === "." || version === "..")
+			return undefined;
+		return join(installRoot, "releases", version, "node_modules", ...PI_PACKAGE);
+	} catch {
+		return undefined;
+	}
+}
 
 /** Locate `pi` on PATH, returning its real (symlink-resolved) path. */
 function resolvePiBinary(): string | undefined {
@@ -53,14 +83,20 @@ function packageRoots(): string[] {
 		if (r && !roots.includes(r)) roots.push(r);
 	};
 
-	// 1. Resolve via the `pi` binary on PATH → realpath → strip at /dist/.
-	const piReal = resolvePiBinary();
-	if (piReal) {
-		const idx = piReal.indexOf(`${sep}dist${sep}`);
-		if (idx >= 0) pushRoot(piReal.slice(0, idx));
+	// 1. The CLI script this process is running (most specific).
+	try {
+		pushRoot(rootBeforeDist(process.argv[1] ? realpathSync(process.argv[1]) : undefined));
+	} catch {
+		pushRoot(rootBeforeDist(process.argv[1]));
 	}
 
-	// 2. Well-known global install locations.
+	// 2. Pi managed install (pi on PATH is a launcher shim there).
+	pushRoot(managedInstallRoot());
+
+	// 3. Resolve via the `pi` binary on PATH → realpath → strip at /dist/.
+	pushRoot(rootBeforeDist(resolvePiBinary()));
+
+	// 4. Well-known global install locations.
 	const home = homedir();
 	for (const root of [
 		join(home, ".bun", "install", "global", "node_modules"),
@@ -68,15 +104,13 @@ function packageRoots(): string[] {
 		"/usr/local/lib/node_modules",
 		"/usr/lib/node_modules",
 	]) {
-		pushRoot(join(root, "@earendil-works", "pi-coding-agent"));
+		pushRoot(join(root, ...PI_PACKAGE));
 	}
 
-	// 3. Fallback: createRequire from this file (co-installed extension).
+	// 5. Fallback: createRequire from this file (co-installed extension).
 	try {
 		const require = createRequire(import.meta.url);
-		const entry = require.resolve("@earendil-works/pi-coding-agent");
-		const idx = entry.indexOf(`${sep}dist${sep}`);
-		if (idx >= 0) pushRoot(entry.slice(0, idx));
+		pushRoot(rootBeforeDist(require.resolve("@earendil-works/pi-coding-agent")));
 	} catch {
 		// local resolution failed — skip
 	}
