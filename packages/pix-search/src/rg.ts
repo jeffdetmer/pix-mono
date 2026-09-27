@@ -7,16 +7,25 @@
 
 import { spawn } from "node:child_process";
 import { basename } from "node:path";
+import { resolveTool } from "@xynogen/pix-runtime/binaries";
 
-// Bundled ripgrep: @vscode/ripgrep pulls a prebuilt rg per-platform on install
-// and exposes its absolute path, so users no longer need rg on PATH. Fall back
-// to a bare "rg" (PATH lookup) if the postinstall binary download was skipped
-// (e.g. npm_config_ignore_scripts).
-let RG_BIN = "rg";
-try {
-	RG_BIN = (require("@vscode/ripgrep") as { rgPath: string }).rgPath;
-} catch {
-	/* bundled binary unavailable — fall back to PATH `rg` */
+/**
+ * rg resolution: pix-runtime (binary.json → <agentDir>/bin, where Pi downloads
+ * rg → PATH). `@vscode/ripgrep`'s bundled copy is only the last fallback, for
+ * hosts where Pi has not fetched rg yet. Resolved lazily, once per process.
+ */
+let rgBin: string | undefined;
+export function rgBinary(): string {
+	if (rgBin) return rgBin;
+	rgBin = resolveTool("rg")?.path;
+	if (!rgBin) {
+		try {
+			rgBin = (require("@vscode/ripgrep") as { rgPath: string }).rgPath;
+		} catch {
+			rgBin = "rg";
+		}
+	}
+	return rgBin;
 }
 
 const TIMEOUT_MS = 3_000;
@@ -28,7 +37,7 @@ function spawnRg(args: string[], cwd: string, signal: AbortSignal): Promise<stri
 			return;
 		}
 
-		const child = spawn(RG_BIN, args, {
+		const child = spawn(rgBinary(), args, {
 			cwd,
 			stdio: ["ignore", "pipe", "ignore"],
 			// ponytail: no env filtering — inherits .gitignore respect from rg defaults
