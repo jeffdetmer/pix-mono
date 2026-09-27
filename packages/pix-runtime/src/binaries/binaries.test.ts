@@ -299,3 +299,14 @@ describe("ensureTool", () => {
 		).rejects.toThrow(/install: install sshpass/);
 	});
 });
+
+describe("middleTruncate", () => {
+	test("keeps both ends of a long path within the width", async () => {
+		const { middleTruncate } = await import("../binaries-tab.ts");
+		const p = String.raw`C:\Program Files\Git\bin\bash.exe`;
+		expect(middleTruncate(p, 60)).toBe(p);
+		const short = middleTruncate(p, 20);
+		expect(short.length).toBe(20);
+		expect(short).toMatch(/^C:\\Prog[^…]*…[^…]*\\bash\.exe$/);
+	});
+});

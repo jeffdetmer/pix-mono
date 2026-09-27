@@ -376,6 +376,23 @@ describe("/pix tabs", () => {
 		expect(active && existsSync(join(active.agentDir, "binary.json"))).toBe(true);
 	});
 
+	it("Binaries rows stay one line each; the selected row's users show in the fixed detail line", async () => {
+		const d = await openOverlay(getKeybindings(), 60);
+		d.feed(TAB.legacy);
+		const before = d.lines();
+		const detail = /│ \S+ · used by [\w-]+(, [\w-]+)*\s*│/;
+		expect(before.join("\n")).toMatch(detail);
+		d.feed(KEYS.down.legacy);
+		const after = d.lines();
+		expect(after.length).toBe(before.length);
+		expect(after.join("\n")).toMatch(detail);
+		// No per-row expansion: the cursor sits on the next list line, and no
+		// "used by" line appears inside the list.
+		const cursorAt = (ls: string[]) => ls.findIndex((l) => /│ → /.test(l));
+		expect(cursorAt(after)).toBe(cursorAt(before) + 1);
+		expect(after.filter((l) => /used by/.test(l)).length).toBe(1);
+	});
+
 	it("e edits a path into binary.json; d resets it to automatic", async () => {
 		const d = await openOverlay(getKeybindings(), 60);
 		d.feed(TAB.legacy);

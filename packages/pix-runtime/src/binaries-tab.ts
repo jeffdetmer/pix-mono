@@ -5,7 +5,7 @@
  * Pure view-controller over `binaries/*`; pix-command.ts owns the frame + tabs.
  */
 
-import { Input, matchesKey } from "@earendil-works/pi-tui";
+import { Input, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { ensureTool, type ToolStatus } from "./binaries/ensure.ts";
 import { listTools, type ToolLookup, toolVersion } from "./binaries/resolve.ts";
 import { readBinaryStore, setBinaryChoice, syncBinaryStore } from "./binaries/store.ts";
@@ -55,6 +55,18 @@ export function describeStatus(s: ToolStatus): { text: string; color: string } {
 			color: "success",
 		};
 	return { text: `${s.name}: ${s.error}${s.hint ? ` — install: ${s.hint}` : ""}`, color: "error" };
+}
+
+/**
+ * Shorten a path to `max` columns, keeping both ends (`C:\Program…\bash.exe`):
+ * the root says where it lives, the tail says what it is.
+ */
+export function middleTruncate(text: string, max: number): string {
+	if (text.length <= max) return text;
+	if (max <= 1) return "…".slice(0, max);
+	const tail = Math.ceil((max - 1) * 0.6);
+	const head = max - 1 - tail;
+	return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
 }
 
 /** Rows needed on this OS first (alphabetical), then other-platform entries. */
@@ -141,9 +153,14 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 				return true;
 			}
 			const row = rows[selected];
-			if (keys.up) selected = (selected - 1 + rows.length) % Math.max(1, rows.length);
-			else if (keys.down) selected = (selected + 1) % Math.max(1, rows.length);
-			else if (keys.enter && row) {
+			// Moving on dismisses the last action's status so the detail line tracks the cursor.
+			if (keys.up) {
+				selected = (selected - 1 + rows.length) % Math.max(1, rows.length);
+				status = undefined;
+			} else if (keys.down) {
+				selected = (selected + 1) % Math.max(1, rows.length);
+				status = undefined;
+			} else if (keys.enter && row) {
 				if (row.downloadable && row.state === "missing") install(row);
 				else {
 					refresh();
@@ -177,6 +194,9 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 
 		view(width: number): TabView {
 			const nameW = Math.max(6, ...rows.map((r) => r.name.length));
+			// Frame border + padding take 4 columns; every row must fit on one line.
+			const inner = Math.max(20, width - 4);
+			const lead = 2 + 2 + nameW + 2; // cursor, glyph, name, gap
 			const body: string[] = [];
 			let selectedBodyLine: number | undefined;
 			let otherHeader = false;
@@ -200,7 +220,11 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 					const meta = [row.source === "user" ? "binary.json" : row.source, version || undefined]
 						.filter(Boolean)
 						.join(" · ");
-					detail = `${theme.fg("dim", row.path ?? "")} ${theme.fg("muted", `· ${meta}`)}`;
+					// Path gets what the metadata leaves; metadata is clipped last.
+					const tag = ` · ${meta}`;
+					const room = inner - lead;
+					const pathRoom = Math.max(12, room - Math.min(tag.length, Math.max(0, room - 12)));
+					detail = `${theme.fg("dim", middleTruncate(row.path ?? "", pathRoom))}${theme.fg("muted", tag)}`;
 				} else if (row.state === "broken") {
 					detail = `${theme.fg("warning", `${row.choice} (not found)`)} ${theme.fg("muted", "· binary.json")}`;
 				} else if (busy) {
@@ -215,20 +239,30 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 					detail = theme.fg("muted", `not used on this OS · ${row.hint}`);
 				}
 				if (sel) selectedBodyLine = body.length;
-				body.push(`${cursor} ${glyph} ${name}  ${detail}`);
-				if (sel && row.usedBy.length > 0)
-					body.push(theme.fg("muted", `      used by ${row.usedBy.join(", ")}`));
+				const line = `${cursor} ${glyph} ${name}  ${detail}`;
+				body.push(visibleWidth(line) > inner ? truncateToWidth(line, inner, "…") : line);
 			}
 
 			const header: string[] = [];
 			if (storeError)
 				header.push(theme.fg("error", `binary.json is invalid: ${storeError} — fix ${storePath}`));
-			else
-				header.push(
-					theme.fg("muted", `paths: ${storePath} · null = automatic (bin → PATH → download)`),
-				);
+			else {
+				// Keep the file name (binary.json) visible: shorten the path's middle,
+				// and drop the lookup order before clipping anything else.
+				const order = " (bin → system → PATH → download)";
+				const tail = ` · null = automatic${storePath.length + 7 + 19 + order.length <= inner ? order : ""}`;
+				const text = `paths: ${middleTruncate(storePath, Math.max(12, inner - 7 - tail.length))}${tail}`;
+				header.push(theme.fg("muted", truncateToWidth(text, inner, "…")));
+			}
+			// One fixed detail line (editor › action status › selected row) so the
+			// list never shifts as the cursor moves.
+			const current = rows[selected];
 			if (editor) header.push(editor.input.render(Math.max(10, width - 4))[0] ?? "");
 			else if (status) header.push(theme.fg(status.color, status.text));
+			else if (current)
+				header.push(
+					`${theme.fg("accent", current.name)} ${theme.fg("muted", `· used by ${current.usedBy.join(", ") || "binary.json"}`)}`,
+				);
 
 			const footer: Array<[string, string]> = editor
 				? [
