@@ -11,8 +11,9 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientError } from "@xynogen/pix-pretty/transient-error";
-import { canExecute } from "./capability.ts";
+import { ensureTool, type ResolvedTool, resolveTool } from "@xynogen/pix-runtime/binaries";
 import { loadOptValue, saveOptValue } from "./persist.ts";
 import type { OptimizerHandle, OptimizerStatus } from "./status.ts";
 
@@ -75,7 +76,7 @@ export function buildSudoBlockReason(sudoCmds: string[], hasSudoRunTool: boolean
 
 export function applyRtkRewrite(
 	event: BashCallEvent,
-	opts: { enabled: boolean; rtkAvailable: boolean },
+	opts: { enabled: boolean; rtkAvailable: boolean; rtkCommand?: string },
 ): boolean {
 	if (!opts.enabled) return false;
 	if (!opts.rtkAvailable) return false;
@@ -84,7 +85,7 @@ export function applyRtkRewrite(
 	const command = event.input?.command;
 	if (typeof command !== "string" || !command) return false;
 
-	const rewritten = rewriteChain(command);
+	const rewritten = rewriteChain(command, opts.rtkCommand);
 	if (rewritten === command) return false;
 
 	event.input.command = rewritten;
@@ -128,12 +129,31 @@ const RTK_COMMANDS = new Set([
 
 interface RtkStatus {
 	available: boolean;
+	/** Command prefix to inject: bare `rtk`, or the quoted path for a binary.json pin. */
+	command: string;
 	checkedAt: number;
 }
 
-/** Probe the command we actually use instead of relying on a platform-specific locator. */
-export function probeRtkAvailability(pi: Pick<ExtensionAPI, "exec">): Promise<boolean> {
-	return canExecute(pi, "rtk", ["--version"]);
+/**
+ * Prefix used in rewritten commands. The bash tool puts `<agentDir>/bin` on
+ * PATH and PATH hits resolve by name, so those stay a readable bare `rtk`;
+ * only a user-chosen path (binary.json) must be spelled out, single-quoted
+ * with forward slashes so Git Bash on Windows runs it too.
+ */
+export function rtkCommandFor(tool: Pick<ResolvedTool, "path" | "source">): string {
+	if (tool.source !== "user") return "rtk";
+	const posix = tool.path.replaceAll("\\", "/");
+	return `'${posix.replaceAll("'", "'\\''")}'`;
+}
+
+/** Locate rtk (binary.json → agent bin → PATH) without running anything. */
+export function probeRtk(): RtkStatus {
+	const tool = resolveTool("rtk");
+	return {
+		available: tool !== undefined,
+		command: tool ? rtkCommandFor(tool) : "rtk",
+		checkedAt: Date.now(),
+	};
 }
 
 /**
@@ -195,7 +215,7 @@ const CHAIN_OPERATORS = new Set(["&&", "||", ";", "|"]);
  * RTK command and it is not already prefixed. Operators are preserved.
  * Returns the rewritten command, or the original if nothing changed.
  */
-export function rewriteChain(command: string): string {
+export function rewriteChain(command: string, rtkCommand = "rtk"): string {
 	const parts = splitChain(command);
 	if (!parts) return command; // unparseable — leave untouched
 
@@ -208,11 +228,11 @@ export function rewriteChain(command: string): string {
 		if (!body) return part;
 
 		const firstWord = body.split(/\s+/)[0] ?? "";
-		if (firstWord === "rtk") return part;
+		if (firstWord === "rtk" || firstWord === rtkCommand) return part;
 		if (!RTK_COMMANDS.has(firstWord)) return part;
 
 		changed = true;
-		return `${leading}rtk ${body}`;
+		return `${leading}${rtkCommand} ${body}`;
 	});
 
 	return changed ? rewritten.join("") : command;
@@ -239,13 +259,31 @@ export function rtk(pi: ExtensionAPI, status: OptimizerStatus): OptimizerHandle 
 			return rtkStatus;
 		}
 
-		const available = await probeRtkAvailability(pi);
-		rtkStatus = {
-			available,
-			checkedAt: Date.now(),
-		};
-		if (available) warnedMissing = false;
+		rtkStatus = probeRtk();
+		if (rtkStatus.available) warnedMissing = false;
 		return rtkStatus;
+	};
+
+	// First load without rtk: download it once, visibly (footer status + one
+	// transient line naming repo and version). Never blocks startup or a tool
+	// call; PI_OFFLINE, a broken binary.json path, or RTK off skip it.
+	let installing: Promise<void> | undefined;
+	const installRtk = (ctx: Pick<ExtensionContext, "ui">) => {
+		installing ??= ensureTool("rtk", { onStatus: reportToolStatus(ctx.ui) })
+			.then(() => {
+				rtkStatus = null;
+			})
+			.catch((error: unknown) => {
+				if (warnedMissing) return;
+				warnedMissing = true;
+				const detail = error instanceof Error ? error.message : String(error);
+				ctx.ui.notify(`RTK rewriting disabled: ${detail}`, "warning");
+			})
+			.then(async () => {
+				await checkRtkAvailability();
+				syncStatus(ctx);
+			});
+		return installing;
 	};
 
 	// Detect sudo_run tool availability. No system-prompt injection — the
@@ -266,14 +304,8 @@ export function rtk(pi: ExtensionAPI, status: OptimizerStatus): OptimizerHandle 
 		const saved = loadOptValue("rtk");
 		if (saved === "on" || saved === "off") enabled = saved === "on";
 		const probe = await checkRtkAvailability();
-		if (!probe.available && !warnedMissing) {
-			ctx.ui.notify(
-				"rtk not found — RTK rewriting disabled. Install: cargo install rtk-ai",
-				"warning",
-			);
-			warnedMissing = true;
-		}
 		syncStatus(ctx);
+		if (!probe.available && enabled) void installRtk(ctx);
 	});
 	pi.on("agent_start", async (_event, ctx) => {
 		syncStatus(ctx);
@@ -287,15 +319,16 @@ export function rtk(pi: ExtensionAPI, status: OptimizerStatus): OptimizerHandle 
 	async function run(value: string, ctx: ExtensionCommandContext): Promise<void> {
 		enabled = value === "on";
 		try {
-			saveOptValue("rtk", enabled ? "on" : "off");
+			await saveOptValue("rtk", enabled ? "on" : "off");
 		} catch (error) {
 			const detail = error instanceof Error ? error.message : String(error);
 			showTransientError(ctx.ui, `optimizer: failed to save rtk: ${detail}`);
 		}
 
-		await checkRtkAvailability();
+		const probe = await checkRtkAvailability();
 		syncStatus(ctx);
 		ctx.ui.notify(`RTK rewriting ${enabled ? "on" : "off"}.`, "info");
+		if (enabled && !probe.available) void installRtk(ctx);
 	}
 
 	// Rewrite bash commands to add rtk prefix.
@@ -339,7 +372,7 @@ export function rtk(pi: ExtensionAPI, status: OptimizerStatus): OptimizerHandle 
 		// Rewrite every segment in the command chain that uses a known RTK
 		// command (e.g. `git add . && git push` -> `rtk git add . && rtk git push`).
 		// Mutates `event.input.command` in place — the SDK's supported patch path.
-		applyRtkRewrite(event, { enabled, rtkAvailable: probe.available });
+		applyRtkRewrite(event, { enabled, rtkAvailable: probe.available, rtkCommand: probe.command });
 		return undefined;
 	});
 

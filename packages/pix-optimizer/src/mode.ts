@@ -87,7 +87,7 @@ export function createMode<L extends string>(
 			}
 		}
 		const saved = loadOptValue(name);
-		if (saved && levels.includes(saved as L)) level = saved as L;
+		if (levels.includes(saved as L)) level = saved as L;
 		syncStatus(ctx);
 	});
 
@@ -102,7 +102,7 @@ export function createMode<L extends string>(
 
 		pi.appendEntry(customType, { level });
 		try {
-			saveOptValue(name, level);
+			await saveOptValue(name, level);
 		} catch (error) {
 			const detail = error instanceof Error ? error.message : String(error);
 			showTransientError(ctx.ui, `optimizer: failed to save ${name}: ${detail}`);

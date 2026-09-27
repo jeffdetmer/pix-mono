@@ -23,7 +23,7 @@ There is no text-arg form: the overlay is the only UI. Selecting a value calls
 the tool's `run()` handler, which persists the new value and repaints the
 shared status cell. Headless/test fallbacks print a plain status summary.
 
-State persists to `~/.pi/agent/optimizer.json` (caveman/rtk/ponytail). **Initial values** for a new session can be set in the `optimizer` section of `~/.pi/agent/pix.json` — the runtime toggle via `/optimizer` still persists changes to `optimizer.json` as before.
+State (caveman/rtk/ponytail) persists in the `optimizer` section of `~/.pi/agent/pix.json`. That section is the only place it is stored; the old `optimizer.json` file is imported once by pix-runtime and never written again.
 
 ## Status bar
 
@@ -63,7 +63,7 @@ article-dropping caveman prompt.
 | micro | Experimental prompt-minimized     |
 
 The `/optimizer` overlay opens a settings dialog when needed. Default level
-for new sessions is restored from `~/.pi/agent/optimizer.json`.
+for new sessions is restored from `pix.json` → `optimizer`.
 
 ### RTK Tool Rewriting (`Rk`)
 
@@ -77,14 +77,26 @@ Two layers, both active automatically:
    `||`, `;` and `|`, and every known segment is prefixed** — e.g.
    `git add . && git push` becomes `rtk git add . && rtk git push`.
    Operators inside quotes are ignored, and unparseable commands are left
-   untouched. Falls back gracefully when the `rtk` binary is missing
-   (warns once).
+   untouched. Commands are never rewritten while `rtk` is missing.
 
-**Requirement:** the `rtk` binary must be on `PATH`.
+**Binary:** pix finds `rtk` in this order: `binary.json` → `~/.pi/agent/bin` →
+PATH (see pix-runtime, Binaries).
 
-```bash
-cargo install rtk-ai
-```
+When RTK is on and `rtk` is missing, pix downloads the latest official
+release from `rtk-ai/rtk` into `~/.pi/agent/bin` the first time Pi loads. It
+verifies the download against the release's `checksums.txt`.
+
+The download is visible: a footer status while it runs, then one line naming
+the version and source. It never blocks startup or a tool call.
+
+The download is skipped when:
+
+- `PI_OFFLINE` is set;
+- RTK is off in `/optimizer`;
+- `binary.json` names a path that doesn't exist.
+
+If you pin a path in `binary.json`, rewritten commands use that quoted path
+instead of a bare `rtk`.
 
 ### Ponytail Mode (`Pt`)
 
@@ -105,7 +117,7 @@ PATH dependency.
 
 ## Configuration via `pix.json`
 
-Set the initial optimizer state for new sessions in `~/.pi/agent/pix.json`. These values are applied once at session start; subsequent changes via `/optimizer` persist to `optimizer.json` and take precedence.
+Optimizer state lives in `~/.pi/agent/pix.json`. You can edit it by hand, or use `/optimizer`, which writes to the same section.
 
 ```jsonc
 {
@@ -139,7 +151,7 @@ pi install npm:@xynogen/pix-optimizer
 | `src/caveman.ts`  | Caveman logic, levels, prompt                            |
 | `src/rtk.ts`      | RTK prompt + bash command rewriting                       |
 | `src/ponytail.ts` | Ponytail logic, levels, prompt                            |
-| `src/persist.ts`  | Disk-backed `~/.pi/agent/optimizer.json` persistence; seeds initial state from `pix.json` |
+| `src/persist.ts`  | Reads/writes the `optimizer` section of `pix.json` via pix-runtime |
 | `src/tool-result-filter.ts` | Strips model-guidance warnings from tool_result |
 
 Each tool registers its own lifecycle hooks and exposes an `OptimizerHandle`

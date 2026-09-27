@@ -1,77 +1,49 @@
 /**
- * Regression test for the cross-session reset bug: optimizer tool states
- * (caveman/ponytail/rtk) were lost on a full quit/restart because they
- * only persisted to the session log. persist.ts adds disk persistence so a
- * value written in one session is readable in the next.
+ * Optimizer states persist in pix.json `optimizer` (pix-runtime), surviving a
+ * full quit/restart, and never recreate the retired `optimizer.json` sidecar.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadOptValue, saveOptValue } from "./persist.ts";
 
 let tmpAgentDir: string;
+let persist: typeof import("./persist.ts");
 
-beforeAll(() => {
+beforeAll(async () => {
 	tmpAgentDir = mkdtempSync(join(tmpdir(), "optimizer-persist-test-"));
+	// The runtime singleton binds its agent dir on first use; set it first.
 	process.env.PI_CODING_AGENT_DIR = tmpAgentDir;
+	persist = await import("./persist.ts");
+	const { pixRuntime } = await import("@xynogen/pix-runtime/config");
+	await pixRuntime().init();
 });
 
 afterAll(() => {
 	delete process.env.PI_CODING_AGENT_DIR;
-	try {
-		rmSync(tmpAgentDir, { recursive: true });
-	} catch {
-		// temp dir may already be gone — safe to ignore
-	}
+	rmSync(tmpAgentDir, { recursive: true, force: true });
 });
 
-describe("optimizer persistence", () => {
-	test("returns undefined before anything is saved", () => {
-		expect(loadOptValue("caveman")).toBeUndefined();
+const pixJson = () => JSON.parse(readFileSync(join(tmpAgentDir, "pix.json"), "utf-8"));
+
+describe("optimizer persistence (pix.json)", () => {
+	test("defaults before anything is saved", () => {
+		expect(persist.loadOptValue("caveman")).toBe("off");
+		expect(persist.loadOptValue("rtk")).toBe("on");
 	});
 
-	test("round-trips a single tool value across save/load (new-session sim)", () => {
-		saveOptValue("caveman", "lite");
-		// A fresh load (as a new session would do) sees the persisted value.
-		expect(loadOptValue("caveman")).toBe("lite");
+	test("round-trips each tool independently into pix.json.optimizer", async () => {
+		await persist.saveOptValue("caveman", "lite");
+		await persist.saveOptValue("ponytail", "full");
+		await persist.saveOptValue("rtk", "off");
+		expect(persist.loadOptValue("caveman")).toBe("lite");
+		expect(persist.loadOptValue("ponytail")).toBe("full");
+		expect(persist.loadOptValue("rtk")).toBe("off");
+		expect(pixJson().optimizer).toMatchObject({ caveman: "lite", ponytail: "full", rtk: "off" });
 	});
 
-	test("persists each tool independently in one shared file", () => {
-		saveOptValue("ponytail", "full");
-		saveOptValue("rtk", "off");
-		expect(loadOptValue("caveman")).toBe("lite");
-		expect(loadOptValue("ponytail")).toBe("full");
-		expect(loadOptValue("rtk")).toBe("off");
-	});
-
-	test("overwriting one tool leaves the others intact", () => {
-		saveOptValue("caveman", "ultra");
-		expect(loadOptValue("caveman")).toBe("ultra");
-		expect(loadOptValue("ponytail")).toBe("full");
-	});
-
-	test("drops legacy TOON state on the next write", () => {
-		const statePath = join(tmpAgentDir, "optimizer.json");
-		writeFileSync(statePath, JSON.stringify({ caveman: "lite", toon: "on" }));
-
-		saveOptValue("rtk", "on");
-
-		expect(JSON.parse(readFileSync(statePath, "utf-8"))).toEqual({
-			caveman: "lite",
-			rtk: "on",
-		});
-	});
-
-	test("throws persistence failures for the UI caller to render", () => {
-		const blockedAgentDir = join(tmpAgentDir, "not-a-directory");
-		writeFileSync(blockedAgentDir, "blocked");
-		process.env.PI_CODING_AGENT_DIR = blockedAgentDir;
-		try {
-			expect(() => saveOptValue("caveman", "full")).toThrow();
-		} finally {
-			process.env.PI_CODING_AGENT_DIR = tmpAgentDir;
-		}
+	test("never writes the retired optimizer.json sidecar", () => {
+		expect(existsSync(join(tmpAgentDir, "optimizer.json"))).toBe(false);
 	});
 });

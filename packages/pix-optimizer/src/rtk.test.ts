@@ -1,12 +1,11 @@
-import { describe, expect, it, mock } from "bun:test";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { describe, expect, it } from "bun:test";
 import {
 	applyRtkRewrite,
 	type BashCallEvent,
 	buildSudoBlockReason,
 	detectSudoSegments,
-	probeRtkAvailability,
 	rewriteChain,
+	rtkCommandFor,
 	splitChain,
 } from "./rtk.ts";
 
@@ -15,31 +14,22 @@ function bashEvent(command: string): BashCallEvent {
 	return { toolName: "bash", input: { command } };
 }
 
-describe("probeRtkAvailability", () => {
-	it("probes rtk directly and accepts a successful version check", async () => {
-		const exec = mock(async () => ({
-			stdout: "rtk 0.1.0",
-			stderr: "",
-			code: 0,
-			killed: false,
-		}));
-
-		expect(await probeRtkAvailability({ exec } as Pick<ExtensionAPI, "exec">)).toBe(true);
-		expect(exec).toHaveBeenCalledWith("rtk", ["--version"], { timeout: 3000 });
+describe("rtkCommandFor", () => {
+	it("keeps a bare rtk for agent-bin and PATH hits (bash puts bin on PATH)", () => {
+		expect(rtkCommandFor({ source: "bin", path: "/home/me/.pi/agent/bin/rtk" })).toBe("rtk");
+		expect(rtkCommandFor({ source: "path", path: "/usr/bin/rtk" })).toBe("rtk");
 	});
 
-	it("rejects an unsuccessful version check", async () => {
-		const exec = mock(async () => ({ stdout: "", stderr: "missing", code: 1, killed: false }));
-
-		expect(await probeRtkAvailability({ exec } as Pick<ExtensionAPI, "exec">)).toBe(false);
+	it("spells out a binary.json path, quoted with forward slashes", () => {
+		expect(rtkCommandFor({ source: "user", path: "C:\\tools\\rtk.exe" })).toBe(
+			"'C:/tools/rtk.exe'",
+		);
+		expect(rtkCommandFor({ source: "user", path: "/opt/it's/rtk" })).toBe("'/opt/it'\\''s/rtk'");
 	});
 
-	it("treats a spawn failure as unavailable", async () => {
-		const exec = mock(async () => {
-			throw new Error("ENOENT");
-		});
-
-		expect(await probeRtkAvailability({ exec } as Pick<ExtensionAPI, "exec">)).toBe(false);
+	it("rewriteChain uses the given prefix and treats it as already-prefixed", () => {
+		expect(rewriteChain("git status && ls", "'/o/rtk'")).toBe("'/o/rtk' git status && '/o/rtk' ls");
+		expect(rewriteChain("'/o/rtk' git status", "'/o/rtk'")).toBe("'/o/rtk' git status");
 	});
 });
 
