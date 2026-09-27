@@ -1,39 +1,28 @@
 /**
  * env.ts — Detect environment info (git, platform) for subagent system prompts.
+ *
+ * git runs through pix-runtime (binary.json → agent bin → known dirs → PATH);
+ * a missing git just means "not a repo" here — the footer and welcome panel
+ * already surface the install hint.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { runGit } from "@xynogen/pix-runtime/os";
 import type { EnvInfo } from "./types.js";
 
-export async function detectEnv(pi: ExtensionAPI, cwd: string): Promise<EnvInfo> {
-	let isGitRepo = false;
-	let branch = "";
-
+async function git(cwd: string, args: string[]): Promise<string | null> {
 	try {
-		const result = await pi.exec("git", ["rev-parse", "--is-inside-work-tree"], {
-			cwd,
-			timeout: 5000,
-		});
-		isGitRepo = result.code === 0 && result.stdout.trim() === "true";
+		return await runGit(args, { cwd, timeoutMs: 5000 });
 	} catch {
-		// Not a git repo or git not installed
+		return null;
 	}
+}
 
-	if (isGitRepo) {
-		try {
-			const result = await pi.exec("git", ["branch", "--show-current"], {
-				cwd,
-				timeout: 5000,
-			});
-			branch = result.code === 0 ? result.stdout.trim() : "unknown";
-		} catch {
-			branch = "unknown";
-		}
-	}
-
-	return {
-		isGitRepo,
-		branch,
-		platform: process.platform,
-	};
+export async function detectEnv(_pi: ExtensionAPI, cwd: string): Promise<EnvInfo> {
+	const inside = await git(cwd, ["rev-parse", "--is-inside-work-tree"]);
+	const isGitRepo = inside?.trim() === "true";
+	const branch = isGitRepo
+		? ((await git(cwd, ["branch", "--show-current"]))?.trim() ?? "unknown")
+		: "";
+	return { isGitRepo, branch, platform: process.platform };
 }
