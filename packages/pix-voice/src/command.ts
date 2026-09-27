@@ -7,10 +7,11 @@ import {
 } from "@xynogen/pix-pretty/provider-picker";
 import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
+import { listMicrophones, type Microphone } from "@xynogen/pix-runtime/audio";
 import { cleanupModel } from "./cleanup.js";
 import { parseLanguage, saveConfig, voiceConfig } from "./config.js";
 import { isConfigured, listProviders, type VoiceKind } from "./providers.js";
-import { type Microphone, microphoneDevices, startMeter } from "./recorder.js";
+import { startMeter } from "./recorder.js";
 import { levelBar } from "./stt-command.js";
 
 const NINE_ROUTER = "9router";
@@ -172,8 +173,8 @@ export default function registerVoiceCommand(pi: ExtensionAPI): void {
 			"Set the speech-to-text and text-to-speech providers, 9Router models, microphone, and playback",
 		handler: async (_args, ctx) => {
 			let cursor = 0;
-			// Read once per /voice. pactl is too slow for each render.
-			const mics = await microphoneDevices().catch(() => [
+			// Read once per /voice. The device scan is too slow for each render.
+			const mics = await listMicrophones().catch(() => [
 				{ id: "default", label: "System default" },
 			]);
 			const cleanup = cleanupChoices(ctx);

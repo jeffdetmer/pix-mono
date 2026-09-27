@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setIconMode } from "@xynogen/pix-pretty/icon-catalog";
 import { voiceConfig } from "./config.js";
 import { registerProvider, type SpeechRequest } from "./providers.js";
-import registerSpeak, { playerCommand, saveSpeech } from "./speak.js";
+import registerSpeak, { player, saveSpeech } from "./speak.js";
 
-const oldPath = process.env.PATH;
 const oldProvider = voiceConfig.ttsProvider;
 const oldPlay = voiceConfig.ttsPlay;
+const oldPlayer = player.play;
 
 afterEach(() => {
-	process.env.PATH = oldPath;
 	voiceConfig.ttsProvider = oldProvider;
 	voiceConfig.ttsPlay = oldPlay;
+	player.play = oldPlayer;
 	setIconMode("nerd");
 });
 
@@ -60,18 +60,6 @@ function fakeProvider(id: string, format: string, size = 21_168) {
 }
 
 describe("speak tool", () => {
-	test("selects one supported local player command", () => {
-		expect(playerCommand("/tmp/speech.mp3", new Set(["ffplay"]))).toEqual([
-			"ffplay",
-			"-nodisp",
-			"-autoexit",
-			"-loglevel",
-			"error",
-			"/tmp/speech.mp3",
-		]);
-		expect(playerCommand("/tmp/speech.mp3", new Set())).toBeUndefined();
-	});
-
 	test("saves audio bytes without text conversion", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "pix-tts-"));
 		const path = join(dir, "speech.mp3");
@@ -84,8 +72,11 @@ describe("speak tool", () => {
 		const calls = fakeProvider("test-tts-play", "mp3");
 		const dir = mkdtempSync(join(tmpdir(), "pix-tts-result-"));
 		const path = join(dir, "speech.mp3");
-		await writeFile(join(dir, "pw-play"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-		process.env.PATH = dir;
+		// Playback is a pix-runtime job. Record the call instead of playing audio.
+		const played: string[] = [];
+		player.play = async (file) => {
+			played.push(file);
+		};
 		voiceConfig.ttsPlay = true;
 		setIconMode("unicode");
 		const updates: string[] = [];
@@ -103,6 +94,7 @@ describe("speak tool", () => {
 			]);
 			expect(result.content[0]?.text).toBe("\u25A0\uFE0E speech.mp3 · 20.7 KiB");
 			expect(result.details).toMatchObject({ provider: "test-tts-play", outcome: "success" });
+			expect(played).toEqual([path]);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

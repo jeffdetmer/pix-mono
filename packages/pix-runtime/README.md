@@ -180,6 +180,28 @@ session, pointing at the `/pix` Binaries tab.
 `scripts/binaries.test.ts` fails CI when a package starts a catalogued binary
 by bare name.
 
+### Audio — `./audio`
+
+Recording and playback need a different program on each OS. Linux uses
+PulseAudio/PipeWire. Windows uses DirectShow through ffmpeg:
+
+```ts
+import { listMicrophones, microphoneInput, playAudio } from "@xynogen/pix-runtime/audio";
+
+const mics = await listMicrophones();   // pactl (Linux) / ffmpeg dshow (Windows). First entry is "default"
+const input = microphoneInput("default"); // ["-f","pulse","-i",…] / ["-f","dshow","-i","audio=…"]
+await playAudio(file, { signal });       // pw-play/paplay/ffplay/mpv, Windows: ffplay/mpv/PowerShell MediaPlayer
+```
+
+### Safe output paths — `./safe-path`
+
+`validateOutputPath(absPath)` checks a model-chosen write target before the
+write. It rejects null bytes, system dirs (`/etc`, `/proc` … or
+`C:\Windows`, `Program Files`), secret dirs under home (`.ssh`, `.aws`,
+`.gnupg`, GitHub CLI), symlinks and Windows junctions, existing directories,
+and paths with no writable ancestor. Matching is per path segment, and
+case-insensitive on Windows.
+
 ### `~/.pi/agent/binary.json`
 
 This file is user configuration. It holds only the binaries you override. The

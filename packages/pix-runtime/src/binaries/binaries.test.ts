@@ -67,7 +67,7 @@ describe("catalog", () => {
 			BINARY_NAMES.filter((n) => downloadAsset(CATALOG[n] as BinarySpec, h) !== undefined).join(
 				",",
 			);
-		expect(dl(hosts[0] as HostPlatform)).toBe("aria2c,hunk,rtk");
+		expect(dl(hosts[0] as HostPlatform)).toBe("aria2c,ffmpeg,hunk,rtk");
 		expect(dl(hosts[1] as HostPlatform)).toBe("ffmpeg,hunk,rtk");
 		expect(dl(hosts[3] as HostPlatform)).toBe("hunk,rtk");
 		expect(dl({ os: "android", arch: "arm64", wsl: false, termux: true, exe: "" })).toBe("");
@@ -181,7 +181,9 @@ describe("resolve order", () => {
 		const rows = listTools({ env: s.env, host });
 		expect(rows.map((r) => r.name)).toContain("custom");
 		const ffmpeg = rows.find((r) => r.name === "ffmpeg");
-		expect(ffmpeg?.state).toBe(host.os === "linux" ? "missing" : "unsupported");
+		expect(ffmpeg?.state).toBe(
+			host.os === "linux" || host.os === "win32" ? "missing" : "unsupported",
+		);
 		expect(rows.find((r) => r.name === "rtk")?.downloadable).toBe(true);
 	});
 });

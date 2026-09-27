@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
-import { chmod, readFile, rm } from "node:fs/promises";
+import { mkdtempSync } from "node:fs";
+import { readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,9 +8,11 @@ import { mimeType, parseTranscriptionResponse } from "./http.js";
 import registerTranscribe, {
 	buildTranscriptionResult,
 	resolveOutputPath,
-	validateOutputPath,
 	writeTranscriptionFile,
 } from "./transcribe.js";
+
+/** Blocked on every OS: pix-runtime/safe-path rejects ~/.ssh. */
+const SECRET = join(homedir(), ".ssh", "authorized_keys");
 
 // ── mimeType ─────────────────────────────────────────────────────────────────
 
@@ -140,14 +142,14 @@ describe("parseTranscriptionResponse", () => {
 
 describe("resolveOutputPath", () => {
 	it("keeps absolute paths as-is", () => {
-		const abs = "/tmp/foo/bar.txt";
+		const abs = join(tmpdir(), "foo", "bar.txt");
 		expect(resolveOutputPath(abs)).toBe(abs);
 	});
 
 	it("resolves relative paths against cwd", () => {
-		const rel = "transcripts/out.txt";
+		const rel = join("transcripts", "out.txt");
 		const result = resolveOutputPath(rel);
-		expect(result.endsWith("transcripts/out.txt")).toBe(true);
+		expect(result.endsWith(rel)).toBe(true);
 		expect(result.startsWith(process.cwd())).toBe(true);
 	});
 });
@@ -264,119 +266,17 @@ describe("buildTranscriptionResult", () => {
 	});
 });
 
-// ── validateOutputPath ───────────────────────────────────────────────────────
-
-describe("validateOutputPath", () => {
-	const tmpRoot = mkdtempSync(join(tmpdir(), "pix-validate-"));
-
-	it("accepts a fresh path under a writable parent", async () => {
-		const result = await validateOutputPath(join(tmpRoot, "fresh.txt"));
-		expect(result.ok).toBe(true);
-		if (result.ok) expect(result.path).toBe(join(tmpRoot, "fresh.txt"));
-	});
-
-	it("accepts a fresh path several levels deep", async () => {
-		const result = await validateOutputPath(join(tmpRoot, "a", "b", "c", "deep.txt"));
-		expect(result.ok).toBe(true);
-	});
-
-	it("rejects null bytes", async () => {
-		const result = await validateOutputPath(join(tmpRoot, "x\0y.txt"));
-		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.reason).toContain("null byte");
-	});
-
-	it.each([
-		"/etc",
-		"/etc/passwd",
-		"/etc/cron.daily/x",
-		"/proc/cpuinfo",
-		"/sys/kernel/x",
-		"/boot/efi/x",
-		`${homedir()}/.ssh/authorized_keys`,
-		`${homedir()}/.aws/credentials`,
-		`${homedir()}/.gnupg/gpg.conf`,
-		`${homedir()}/.config/gh/hosts.yml`,
-	])("rejects sensitive prefix %s", async (bad) => {
-		const result = await validateOutputPath(bad);
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.reason).toMatch(/refusing to write/);
-		}
-	});
-
-	it("rejects when no ancestor directory exists at all", async () => {
-		// Deep path under a non-existent tree with no existing ancestor
-		const result = await validateOutputPath("/no-such-root-xyz/abc/def/x.txt");
-		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.reason).toMatch(/no existing ancestor/);
-	});
-
-	it("rejects when parent is not writable", async () => {
-		const readOnlyParent = join(tmpRoot, "ro");
-		mkdirSync(readOnlyParent);
-		await chmod(readOnlyParent, 0o555);
-		try {
-			const result = await validateOutputPath(join(readOnlyParent, "x.txt"));
-			expect(result.ok).toBe(false);
-			if (!result.ok) expect(result.reason).toMatch(/no writable ancestor/);
-		} finally {
-			// restore so cleanup can rm -rf
-			await chmod(readOnlyParent, 0o755);
-		}
-	});
-
-	it("rejects when target is a symlink", async () => {
-		const real = join(tmpRoot, "real.txt");
-		writeFileSync(real, "x");
-		const link = join(tmpRoot, "link.txt");
-		symlinkSync(real, link);
-		const result = await validateOutputPath(link);
-		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.reason).toMatch(/symlink/);
-	});
-
-	it("rejects when target is an existing directory", async () => {
-		const dir = join(tmpRoot, "isadir");
-		mkdirSync(dir);
-		const result = await validateOutputPath(dir);
-		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.reason).toMatch(/directory/);
-	});
-
-	it("rejects when a parent in the chain is a symlink", async () => {
-		const realSubdir = join(tmpRoot, "real-sub");
-		mkdirSync(realSubdir);
-		const symlinkedParent = join(tmpRoot, "fake-parent");
-		symlinkSync(realSubdir, symlinkedParent);
-		const result = await validateOutputPath(join(symlinkedParent, "x.txt"));
-		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.reason).toMatch(/parent is a symlink/);
-	});
-
-	it("accepts a path inside an existing file's parent (overwrite OK)", async () => {
-		const existing = join(tmpRoot, "exists.txt");
-		writeFileSync(existing, "old");
-		const result = await validateOutputPath(existing);
-		expect(result.ok).toBe(true);
-	});
-
-	it("cleanup", async () => {
-		await rm(tmpRoot, { recursive: true, force: true });
-	});
-});
-
 // ── writeTranscriptionFile — rejection propagation ───────────────────────────
 
 describe("writeTranscriptionFile — rejection propagation", () => {
 	it("throws on sensitive prefix", async () => {
-		await expect(writeTranscriptionFile("/etc/some-file", "x")).rejects.toThrow(
-			/refusing to write under \/etc/,
-		);
+		await expect(writeTranscriptionFile(SECRET, "x")).rejects.toThrow(/refusing to write under /);
 	});
 
 	it("throws on null byte", async () => {
-		await expect(writeTranscriptionFile("/tmp/pix-test-\0x.txt", "x")).rejects.toThrow(/null byte/);
+		await expect(writeTranscriptionFile(join(tmpdir(), "pix-test-\0x.txt"), "x")).rejects.toThrow(
+			/null byte/,
+		);
 	});
 });
 
@@ -389,7 +289,7 @@ describe("buildTranscriptionResult — write failure path", () => {
 			text,
 			"dg/nova-3",
 			"9router",
-			"/etc/passwd",
+			SECRET,
 			"meeting.mp3",
 		);
 		expect(result.isError).toBe(true);
@@ -404,7 +304,7 @@ describe("buildTranscriptionResult — write failure path", () => {
 		expect(result.content).toHaveLength(2);
 		const joined = result.content.map((c) => c.text).join("\n");
 		expect(joined).toContain(text);
-		expect(joined).toContain("/etc/passwd");
+		expect(joined).toContain(SECRET);
 	});
 });
 

@@ -17,9 +17,12 @@ import { join } from "node:path";
  * `getAgentDir` uses). An injected env (tests) is read instead: USERPROFILE on
  * Windows, HOME elsewhere, falling back to `os.homedir()`.
  */
-export function homeDir(env: NodeJS.ProcessEnv = process.env): string {
+export function homeDir(
+	env: NodeJS.ProcessEnv = process.env,
+	os: NodeJS.Platform = process.platform,
+): string {
 	if (env === process.env) return homedir();
-	const fromEnv = process.platform === "win32" ? env.USERPROFILE : env.HOME;
+	const fromEnv = os === "win32" ? env.USERPROFILE : env.HOME;
 	return fromEnv || homedir();
 }
 

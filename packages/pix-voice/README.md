@@ -61,7 +61,7 @@ once. Rows with a list open it in the modal: type to filter, then press enter.
 | language | A code such as `en`, `id`, or `pt-br`, or `auto` |
 | cleanup model | `off`, `current`, or `provider/model`. See [Cleanup](#cleanup-optional). |
 | dictation key | Any Pi key id. Needs a Pi restart. |
-| play after generation | Play `speak` output with `pw-play`, `paplay`, `ffplay`, or `mpv` |
+| play after generation | Play `speak` output with `pw-play`, `paplay`, `ffplay`, or `mpv`. Windows falls back to built-in PowerShell `MediaPlayer` |
 
 Settings stay in `~/.pi/agent/voice.json`:
 
@@ -107,6 +107,10 @@ If `ffmpeg` is missing, the first recording attempt downloads the BtbN LGPL
 build (~120 MB, checksum-verified) into `~/.pi/agent/bin`, with a visible
 status. Try again once it finishes. Tools are found through
 `~/.pi/agent/binary.json` → `~/.pi/agent/bin` → `PATH`.
+
+Requirements (Windows): `ffmpeg` records a DirectShow input and lists the
+inputs by name. `System default` means the first listed input. A missing
+`ffmpeg` downloads the same way, or run `winget install Gyan.FFmpeg`.
 
 ### Cleanup (optional)
 

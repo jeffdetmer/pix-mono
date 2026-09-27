@@ -3,11 +3,10 @@
  * `provider` argument; the result names the provider and model that ran.
  */
 
-import { constants as fsConstants } from "node:fs";
-import { access, lstat, mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { validateOutputPath } from "@xynogen/pix-runtime/safe-path";
 import { Type } from "typebox";
 import { voiceConfig, voiceModel } from "./config.js";
 import { resolveProvider } from "./providers.js";
@@ -39,116 +38,6 @@ interface TranscribeResult {
 /** Resolve a possibly-relative `output_file` to an absolute path. */
 export function resolveOutputPath(outputFile: string): string {
 	return isAbsolute(outputFile) ? outputFile : resolve(process.cwd(), outputFile);
-}
-
-/**
- * Pre-flight safety check for `output_file`. Rejects paths that target sensitive
- * system locations, null bytes, non-existent or non-writable parents, symlinks
- * (at the target or anywhere in the parent chain), and existing-directory targets.
- *
- * Returns a discriminated result so the caller can surface a precise reason to
- * the model without leaking OS internals.
- */
-export type PathValidation = { ok: true; path: string } | { ok: false; reason: string };
-
-/** Block-list of absolute prefixes that should never receive transcription output. */
-function sensitivePrefixes(): string[] {
-	const home = homedir();
-	return [
-		"/etc",
-		"/proc",
-		"/sys",
-		"/boot",
-		`${home}/.ssh`,
-		`${home}/.aws`,
-		`${home}/.gnupg`,
-		`${home}/.config/gh`,
-	];
-}
-
-export async function validateOutputPath(absPath: string): Promise<PathValidation> {
-	// 1. Null byte injection guard (defence in depth — Node already rejects, fail fast with clear msg)
-	if (absPath.includes("\0")) {
-		return { ok: false, reason: "path contains a null byte" };
-	}
-
-	// 2. Sensitive prefix block-list
-	for (const prefix of sensitivePrefixes()) {
-		if (absPath === prefix || absPath.startsWith(`${prefix}/`)) {
-			return { ok: false, reason: `refusing to write under ${prefix}` };
-		}
-	}
-
-	// 3. Target must not be a symlink and must not be an existing directory.
-	//    (lstat does NOT follow symlinks — that's the whole point of using it here.)
-	try {
-		const st = await lstat(absPath);
-		if (st.isSymbolicLink()) {
-			return { ok: false, reason: `target is a symlink: ${absPath}` };
-		}
-		if (st.isDirectory()) {
-			return {
-				ok: false,
-				reason: `target is an existing directory: ${absPath}`,
-			};
-		}
-	} catch (err) {
-		// ENOENT is fine — we'll create the file. Anything else is a hard fail.
-		if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-			return {
-				ok: false,
-				reason: `cannot stat target: ${(err as Error).message}`,
-			};
-		}
-	}
-
-	// 4. Walk up the parent chain. For every ancestor that EXISTS, it must
-	//    (a) not be a symlink (stops /tmp/safe-looking-dir → /etc redirect), and
-	//    (b) be writable so mkdir -p can create missing intermediates.
-	//    Ancestors that don't exist (ENOENT) are fine — mkdir -p will create them.
-	const parent = dirname(absPath);
-	let cursor = parent;
-	let nearestExisting: string | null = null;
-	while (cursor !== dirname(cursor)) {
-		let st: Awaited<ReturnType<typeof lstat>>;
-		try {
-			st = await lstat(cursor);
-		} catch (err) {
-			if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-				// intermediate doesn't exist yet — keep walking up
-				cursor = dirname(cursor);
-				continue;
-			}
-			return {
-				ok: false,
-				reason: `cannot stat parent: ${(err as Error).message}`,
-			};
-		}
-		if (st.isSymbolicLink()) {
-			return { ok: false, reason: `parent is a symlink: ${cursor}` };
-		}
-		if (st.isDirectory() && nearestExisting === null) {
-			nearestExisting = cursor;
-		}
-		cursor = dirname(cursor);
-	}
-
-	if (nearestExisting === null) {
-		return {
-			ok: false,
-			reason: `no existing ancestor directory for ${parent}`,
-		};
-	}
-	try {
-		await access(nearestExisting, fsConstants.W_OK);
-	} catch {
-		return {
-			ok: false,
-			reason: `no writable ancestor directory: ${nearestExisting}`,
-		};
-	}
-
-	return { ok: true, path: absPath };
 }
 
 /** Write transcription text to disk, creating parent directories as needed.

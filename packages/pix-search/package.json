@@ -1,6 +1,6 @@
 {
 	"name": "@xynogen/pix-search",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"description": "Pi extension — @ file picker overlay with fuzzy + git recency ranking",
 	"type": "module",
 	"main": "src/index.ts",
@@ -50,6 +50,6 @@
 	"dependencies": {
 		"@vscode/ripgrep": "^1.18.0",
 		"@xynogen/pix-pretty": "^1.28.0",
-		"@xynogen/pix-runtime": "^0.11.0"
+		"@xynogen/pix-runtime": "^0.12.0"
 	}
 }

@@ -1,7 +1,9 @@
-import { spawn } from "node:child_process";
+/** Recording and level metering with ffmpeg. The per-OS input comes from pix-runtime/audio. */
+
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { microphoneInput } from "@xynogen/pix-runtime/audio";
 import {
 	BinaryMissingError,
 	ensureTool,
@@ -9,97 +11,15 @@ import {
 	resolveTool,
 	type ToolStatus,
 } from "@xynogen/pix-runtime/binaries";
+import { spawnTool } from "@xynogen/pix-runtime/exec";
 
-export interface Microphone {
-	/** PulseAudio source name, passed to ffmpeg. "default" follows the system default. */
-	id: string;
-	/** Readable name, e.g. "Headset - Nokia E1200 ANC". */
-	label: string;
-}
-
-interface PulseSource {
-	name?: string;
-	description?: string;
-	active_port?: string | null;
-	ports?: Array<{ name?: string; description?: string }>;
-	properties?: Record<string, string | undefined>;
-}
-
-const FORM: Record<string, string> = {
-	headset: "Headset",
-	headphone: "Headset",
-	handsfree: "Headset",
-	webcam: "Webcam",
-	microphone: "Microphone",
-};
-
-/** "Built-in Audio Analog Stereo" → "Built-in Audio". The channel layout is noise here. */
-function product(description: string): string {
-	return description.replace(/\s+(Analog|Digital)?\s*(Mono|Stereo|Surround[\s\d.]*)$/i, "").trim();
-}
-
-/** Readable label: "<kind> - <product>", like a desktop sound menu. */
-export function microphoneLabel(source: PulseSource): string {
-	const props = source.properties ?? {};
-	const name = product(source.description || props["device.product.name"] || source.name || "");
-	const port = source.ports?.find((item) => item.name === source.active_port)?.description;
-	const kind =
-		FORM[props["device.form_factor"] ?? ""] ??
-		(props["device.bus"] === "bluetooth" ? "Headset" : undefined) ??
-		(port && /line/i.test(port) ? "Line In" : "Microphone");
-	// "... Digital Microphone" already names its kind. Skip the prefix.
-	return name.toLowerCase().includes(kind.toLowerCase()) ? name : `${kind} - ${name}`;
-}
-
-/** An output monitor records what plays, not a microphone. PulseAudio and PipeWire both name it `*.monitor`. */
-function isMonitor(source: PulseSource): boolean {
-	return Boolean(
-		source.name?.endsWith(".monitor") || source.properties?.["device.class"] === "monitor",
-	);
-}
-
-/**
- * Input sources, without output monitors. Takes `pactl --format=json list sources`
- * (pactl 16+), or the tab-separated `pactl list short sources` from older PulseAudio.
- */
-export function parsePulseSources(output: string, fallback = "default"): Microphone[] {
-	let sources: PulseSource[];
-	try {
-		sources = JSON.parse(output) as PulseSource[];
-	} catch {
-		// Short format has no description, so the label is the source name.
-		sources = output
-			.split("\n")
-			.map((line) => ({ name: line.split("\t")[1]?.trim() }))
-			.filter((source) => source.name);
-	}
-	const inputs = sources
-		.filter((source) => source.name && !isMonitor(source))
-		.map((source) => ({ id: source.name as string, label: microphoneLabel(source) }));
-	const system = inputs.find((input) => input.id === fallback)?.label;
-	return [
-		{ id: "default", label: system ? `System default (${system})` : "System default" },
-		...inputs,
-	];
-}
-
-export function parseRmsDb(output: string): number | undefined {
-	const matches = [
-		...output.matchAll(/(?:RMS level dB:\s*|lavfi\.astats\.Overall\.RMS_level=)(-?\d+(?:\.\d+)?)/g),
-	];
-	const value = matches.at(-1)?.[1];
-	return value === undefined ? undefined : Number(value);
-}
-
-export function ffmpegRecordArgs(device: string, output: string): string[] {
+/** Mono 16 kHz wav with a per-frame RMS level on stderr. `input` is the `-f … -i …` part. */
+export function ffmpegRecordArgs(input: readonly string[], output: string): string[] {
 	return [
 		"-hide_banner",
 		"-loglevel",
 		"info",
-		"-f",
-		"pulse",
-		"-i",
-		device,
+		...input,
 		"-ac",
 		"1",
 		"-ar",
@@ -111,30 +31,21 @@ export function ffmpegRecordArgs(device: string, output: string): string[] {
 	];
 }
 
-function run(command: string, args: string[]): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
-		let stdout = "";
-		let stderr = "";
-		child.stdout.on("data", (data) => (stdout += String(data)));
-		child.stderr.on("data", (data) => (stderr += String(data)));
-		child.once("error", reject);
-		child.once("exit", (code) =>
-			code === 0
-				? resolve(stdout)
-				: reject(new Error(stderr.trim() || `${command} exited ${code}`)),
-		);
-	});
+export function parseRmsDb(output: string): number | undefined {
+	const matches = [
+		...output.matchAll(/(?:RMS level dB:\s*|lavfi\.astats\.Overall\.RMS_level=)(-?\d+(?:\.\d+)?)/g),
+	];
+	const value = matches.at(-1)?.[1];
+	return value === undefined ? undefined : Number(value);
 }
 
 /**
- * ffmpeg path for recording/metering. Recording starts on a keypress and must
- * not block, so a missing-but-downloadable ffmpeg (Linux) starts a background
+ * Make sure ffmpeg exists for recording/metering. Recording starts on a keypress and must
+ * not block, so a missing-but-downloadable ffmpeg starts a background
  * download with visible status and this call throws, asking to retry once done.
  */
-function requireFfmpeg(purpose: string, onStatus?: (s: ToolStatus) => void): string {
-	const found = resolveTool("ffmpeg");
-	if (found) return found.path;
+function requireFfmpeg(purpose: string, onStatus?: (s: ToolStatus) => void): void {
+	if (resolveTool("ffmpeg")) return;
 	const hit = lookupTool("ffmpeg");
 	if (hit.state === "missing" && hit.downloadable) {
 		void ensureTool("ffmpeg", { onStatus }).catch(() => undefined);
@@ -145,29 +56,16 @@ function requireFfmpeg(purpose: string, onStatus?: (s: ToolStatus) => void): str
 	throw new BinaryMissingError("ffmpeg", hit.state, hit.hint, `${purpose} needs ffmpeg`);
 }
 
-export async function microphoneDevices(): Promise<Microphone[]> {
-	const pactl = resolveTool("pactl")?.path;
-	if (!pactl) return [{ id: "default", label: "System default" }];
-	const [list, current] = await Promise.all([
-		run(pactl, ["--format=json", "list", "sources"]).catch(() =>
-			run(pactl, ["list", "short", "sources"]),
-		),
-		// get-default-source needs PulseAudio 15+. Without it, no name shows after "System default".
-		run(pactl, ["get-default-source"]).catch(() => ""),
-	]);
-	return parsePulseSources(list, current.trim());
-}
-
 /** Stream the input level only. Nothing is written to disk. Call the result to stop. */
 export function startMeter(
 	device: string,
 	onLevel: (db: number) => void,
 	onStatus?: (s: ToolStatus) => void,
 ): () => void {
-	const ffmpeg = requireFfmpeg("The microphone test", onStatus);
-	const args = ffmpegRecordArgs(device, "-");
+	requireFfmpeg("The microphone test", onStatus);
+	const args = ffmpegRecordArgs(microphoneInput(device), "-");
 	args.splice(args.length - 2, 2, "-f", "null", "-");
-	const child = spawn(ffmpeg, args, { stdio: ["pipe", "ignore", "pipe"] });
+	const child = spawnTool("ffmpeg", args, { stdio: ["pipe", "ignore", "pipe"] });
 	child.stderr.on("data", (data) => {
 		const level = parseRmsDb(String(data));
 		if (level !== undefined) onLevel(level);
@@ -192,9 +90,9 @@ export function startRecording(
 	onExit?: (error: Error) => void,
 	onStatus?: (s: ToolStatus) => void,
 ): Recording {
-	const ffmpeg = requireFfmpeg("Microphone recording", onStatus);
+	requireFfmpeg("Microphone recording", onStatus);
 	const path = join(tmpdir(), `pix-stt-${randomUUID()}.wav`);
-	const child = spawn(ffmpeg, ffmpegRecordArgs(device, path), {
+	const child = spawnTool("ffmpeg", ffmpegRecordArgs(microphoneInput(device), path), {
 		stdio: ["pipe", "ignore", "pipe"],
 	});
 	let stderr = "";

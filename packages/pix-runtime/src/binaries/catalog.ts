@@ -64,7 +64,10 @@ export const CATALOG = {
 	rtk: {
 		usedBy: ["pix-optimizer"],
 		os: ALL,
-		hint: { default: "download from github.com/rtk-ai/rtk/releases or `cargo install rtk`" },
+		hint: {
+			win32: "winget install rtk-ai.rtk",
+			default: "download from github.com/rtk-ai/rtk/releases or `cargo install rtk`",
+		},
 		download: {
 			repo: "rtk-ai/rtk",
 			checksums: "checksums.txt",
@@ -98,6 +101,7 @@ export const CATALOG = {
 			linux: "apt install aria2 · dnf install aria2 · pacman -S aria2",
 			darwin: "brew install aria2",
 			android: "pkg install aria2",
+			win32: "winget install aria2.aria2",
 			default: "download from github.com/aria2/aria2/releases",
 		},
 		download: {
@@ -108,21 +112,25 @@ export const CATALOG = {
 	},
 	ffmpeg: {
 		usedBy: ["pix-voice"],
-		os: LINUX,
+		os: ["linux", "win32"],
 		versionArgs: ["-version"],
 		hint: {
 			linux: "apt install ffmpeg · dnf install ffmpeg · pacman -S ffmpeg",
 			darwin: "brew install ffmpeg",
+			win32: "winget install Gyan.FFmpeg",
 			default: "install ffmpeg",
 		},
 		download: {
 			repo: "BtbN/FFmpeg-Builds",
 			checksums: "checksums.sha256",
 			size: "~120 MB",
-			asset: (h) =>
-				h.os === "linux"
-					? `ffmpeg-master-latest-${h.arch === "arm64" ? "linuxarm64" : "linux64"}-lgpl.tar.xz`
-					: undefined,
+			asset: (h) => {
+				const arm = h.arch === "arm64";
+				if (h.os === "win32") return `ffmpeg-master-latest-${arm ? "winarm64" : "win64"}-lgpl.zip`;
+				if (h.os === "linux")
+					return `ffmpeg-master-latest-${arm ? "linuxarm64" : "linux64"}-lgpl.tar.xz`;
+				return undefined;
+			},
 		},
 	},
 	rg: {
@@ -130,6 +138,7 @@ export const CATALOG = {
 		os: ALL,
 		hint: {
 			android: "pkg install ripgrep",
+			win32: "restart Pi (it downloads rg) or winget install BurntSushi.ripgrep.MSVC",
 			default: "restart Pi (it downloads rg) or install ripgrep",
 		},
 	},
@@ -137,7 +146,11 @@ export const CATALOG = {
 		usedBy: ["pix-find"],
 		os: ALL,
 		names: ["fd", "fdfind"],
-		hint: { android: "pkg install fd", default: "restart Pi (it downloads fd) or install fd" },
+		hint: {
+			android: "pkg install fd",
+			win32: "restart Pi (it downloads fd) or winget install sharkdp.fd",
+			default: "restart Pi (it downloads fd) or install fd",
+		},
 	},
 	git: {
 		usedBy: ["pix-footer", "pix-welcome", "pix-subagent", "pix-search"],
@@ -153,7 +166,8 @@ export const CATALOG = {
 		os: ALL,
 		versionArgs: ["-V"],
 		hint: {
-			win32: "enable the OpenSSH Client optional feature",
+			win32:
+				"enable the OpenSSH Client optional feature or winget install Microsoft.OpenSSH.Preview",
 			default: "install openssh-client",
 		},
 	},
@@ -162,7 +176,8 @@ export const CATALOG = {
 		os: ALL,
 		versionArgs: null,
 		hint: {
-			win32: "enable the OpenSSH Client optional feature",
+			win32:
+				"enable the OpenSSH Client optional feature or winget install Microsoft.OpenSSH.Preview",
 			default: "install openssh-client",
 		},
 	},
@@ -182,11 +197,15 @@ export const CATALOG = {
 	paplay: { usedBy: ["pix-voice"], os: LINUX, hint: { default: "install pulseaudio-utils" } },
 	ffplay: {
 		usedBy: ["pix-voice"],
-		os: LINUX,
+		os: ["linux", "win32"],
 		versionArgs: ["-version"],
-		hint: { default: "install ffmpeg" },
+		hint: { win32: "winget install Gyan.FFmpeg", default: "install ffmpeg" },
 	},
-	mpv: { usedBy: ["pix-voice"], os: LINUX, hint: { default: "install mpv" } },
+	mpv: {
+		usedBy: ["pix-voice"],
+		os: ["linux", "win32"],
+		hint: { win32: "winget install shinchiro.mpv", default: "install mpv" },
+	},
 	"wl-paste": { usedBy: ["pix-ask"], os: LINUX, hint: { default: "install wl-clipboard" } },
 	xclip: {
 		usedBy: ["pix-ask"],
@@ -209,14 +228,27 @@ export const CATALOG = {
 		knownPaths: (env) => [`${envVar(env, "SystemRoot") ?? "C:\\Windows"}\\System32\\cmd.exe`],
 		hint: { default: "built into Windows" },
 	},
-	npm: { usedBy: ["pix-mcp", "pix-update"], os: ALL, hint: { default: "install Node.js" } },
-	npx: { usedBy: ["pix-mcp"], os: ALL, hint: { default: "install Node.js" } },
+	npm: {
+		usedBy: ["pix-mcp", "pix-update"],
+		os: ALL,
+		hint: { win32: "winget install OpenJS.NodeJS.LTS", default: "install Node.js" },
+	},
+	npx: {
+		usedBy: ["pix-mcp"],
+		os: ALL,
+		hint: { win32: "winget install OpenJS.NodeJS.LTS", default: "install Node.js" },
+	},
 	pi: {
 		usedBy: ["pix-update", "pix-models", "pix-welcome"],
 		os: ALL,
 		hint: { default: "npm install -g @earendil-works/pi-coding-agent" },
 	},
-	bun: { usedBy: ["pix-update"], os: ALL, optional: true, hint: { default: "see bun.sh" } },
+	bun: {
+		usedBy: ["pix-update"],
+		os: ALL,
+		optional: true,
+		hint: { win32: "winget install Oven-sh.Bun", default: "see bun.sh" },
+	},
 	vp: {
 		usedBy: ["pix-update"],
 		os: ALL,
@@ -242,7 +274,7 @@ export const CATALOG = {
 		hint: { default: "winget install Microsoft.PowerShell" },
 	},
 	powershell: {
-		usedBy: ["pix-powershell", "pix-ask"],
+		usedBy: ["pix-powershell", "pix-ask", "pix-voice"],
 		os: ["win32", "linux"],
 		// WSL reaches Windows PowerShell through interop as powershell.exe.
 		names: ["powershell", "powershell.exe"],
@@ -259,7 +291,7 @@ export const CATALOG = {
 	bash: {
 		usedBy: ["pix-bash"],
 		os: ALL,
-		hint: { win32: "install Git for Windows (Git Bash)", default: "install bash" },
+		hint: { win32: "winget install Git.Git (Git Bash)", default: "install bash" },
 		// Same locations Pi searches: Git for Windows puts only Git\cmd on PATH.
 		knownPaths: (env, h) =>
 			h.os === "win32"

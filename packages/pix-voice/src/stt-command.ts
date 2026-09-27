@@ -17,9 +17,10 @@ import {
 } from "@earendil-works/pi-tui";
 import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
+import { listMicrophones } from "@xynogen/pix-runtime/audio";
 import { cleanTranscript, cleanupModel, hasSlip } from "./cleanup.js";
 import { voiceConfig } from "./config.js";
-import { microphoneDevices, type Recording, startRecording } from "./recorder.js";
+import { type Recording, startRecording } from "./recorder.js";
 import { transcribeAudioFile } from "./transcribe.js";
 
 const WIDGET = "voice-stt";
@@ -172,8 +173,8 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 			}, MAX_RECORDING_MS);
 			phase = { kind: "recording", recording, limit };
 			showWidget(ctx);
-			// The raw id shows until pactl answers. On a pactl failure the id stays.
-			void microphoneDevices()
+			// The raw id shows until the device scan answers. On a failure the id stays.
+			void listMicrophones()
 				.then((devices) => {
 					if (phase?.kind !== "recording" || phase.recording !== recording) return;
 					phase.device = devices.find((d) => d.id === voiceConfig.sttDevice)?.label;
