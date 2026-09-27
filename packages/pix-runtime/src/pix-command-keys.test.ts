@@ -93,7 +93,7 @@ async function openOverlay(kb = getKeybindings(), rows = 12): Promise<Driver> {
 	const theme = {
 		fg: (_c: string, t: string) => t,
 		bg: (_c: string, t: string) => t,
-		bold: (t: string) => t,
+		bold: (t: string) => `<b>${t}</b>`,
 	};
 	const ctx = {
 		ui: {
@@ -354,11 +354,11 @@ describe("/pix tabs", () => {
 			if (enc === "kitty") setKittyProtocolActive(true);
 			try {
 				const d = await openOverlay(getKeybindings(), 60);
-				expect(d.lines()[1]).toMatch(/\[ Settings \].*Binaries/);
+				expect(d.lines()[1]).toMatch(/<b> {2}Settings {2}<\/b>.* {2}Binaries {2}/);
 				d.feed(TAB[enc]);
-				expect(d.lines()[1]).toMatch(/Settings.*\[ Binaries \]/);
+				expect(d.lines()[1]).toMatch(/ {2}Settings {2}.*<b> {2}Binaries {2}<\/b>/);
 				d.feed(SHIFT_TAB[enc]);
-				expect(d.lines()[1]).toMatch(/\[ Settings \]/);
+				expect(d.lines()[1]).toMatch(/<b> {2}Settings {2}<\/b>/);
 			} finally {
 				if (enc === "kitty") setKittyProtocolActive(false);
 			}

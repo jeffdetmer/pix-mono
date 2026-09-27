@@ -264,7 +264,7 @@ export function registerPixCommand(pi: ExtensionAPI, runtime: PixRuntime): void 
 					const tabBar = () =>
 						TABS.map((name) =>
 							name === tab
-								? theme.fg("accent", theme.bold(`[ ${name} ]`))
+								? theme.fg("accent", theme.bold(`  ${name}  `))
 								: theme.fg("muted", `  ${name}  `),
 						).join(theme.fg("muted", "│"));
 					const switchTab = (direction: -1 | 1) => {
