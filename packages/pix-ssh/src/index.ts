@@ -49,6 +49,7 @@ import {
 } from "@xynogen/pix-pretty/utils";
 import { SPINNER } from "@xynogen/pix-pretty/widget-format";
 import { getUnattendedMode, withAgentBlock } from "@xynogen/pix-runtime";
+import { requireTool } from "@xynogen/pix-runtime/binaries";
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
 import { Type } from "typebox";
 import {
@@ -351,6 +352,22 @@ function formatAliasList(aliases: HostAlias[]): string {
  * given, otherwise the alias inventory from ~/.ssh/config. Read-only.
  * Details carry `_type: "sshInfo"` so renderResult falls to its generic
  * plain-text branch (no collapse, no exit-code framing). */
+/**
+ * The pix-runtime lookup message for the first missing binary this action
+ * needs (ssh, plus scp for file transfers), or undefined when all resolve.
+ * sshpass is checked lazily: it only matters when a login password is used.
+ */
+export function missingSshTools(action: "command" | "file"): string | undefined {
+	for (const name of action === "file" ? ["ssh", "scp"] : ["ssh"]) {
+		try {
+			requireTool(name);
+		} catch (err) {
+			return err instanceof Error ? err.message : String(err);
+		}
+	}
+	return undefined;
+}
+
 async function infoResult(host: string | undefined, sig?: AbortSignal) {
 	const details = { _type: "sshInfo" as const };
 	if (host?.trim()) {
@@ -488,6 +505,20 @@ export default function (pi: ExtensionAPI): void {
 			if (action === "command" && !command.trim()) {
 				return {
 					content: [{ type: "text", text: "ssh_run failed: command is required" }],
+					details: makeDetails(command, params.host, sudo, reason, {
+						outcome: "error",
+						errorKind: "execution",
+					}),
+					isError: true,
+				};
+			}
+
+			// Fail up front with pix's install hint: the probes below treat a spawn
+			// error as "unreachable", which would hide a missing ssh/scp.
+			const missingTool = missingSshTools(action);
+			if (missingTool) {
+				return {
+					content: [{ type: "text", text: `ssh_run failed: ${missingTool}` }],
 					details: makeDetails(command, params.host, sudo, reason, {
 						outcome: "error",
 						errorKind: "execution",

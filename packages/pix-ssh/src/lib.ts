@@ -13,11 +13,12 @@
  *     entered once per session per host.
  */
 
-import { spawn } from "node:child_process";
+import type { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { globSync, readFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, resolve as resolvePath } from "node:path";
+import { spawnTool } from "@xynogen/pix-runtime/exec";
 
 export const MAX_OUTPUT_BYTES = 50 * 1024;
 export const MAX_OUTPUT_LINES = 2000;
@@ -144,7 +145,7 @@ export function resolveSshHost(spec: HostSpec, signal?: AbortSignal): Promise<Ho
 
 	return new Promise((resolve) => {
 		let stdout = "";
-		const proc = spawn("ssh", args, { stdio: ["ignore", "pipe", "ignore"] });
+		const proc = spawnTool("ssh", args, { stdio: ["ignore", "pipe", "ignore"] });
 		proc.stdout.on("data", (chunk: Buffer) => {
 			stdout += chunk.toString();
 		});
@@ -280,7 +281,7 @@ export function resolveHostInfo(spec: HostSpec, signal?: AbortSignal): Promise<H
 	args.push(hostTarget(spec));
 	return new Promise((resolve) => {
 		let stdout = "";
-		const proc = spawn("ssh", args, { stdio: ["ignore", "pipe", "ignore"] });
+		const proc = spawnTool("ssh", args, { stdio: ["ignore", "pipe", "ignore"] });
 		proc.stdout.on("data", (c: Buffer) => {
 			stdout += c.toString();
 		});
@@ -440,7 +441,7 @@ export function probeKeyAuth(
 	const args = [...baseSshArgs(spec, controlPath), "-o", "BatchMode=yes", hostTarget(spec), "true"];
 	return new Promise((resolve) => {
 		let stderr = "";
-		const proc = spawn("ssh", args, { stdio: ["ignore", "ignore", "pipe"] });
+		const proc = spawnTool("ssh", args, { stdio: ["ignore", "ignore", "pipe"] });
 		proc.stderr.on("data", (c: Buffer) => {
 			stderr += c.toString();
 		});
@@ -488,7 +489,7 @@ export function probePasswordAuth(
 	];
 	return new Promise((resolve) => {
 		let stderr = "";
-		const proc = spawn("sshpass", args, {
+		const proc = spawnTool("sshpass", args, {
 			stdio: ["ignore", "ignore", "pipe"],
 			env: { ...process.env, SSHPASS: password },
 		});
@@ -525,7 +526,7 @@ export function probeSudoNoPassword(
 		"sudo -n true",
 	];
 	return new Promise((resolve) => {
-		const proc = spawn("ssh", args, { stdio: ["ignore", "ignore", "ignore"] });
+		const proc = spawnTool("ssh", args, { stdio: ["ignore", "ignore", "ignore"] });
 		proc.on("error", () => resolve(false));
 		proc.on("close", (code) => resolve(code === 0));
 		signal?.addEventListener("abort", () => proc.kill("SIGTERM"), { once: true });
@@ -621,7 +622,7 @@ function spawnResult(
 	stdin?: string,
 ): Promise<SshResult> {
 	return new Promise((resolve, reject) => {
-		const proc = spawn(bin, args, { stdio: ["pipe", "pipe", "pipe"], env });
+		const proc = spawnTool(bin, args, { stdio: ["pipe", "pipe", "pipe"], env });
 		let stdout = "";
 		let stderr = "";
 		proc.stdout.on("data", (c: Buffer) => {
