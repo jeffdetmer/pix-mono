@@ -11,15 +11,15 @@
  *   "plan" is rendered as the leftmost segment, others appended after model.
  */
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import type { AssistantMessage, AssistantMessageEvent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { ModelsDevModel } from "@xynogen/pix-data";
 import { benchScoreColor, lookupBenchmark, resolveModelsDev } from "@xynogen/pix-data";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
+import { warnBinaryMissing } from "@xynogen/pix-pretty/tool-status";
 import { fmtTokenCount } from "@xynogen/pix-pretty/widget-format";
+import { runGit } from "@xynogen/pix-runtime/os";
 
 // ─── Pure formatting helpers ─────────────────────────────────────────
 
@@ -37,7 +37,6 @@ export function renderThinkingLevel(theme: Theme, level: string, text: string): 
 	return theme.getThinkingBorderColor(level as ThinkingLevel)(text);
 }
 
-const execFileAsync = promisify(execFile);
 const GIT_POLL_MS = 2_000;
 
 const shortCwd = (cwd: string): string => {
@@ -64,13 +63,17 @@ interface GitStatus {
 	behind: number;
 }
 
-async function getGitStatus(cwd: string): Promise<GitStatus | null> {
+/** Parse `git status`; null outside a repo. `onMissing` gets a BinaryMissingError once git is absent. */
+async function getGitStatus(
+	cwd: string,
+	onMissing?: (err: unknown) => void,
+): Promise<GitStatus | null> {
 	try {
-		const { stdout } = await execFileAsync(
-			"git",
+		const stdout = await runGit(
 			["status", "--porcelain=v1", "--branch", "--untracked-files=normal"],
-			{ cwd, timeout: 2_000, maxBuffer: 1024 * 1024 },
+			{ cwd, timeoutMs: 2_000, maxBuffer: 1024 * 1024 },
 		);
+		if (stdout === null) return null;
 		let staged = 0,
 			unstaged = 0,
 			untracked = 0,
@@ -104,7 +107,8 @@ async function getGitStatus(cwd: string): Promise<GitStatus | null> {
 			ahead,
 			behind,
 		};
-	} catch {
+	} catch (err) {
+		onMissing?.(err);
 		return null;
 	}
 }
@@ -450,8 +454,9 @@ export default function (pi: ExtensionAPI) {
 
 	// ── Git status polling ───────────────────────────────────────
 
+	let warnUi: Parameters<typeof warnBinaryMissing>[0];
 	const refreshGit = async (cwd: string) => {
-		const next = await getGitStatus(cwd);
+		const next = await getGitStatus(cwd, (err) => warnBinaryMissing(warnUi, err));
 		const changed = JSON.stringify(next) !== JSON.stringify(gitStatus);
 		gitStatus = next;
 		if (changed) requestRender?.();
@@ -465,6 +470,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", (_event, ctx) => {
 		currentCwd = ctx.cwd;
+		warnUi = ctx.ui;
 		void refreshGit(currentCwd);
 		if (gitTimer) clearInterval(gitTimer);
 		gitTimer = setInterval(() => {
