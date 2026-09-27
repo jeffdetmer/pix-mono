@@ -1,13 +1,10 @@
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
-
 import {
 	createGrepToolDefinition,
 	createGrepTool as createGrepToolFallback,
 	type ExtensionAPI,
 	type ExtensionContext,
 	type GrepToolInput,
-	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import {
 	CursorStore,
@@ -52,8 +49,7 @@ export default function pixGrepExtension(pi: ExtensionAPI): void {
 
 		try {
 			fffState.module = require("@ff-labs/fff-node") as OptionalFffModule;
-			const agentDir = getAgentDir?.() ?? join(home, ".pi/agent");
-			fffState.dbDir = getPiPrettyFffDir(agentDir);
+			fffState.dbDir = getPiPrettyFffDir();
 			try {
 				mkdirSync(fffState.dbDir, { recursive: true });
 			} catch {}
@@ -73,8 +69,7 @@ export default function pixGrepExtension(pi: ExtensionAPI): void {
 			if (!fffState.module) return;
 
 			if (!fffState.dbDir) {
-				const agentDir = getAgentDir?.() ?? join(home, ".pi/agent");
-				fffState.dbDir = getPiPrettyFffDir(agentDir);
+				fffState.dbDir = getPiPrettyFffDir();
 				try {
 					mkdirSync(fffState.dbDir, { recursive: true });
 				} catch {}

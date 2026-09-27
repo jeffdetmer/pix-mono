@@ -1,6 +1,6 @@
 import { join } from "node:path";
-
 import type { GrepCursor, GrepMatch } from "@ff-labs/fff-node";
+import { cacheDir } from "@xynogen/pix-runtime/paths";
 
 import type { FffBackedFinder, OptionalFffModule } from "./types.js";
 
@@ -20,15 +20,17 @@ export const fffState: FffState = {
 
 export const FFF_SCAN_TIMEOUT = 15_000;
 
-export function getPiPrettyFffDir(_agentDir: string): string {
-	// FFF state lives under the XDG cache dir, not the agent dir.
-	// Override with PRETTY_FFF_DIR; otherwise ~/.cache/pi/fff
-	// ($XDG_CACHE_HOME/pi/fff when XDG_CACHE_HOME is set).
+/**
+ * FFF state lives under the Pi cache dir, not the agent dir. Override with
+ * PRETTY_FFF_DIR; otherwise `cacheDir()/fff` (~/.cache/pi/fff, or
+ * $XDG_CACHE_HOME/pi/fff). Uses `os.homedir()` semantics — `HOME` is unset in
+ * a Windows Pi process, which used to put the index inside the project.
+ * The argument is ignored and kept for API compatibility.
+ */
+export function getPiPrettyFffDir(_agentDir?: string): string {
 	const override = process.env.PRETTY_FFF_DIR?.trim();
 	if (override) return override;
-	const home = process.env.HOME ?? "";
-	const cacheHome = process.env.XDG_CACHE_HOME?.trim() || join(home, ".cache");
-	return join(cacheHome, "pi", "fff");
+	return join(cacheDir(), "fff");
 }
 
 export async function fffEnsureFinder(cwd: string): Promise<FffBackedFinder | null> {

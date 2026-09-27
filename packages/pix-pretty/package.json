@@ -29,6 +29,7 @@
 		"./modal-frame": "./src/modal-frame.ts",
 		"./provider-picker": "./src/provider-picker.ts",
 		"./shell-tool": "./src/shell-tool.ts",
+		"./tool-status": "./src/tool-status.ts",
 		"./test-utils": "./src/test-utils.ts",
 		"./transient-error": "./src/transient-error.ts"
 	},
@@ -65,7 +66,7 @@
 		"access": "public"
 	},
 	"dependencies": {
-		"@xynogen/pix-runtime": "^0.10.0",
+		"@xynogen/pix-runtime": "^0.11.0",
 		"chalk": "^4.1.2",
 		"cli-highlight": "^2.1.11",
 		"@ff-labs/fff-node": "^0.10.6",
