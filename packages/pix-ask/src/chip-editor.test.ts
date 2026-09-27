@@ -64,6 +64,16 @@ describe("replaceImagePaths", () => {
 		expect(imageIds.has(1)).toBe(true);
 	});
 
+	test("Windows image path becomes a paste marker and registers as image", () => {
+		const internals = fresh();
+		const imageIds = new Set<number>();
+		const winPath = "C:\\Users\\xynogen\\AppData\\Local\\Temp\\shot.png";
+		const out = replaceImagePaths(winPath, internals, imageIds);
+		expect(out).toBe(`[paste #1 ${winPath.length} chars]`);
+		expect(internals.pastes.get(1)).toBe(winPath);
+		expect(imageIds.has(1)).toBe(true);
+	});
+
 	test("non-image path is left untouched", () => {
 		const internals = fresh();
 		const imageIds = new Set<number>();

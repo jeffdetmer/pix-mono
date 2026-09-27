@@ -56,7 +56,7 @@ const IMAGE_EXTS = new Set([
 ]);
 
 // Group 1 = prefix char (or empty at start), Group 2 = path.
-const PATH_RE = /(^|[^\w/])((?:~|\/)[^\s,;'"(){}[\]]+)/g;
+const PATH_RE = /(^|[^\w/])((?:~|[a-zA-Z]:[/\\]|\/|\\\\)[^\s,;'"(){}[\]]+)/g;
 
 // Pi's marker grammar — must match exactly for atomic segmentation.
 const MARKER_RE = /\[paste #(\d+)( (\+(\d+) lines|(\d+) chars))?\]/g;
