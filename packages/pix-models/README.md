@@ -10,6 +10,7 @@ Registers a `/models` slash command — a richer TUI picker replacing Pi's built
 - **Sorting** — by coding score (best first), then alphabetically for unscored models. Fuzzy search filters as you type.
 - **Thinking level** — left/right cycles `off` → `minimal` → `low` → `medium` → `high` → `xhigh`, shown live in the header.
 - **Select** — switches the active model for the session.
+- **Per-project prefs** — every model / thinking change is saved with `defaultProvider`, `defaultModel`, `defaultThinkingLevel` in one file: `<project>/.pi/settings.json` for trusted projects (created on first change), otherwise `~/.pi/agent/settings.json`. Pi merges the project file over the user file, so other projects fall back to user defaults. Each save shows a short notice with the target file.
 
 Model metadata comes from `~/.cache/pi/` via `pix-data`; the coding score/rank is computed locally from the modelgrep catalog (best = #1).
 

@@ -8,11 +8,7 @@
  * Sorted by benchlm rank when available (best first), then alphabetical.
  */
 
-import {
-	type ExtensionAPI,
-	type ExtensionContext,
-	SettingsManager,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	fuzzyFilter,
 	Input,
@@ -35,6 +31,7 @@ import {
 import { dotJoin } from "@xynogen/pix-pretty/utils";
 import { SPINNER } from "@xynogen/pix-pretty/widget-format";
 import { patchOutBuiltinModelCommand } from "./patch-builtin";
+import { registerProjectPrefs } from "./project-prefs";
 
 // ─── Pure logic (exported for tests) ─────────────────────────────────────────
 
@@ -582,19 +579,7 @@ async function showEnhancedPicker(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 		ctx.ui.notify(`Failed to switch to ${picked.id}`, "error");
 		return;
 	}
-
-	const settings = SettingsManager.create(ctx.cwd);
-	settings.setDefaultModelAndProvider(picked.provider, picked.id);
-	await settings.flush();
-	const saveError = settings.drainErrors()[0];
-	if (saveError) {
-		ctx.ui.notify(
-			`Switched to ${picked.name ?? picked.id}, but failed to save the default: ${saveError.error.message}`,
-			"warning",
-		);
-		return;
-	}
-	ctx.ui.notify(`Default model: ${picked.provider}/${picked.id}`, "info");
+	// Persistence happens in project-prefs.ts via the model_select event.
 }
 
 export default function modelPickerExtension(pi: ExtensionAPI) {
@@ -605,6 +590,7 @@ export default function modelPickerExtension(pi: ExtensionAPI) {
 	const handler = async (_args: unknown, ctx: ExtensionContext) => {
 		await showEnhancedPicker(pi, ctx);
 	};
+	registerProjectPrefs(pi);
 	pi.registerCommand("models", {
 		description: "Enhanced model picker — shows benchlm rank + score",
 		handler,
