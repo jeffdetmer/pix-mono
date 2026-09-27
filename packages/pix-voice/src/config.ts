@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { agentDir } from "@xynogen/pix-runtime/paths";
 
 export interface VoiceConfig {
 	/** Default STT provider id, or "auto" for the first configured provider. */
@@ -21,9 +21,9 @@ export interface VoiceConfig {
 	sttCleanup: string;
 }
 
-export const CONFIG_PATH = join(homedir(), ".pi", "agent", "voice.json");
+export const CONFIG_PATH = join(agentDir(), "voice.json");
 /** pix-9router <= 0.6 kept audio defaults here. Read once as a seed, never written. */
-export const LEGACY_PATH = join(homedir(), ".pi", "agent", "9router.json");
+export const LEGACY_PATH = join(agentDir(), "9router.json");
 
 function fallback(): VoiceConfig {
 	return {

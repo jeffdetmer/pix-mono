@@ -101,8 +101,12 @@ A widget above the editor shows the microphone and its level while it records.
 The recording is deleted after transcription. A set `language` is often faster
 and more accurate than `auto` for short speech.
 
-Requirements: `ffmpeg` records a PulseAudio or PipeWire source, and `pactl`
-lists the inputs by name. Without `pactl`, only `System default` shows.
+Requirements (Linux): `ffmpeg` records a PulseAudio or PipeWire source, and
+`pactl` lists the inputs by name. Without `pactl`, only `System default` shows.
+If `ffmpeg` is missing, the first recording attempt downloads the BtbN LGPL
+build (~120 MB, checksum-verified) into `~/.pi/agent/bin`, with a visible
+status. Try again once it finishes. Tools are found through
+`~/.pi/agent/binary.json` → `~/.pi/agent/bin` → `PATH`.
 
 ### Cleanup (optional)
 

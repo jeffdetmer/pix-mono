@@ -8,6 +8,7 @@ import { basename, dirname, extname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { humanSize } from "@xynogen/pix-pretty/utils";
+import { resolveTool } from "@xynogen/pix-runtime/binaries";
 import { Type } from "typebox";
 import { voiceConfig, voiceModel } from "./config.js";
 import { resolveProvider } from "./providers.js";
@@ -45,26 +46,30 @@ export function playerCommand(path: string, available: ReadonlySet<string>): str
 	return undefined;
 }
 
-async function runPlayer(command: string[]): Promise<boolean> {
+const PLAYERS = ["pw-play", "paplay", "ffplay", "mpv"] as const;
+
+function runPlayer(command: string[]): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const child = spawn(command[0] ?? "", command.slice(1), { stdio: "ignore" });
-		child.once("error", (error: NodeJS.ErrnoException) => {
-			if (error.code === "ENOENT") resolve(false);
-			else reject(error);
-		});
+		child.once("error", reject);
 		child.once("exit", (code) => {
-			if (code === 0) resolve(true);
+			if (code === 0) resolve();
 			else reject(new Error(`audio player exited with code ${code ?? "unknown"}`));
 		});
 	});
 }
 
 async function playSpeech(path: string): Promise<void> {
-	for (const name of ["pw-play", "paplay", "ffplay", "mpv"]) {
-		const command = playerCommand(path, new Set([name]));
-		if (command && (await runPlayer(command))) return;
+	// Resolve players through pix-runtime (binary.json → agent bin → PATH) and
+	// run the first one found by its full path.
+	const found = new Map<string, string>();
+	for (const name of PLAYERS) {
+		const tool = resolveTool(name);
+		if (tool) found.set(name, tool.path);
 	}
-	throw new Error("no supported audio player found (pw-play, paplay, ffplay, or mpv)");
+	const command = playerCommand(path, new Set(found.keys()));
+	if (!command) throw new Error(`no supported audio player found (${PLAYERS.join(", ")})`);
+	await runPlayer([found.get(command[0] ?? "") ?? command[0] ?? "", ...command.slice(1)]);
 }
 
 export default function registerSpeak(pi: ExtensionAPI): void {

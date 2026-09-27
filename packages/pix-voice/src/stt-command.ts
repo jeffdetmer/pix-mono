@@ -15,6 +15,7 @@ import {
 	parseKey,
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
+import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { cleanTranscript, cleanupModel, hasSlip } from "./cleanup.js";
 import { voiceConfig } from "./config.js";
@@ -157,6 +158,7 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 						// The session ended. There is no UI to update.
 					}
 				},
+				reportToolStatus(ctx.ui),
 			);
 			const limit = setTimeout(() => {
 				if (phase?.kind !== "recording" || phase.recording !== recording) return;

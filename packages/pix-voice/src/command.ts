@@ -5,6 +5,7 @@ import {
 	showProviderPicker,
 	showSettingsPicker,
 } from "@xynogen/pix-pretty/provider-picker";
+import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { cleanupModel } from "./cleanup.js";
 import { parseLanguage, saveConfig, voiceConfig } from "./config.js";
@@ -185,10 +186,14 @@ export default function registerVoiceCommand(pi: ExtensionAPI): void {
 				level = undefined;
 			};
 			const startTest = () => {
-				stopMeter = startMeter(voiceConfig.sttDevice, (db) => {
-					level = db;
-					redraw?.();
-				});
+				stopMeter = startMeter(
+					voiceConfig.sttDevice,
+					(db) => {
+						level = db;
+						redraw?.();
+					},
+					reportToolStatus(ctx.ui),
+				);
 			};
 			try {
 				while (true) {

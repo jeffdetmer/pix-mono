@@ -2,7 +2,13 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findExecutableSync } from "@xynogen/pix-runtime/which";
+import {
+	BinaryMissingError,
+	ensureTool,
+	lookupTool,
+	resolveTool,
+	type ToolStatus,
+} from "@xynogen/pix-runtime/binaries";
 
 export interface Microphone {
 	/** PulseAudio source name, passed to ffmpeg. "default" follows the system default. */
@@ -121,8 +127,26 @@ function run(command: string, args: string[]): Promise<string> {
 	});
 }
 
+/**
+ * ffmpeg path for recording/metering. Recording starts on a keypress and must
+ * not block, so a missing-but-downloadable ffmpeg (Linux) starts a background
+ * download with visible status and this call throws, asking to retry once done.
+ */
+function requireFfmpeg(purpose: string, onStatus?: (s: ToolStatus) => void): string {
+	const found = resolveTool("ffmpeg");
+	if (found) return found.path;
+	const hit = lookupTool("ffmpeg");
+	if (hit.state === "missing" && hit.downloadable) {
+		void ensureTool("ffmpeg", { onStatus }).catch(() => undefined);
+		throw new Error(
+			`${purpose} needs ffmpeg — downloading it now (~120 MB); try again when it finishes.`,
+		);
+	}
+	throw new BinaryMissingError("ffmpeg", hit.state, hit.hint, `${purpose} needs ffmpeg`);
+}
+
 export async function microphoneDevices(): Promise<Microphone[]> {
-	const pactl = findExecutableSync("pactl");
+	const pactl = resolveTool("pactl")?.path;
 	if (!pactl) return [{ id: "default", label: "System default" }];
 	const [list, current] = await Promise.all([
 		run(pactl, ["--format=json", "list", "sources"]).catch(() =>
@@ -135,9 +159,12 @@ export async function microphoneDevices(): Promise<Microphone[]> {
 }
 
 /** Stream the input level only. Nothing is written to disk. Call the result to stop. */
-export function startMeter(device: string, onLevel: (db: number) => void): () => void {
-	const ffmpeg = findExecutableSync("ffmpeg");
-	if (!ffmpeg) throw new Error("The microphone test needs ffmpeg on PATH.");
+export function startMeter(
+	device: string,
+	onLevel: (db: number) => void,
+	onStatus?: (s: ToolStatus) => void,
+): () => void {
+	const ffmpeg = requireFfmpeg("The microphone test", onStatus);
 	const args = ffmpegRecordArgs(device, "-");
 	args.splice(args.length - 2, 2, "-f", "null", "-");
 	const child = spawn(ffmpeg, args, { stdio: ["pipe", "ignore", "pipe"] });
@@ -163,9 +190,9 @@ export function startRecording(
 	device: string,
 	onLevel: (db: number) => void,
 	onExit?: (error: Error) => void,
+	onStatus?: (s: ToolStatus) => void,
 ): Recording {
-	const ffmpeg = findExecutableSync("ffmpeg");
-	if (!ffmpeg) throw new Error("Microphone recording needs ffmpeg on PATH.");
+	const ffmpeg = requireFfmpeg("Microphone recording", onStatus);
 	const path = join(tmpdir(), `pix-stt-${randomUUID()}.wav`);
 	const child = spawn(ffmpeg, ffmpegRecordArgs(device, path), {
 		stdio: ["pipe", "ignore", "pipe"],
