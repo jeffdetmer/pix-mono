@@ -42,8 +42,12 @@ import {
 	promptPathDecision,
 	SEVERITY_ICON,
 } from "./prompt.ts";
+import { registerProjectTrust } from "./trust.ts";
 
 export default function (pi: ExtensionAPI): void {
+	// Two-choice project-trust prompt (Trust / Do not trust) replacing Pi's five.
+	registerProjectTrust(pi);
+
 	const { rules, autoApprove, pathRules } = buildRules(loadUserConfig());
 
 	// Is a tool registered (active or gated)? ssh_run/sudo_run are opt-in and
