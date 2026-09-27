@@ -83,21 +83,28 @@ describe("catalog", () => {
 });
 
 describe("binary.json", () => {
-	test("sync creates the file with every catalog entry as null", () => {
+	test("sync never creates the file", () => {
 		const s = sandbox();
 		syncBinaryStore(s.env);
-		const doc = JSON.parse(readFileSync(binaryFilePath(s.env), "utf-8"));
-		expect(doc.$version).toBe(1);
-		for (const name of BINARY_NAMES) expect(doc[name]).toBeNull();
+		expect(existsSync(binaryFilePath(s.env))).toBe(false);
 	});
 
-	test("sync keeps user values and unknown keys, adds missing entries", () => {
+	test("sync migrates legacy null padding to overrides only", () => {
+		const s = sandbox();
+		const legacy: Record<string, string | null> = { custom: null };
+		for (const name of BINARY_NAMES) legacy[name] = null;
+		legacy.rtk = "/opt/rtk";
+		writeFileSync(binaryFilePath(s.env), JSON.stringify(legacy));
+		syncBinaryStore(s.env);
+		const doc = JSON.parse(readFileSync(binaryFilePath(s.env), "utf-8"));
+		expect(doc).toEqual({ $version: 1, custom: null, rtk: "/opt/rtk" });
+	});
+
+	test("sync keeps user values and unknown keys", () => {
 		const s = sandbox();
 		writeFileSync(binaryFilePath(s.env), JSON.stringify({ rtk: "/opt/rtk", custom: "/x/custom" }));
 		const state = syncBinaryStore(s.env);
-		expect(state.choices.rtk).toBe("/opt/rtk");
-		expect(state.choices.custom).toBe("/x/custom");
-		expect(state.choices.hunk).toBeNull();
+		expect(state.choices).toEqual({ rtk: "/opt/rtk", custom: "/x/custom" });
 	});
 
 	test("invalid JSON is reported and never overwritten", () => {
@@ -113,7 +120,7 @@ describe("binary.json", () => {
 		setBinaryChoice("hunk", "/tools/hunk", s.env);
 		expect(readBinaryStore(s.env).choices.hunk).toBe("/tools/hunk");
 		setBinaryChoice("hunk", null, s.env);
-		expect(readBinaryStore(s.env).choices.hunk).toBeNull();
+		expect(JSON.parse(readFileSync(binaryFilePath(s.env), "utf-8"))).toEqual({ $version: 1 });
 	});
 });
 

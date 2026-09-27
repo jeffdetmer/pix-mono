@@ -1,11 +1,12 @@
 /**
  * store.ts — `<agentDir>/binary.json`: the user's binary choices.
  *
- * Lists every catalog entry. `null` = automatic (bin/ → PATH → download);
- * a string = the exact path the user wants. pix only writes the file to create
- * it, to add `null` for catalog entries missing from it, or to apply an edit the
- * user made in the `/pix` Binaries tab. Discovered paths are never written.
- * Keys unknown to the catalog are preserved untouched.
+ * Holds overrides only: a string = the exact path the user wants. A missing
+ * key (or `null`) = automatic (bin/ → known dirs → PATH → download). The full
+ * catalog lives in the `/pix` Binaries tab, not in this file. pix only writes
+ * the file to apply an edit from that tab, or to drop legacy `null` padding
+ * for catalog entries. Discovered paths are never written. Keys unknown to the
+ * catalog are preserved untouched.
  */
 
 import { readFileSync, statSync } from "node:fs";
@@ -95,20 +96,33 @@ export function cachedBinaryStore(env: NodeJS.ProcessEnv = process.env): BinaryS
 	return state;
 }
 
+const CATALOG: ReadonlySet<string> = new Set(BINARY_NAMES);
+
+/** Drop `null` for catalog entries: automatic is the default, not an override. */
+function overridesOnly(choices: BinaryChoices): BinaryChoices {
+	const out: BinaryChoices = {};
+	for (const [key, value] of Object.entries(choices)) {
+		if (value === null && CATALOG.has(key)) continue;
+		out[key] = value;
+	}
+	return out;
+}
+
 /**
- * Create binary.json or add `null` for catalog entries missing from it.
- * Never touches an invalid file (the user must fix it; the tab shows the error).
+ * Migrate a legacy binary.json (every catalog entry listed as `null`) to the
+ * overrides-only form. Never creates the file, and never touches an invalid
+ * file (the user must fix it; the tab shows the error).
  */
 export function syncBinaryStore(env: NodeJS.ProcessEnv = process.env): BinaryStoreState {
 	const state = readBinaryStore(env);
 	if (state.error) return state;
-	const choices = { ...state.choices };
-	for (const name of BINARY_NAMES) if (!(name in choices)) choices[name] = null;
-	writeIfChanged(state.path, choices);
+	const choices = overridesOnly(state.choices);
+	if (Object.keys(choices).length !== Object.keys(state.choices).length)
+		writeIfChanged(state.path, choices);
 	return { path: state.path, choices };
 }
 
-/** Set (string) or clear (null) one user choice. */
+/** Set (string) or clear (null → key removed, automatic) one user choice. */
 export function setBinaryChoice(
 	name: string,
 	value: string | null,
@@ -117,9 +131,9 @@ export function setBinaryChoice(
 	const state = readBinaryStore(env);
 	if (state.error)
 		throw new Error(`binary.json is invalid (${state.error}); fix ${state.path} first`);
-	const choices = { ...state.choices };
-	for (const n of BINARY_NAMES) if (!(n in choices)) choices[n] = null;
-	choices[name] = value?.trim() ? value.trim() : null;
+	const choices = overridesOnly(state.choices);
+	if (value?.trim()) choices[name] = value.trim();
+	else delete choices[name];
 	writeIfChanged(state.path, choices);
 	return { path: state.path, choices };
 }

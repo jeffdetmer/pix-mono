@@ -32,7 +32,7 @@ export default function registerRuntime(pi: ExtensionAPI): void {
 				await runtime.init({ origin: "init", source: "session_start" });
 			}
 			surfaceDiagnostics(pi, runtime);
-			// List every catalogued binary in binary.json (user config; null = automatic).
+			// binary.json holds overrides only; drop legacy `null` padding, report bad JSON.
 			try {
 				const store = syncBinaryStore();
 				if (store.error) notifyWarning(pi, `pix: ${store.path} is invalid (${store.error})`);

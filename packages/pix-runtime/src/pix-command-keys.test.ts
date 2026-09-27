@@ -365,15 +365,16 @@ describe("/pix tabs", () => {
 		});
 	}
 
-	it("Binaries tab lists catalog rows with a status glyph + text and creates binary.json", async () => {
+	it("Binaries tab lists catalog rows with a status glyph + text without creating binary.json", async () => {
 		const d = await openOverlay(getKeybindings(), 60);
 		d.feed(TAB.legacy);
 		const text = d.lines().join("\n");
-		expect(text).toMatch(/binary\.json · null = automatic/);
+		expect(text).toMatch(/binary\.json · unset = automatic/);
 		// Every visible row: cursor slot, glyph, name, then detail text.
 		const row = /│ [→ ] \S+ (rtk|hunk|git|aria2c|bash)\s+\S/;
 		expect(text).toMatch(row);
-		expect(active && existsSync(join(active.agentDir, "binary.json"))).toBe(true);
+		// Overrides-only file: listing the catalog never creates it.
+		expect(active && existsSync(join(active.agentDir, "binary.json"))).toBe(false);
 	});
 
 	it("Binaries rows stay one line each; the selected row's users show in the fixed detail line", async () => {
@@ -407,7 +408,7 @@ describe("/pix tabs", () => {
 		const firstName = Object.keys(doc()).find((k) => doc()[k] === "/opt/x/tool");
 		expect(firstName).toBeDefined();
 		d.feed("d");
-		expect(doc()[firstName as string]).toBeNull();
+		expect(doc()).toEqual({ $version: 1 });
 		expect(d.closed()).toBe(false);
 	});
 

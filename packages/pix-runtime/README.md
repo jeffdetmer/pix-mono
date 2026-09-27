@@ -182,26 +182,24 @@ by bare name.
 
 ### `~/.pi/agent/binary.json`
 
-This file is user configuration. It lists every catalogued binary, so it also
-serves as the list of what pix depends on:
+This file is user configuration. It holds only the binaries you override. The
+file does not exist until you set a path. The `/pix` Binaries tab shows the
+full catalog of what pix depends on.
 
 ```json
 {
   "$version": 1,
-  "ffmpeg": "D:/tools/ffmpeg/bin/ffmpeg.exe",
-  "git": null,
-  "rtk": null
+  "ffmpeg": "D:/tools/ffmpeg/bin/ffmpeg.exe"
 }
 ```
 
-- `null` means automatic: pix looks in `bin`, then known install dirs, then PATH, then downloads.
+- A missing entry (or `null`) means automatic: pix looks in `bin`, then known install dirs, then PATH, then downloads.
 - A path means pix always uses exactly that file.
 
-pix writes to the file only in three cases:
+pix writes to the file only in two cases:
 
-- to create it;
-- to add `null` for new catalog entries;
-- when you edit a path in the `/pix` Binaries tab.
+- when you edit or reset a path in the `/pix` Binaries tab (reset removes the entry);
+- to remove legacy `null` entries for catalog binaries from an older file.
 
 Paths pix finds on its own are never written to it. Keys pix doesn't know are
 kept. If the file contains invalid JSON, pix reports it and leaves the file
@@ -218,7 +216,7 @@ also shows which packages use it.
 |---|---|
 | **enter** | install (downloadable, missing) or re-check |
 | **e** | set a path (saved to `binary.json`) |
-| **d** | reset the entry to `null` (automatic) |
+| **d** | reset the entry to automatic (removes it from `binary.json`) |
 | **r** | re-check all entries |
 
 ## Agent state and herdr notifications

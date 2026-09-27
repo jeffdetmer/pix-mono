@@ -250,7 +250,7 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 				// Keep the file name (binary.json) visible: shorten the path's middle,
 				// and drop the lookup order before clipping anything else.
 				const order = " (bin → system → PATH → download)";
-				const tail = ` · null = automatic${storePath.length + 7 + 19 + order.length <= inner ? order : ""}`;
+				const tail = ` · unset = automatic${storePath.length + 7 + 20 + order.length <= inner ? order : ""}`;
 				const text = `paths: ${middleTruncate(storePath, Math.max(12, inner - 7 - tail.length))}${tail}`;
 				header.push(theme.fg("muted", truncateToWidth(text, inner, "…")));
 			}
