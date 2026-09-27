@@ -34,6 +34,42 @@ packages_dir="${repo_root}/packages"
 
 mkdir -p "$TARGET_DIR"
 
+# ── cross-platform links ────────────────────────────────────────────────────────────────
+# Windows (Git Bash/MSYS) cannot create symlinks without admin/Developer Mode
+# (`ln -s` silently copies instead). Directory junctions need no privilege and
+# Node resolves them like symlinks, so Windows gets junctions.
+# Links are always removed with unlink: `rm -rf` through a junction can delete
+# the repo files it points at.
+is_windows=false
+case "$(uname -s)" in MINGW* | MSYS* | CYGWIN*) is_windows=true ;; esac
+
+# Native path form for Node/Pi (C:/Users/... on Windows).
+native_path() {
+	if [ "$is_windows" = true ]; then cygpath -m "$1"; else printf '%s' "$1"; fi
+}
+
+# Remove a path: unlink a link/junction without following it; delete real dirs.
+remove_path() {
+	node -e '
+const fs = require("fs");
+const p = process.argv[1];
+let st;
+try { st = fs.lstatSync(p); } catch { process.exit(0); }
+if (st.isSymbolicLink()) fs.unlinkSync(p);
+else fs.rmSync(p, { recursive: true, force: true });
+' "$(native_path "$1")"
+}
+
+# Point $2 at directory $1 (symlink on Unix, junction on Windows).
+link_dir() {
+	if [ "$is_windows" = true ]; then
+		node -e 'require("fs").symlinkSync(process.argv[1], process.argv[2], "junction")' \
+			"$(native_path "$1")" "$(native_path "$2")"
+	else
+		ln -s "$1" "$2"
+	fi
+}
+
 unlink=false
 [ "${1:-}" = "--unlink" ] && { unlink=true; shift; }
 
@@ -44,7 +80,7 @@ want_pkgs=("$@")
 LINK_CLOSURE=""
 compute_link_closure() {
 	[ ${#want_pkgs[@]} -eq 0 ] && return
-	LINK_CLOSURE=$(PACKAGES_DIR="$packages_dir" node - "${want_pkgs[@]}" <<'NODE'
+	LINK_CLOSURE=$(PACKAGES_DIR="$(native_path "$packages_dir")" node - "${want_pkgs[@]}" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 const packagesDir = process.env.PACKAGES_DIR;
@@ -90,7 +126,7 @@ compute_core_closure() {
 	CORE_CLOSURE=$(node -e "
 const fs = require('fs');
 const path = require('path');
-const pkgDir = '${packages_dir}';
+const pkgDir = '$(native_path "$packages_dir")';
 const readDeps = (name) => {
   const short = name.replace(/^@xynogen\//, '');
   const pj = path.join(pkgDir, short, 'package.json');
@@ -120,7 +156,7 @@ is_aggregated_by_core() {
 # Returns 0 if package.json has pi.extensions OR pi.themes (needs settings.json entry).
 has_pi_extensions() {
 	node -e "
-const p = require('$1');
+const p = require('$(native_path "$1")');
 const hasExt = p.pi && Array.isArray(p.pi.extensions) && p.pi.extensions.length > 0;
 const hasTheme = p.pi && (typeof p.pi.themes === 'string' || Array.isArray(p.pi.themes));
 process.exit((hasExt || hasTheme) ? 0 : 1);
@@ -132,7 +168,7 @@ settings_add() {
 	local npm_spec="npm:$1"
 	local local_path="$2"
 	[ -f "$SETTINGS_FILE" ] || return
-	node - "$SETTINGS_FILE" "$npm_spec" "$local_path" <<'NODE'
+	node - "$(native_path "$SETTINGS_FILE")" "$npm_spec" "$local_path" <<'NODE'
 const fs = require("fs");
 const [file, npmSpec, localPath] = process.argv.slice(2);
 const settings = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -165,7 +201,7 @@ settings_remove() {
 	local npm_spec="npm:$1"
 	local local_path="$2"
 	[ -f "$SETTINGS_FILE" ] || return
-	node - "$SETTINGS_FILE" "$npm_spec" "$local_path" <<'NODE'
+	node - "$(native_path "$SETTINGS_FILE")" "$npm_spec" "$local_path" <<'NODE'
 const fs = require("fs");
 const [file, npmSpec, localPath] = process.argv.slice(2);
 const settings = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -202,7 +238,7 @@ for dir in "$packages_dir"/*/; do
 	pkg_json="${dir}package.json"
 	[ -f "$pkg_json" ] || continue
 
-	name=$(node -p "require('${pkg_json}').name")
+	name=$(node -p "require('$(native_path "$pkg_json")').name")
 	wants "$name" || continue
 	# Strip the @xynogen/ scope to get the dir name under @xynogen.
 	short="${name#@xynogen/}"
@@ -213,15 +249,15 @@ for dir in "$packages_dir"/*/; do
 	if [ "$unlink" = true ]; then
 		# Only restore entries we previously symlinked.
 		if [ -L "$dest" ]; then
-			rm "$dest"
+			remove_path "$dest"
 			echo "↩ unlinked ${name}"
 			restored=$((restored + 1))
 		fi
 		# Remove repo node_modules symlink too.
-		[ -L "${REPO_NM_DIR}/${short}" ] && rm "${REPO_NM_DIR}/${short}"
+		[ -L "${REPO_NM_DIR}/${short}" ] && remove_path "${REPO_NM_DIR}/${short}"
 		# Remove from settings.json if it was registered.
 		if [ "$needs_registration" = true ]; then
-			if settings_remove "$name" "${dir%/}"; then
+			if settings_remove "$name" "$(native_path "${dir%/}")"; then
 				echo "  ✖ removed ${name} from settings.json"
 				unregistered=$((unregistered + 1))
 			fi
@@ -230,11 +266,11 @@ for dir in "$packages_dir"/*/; do
 	fi
 
 	# Remove the existing npm copy (or stale link) and point at the repo.
-	rm -rf "$dest"
-	ln -s "${dir%/}" "$dest"
+	remove_path "$dest"
+	link_dir "${dir%/}" "$dest"
 	# Also symlink into repo node_modules so Node traversal resolves @xynogen/*.
-	rm -rf "${REPO_NM_DIR}/${short}"
-	ln -s "${dir%/}" "${REPO_NM_DIR}/${short}"
+	remove_path "${REPO_NM_DIR}/${short}"
+	link_dir "${dir%/}" "${REPO_NM_DIR}/${short}"
 	echo "→ linked ${name} → ${dir%/}"
 	linked=$((linked + 1))
 
@@ -244,13 +280,13 @@ for dir in "$packages_dir"/*/; do
 		if is_aggregated_by_core "$name"; then
 			# A prior run may have wrongly registered this member — purge it so
 			# pix-core's in-process boot is the only loader (no tool conflict).
-			if settings_remove "$name" "${dir%/}"; then
+			if settings_remove "$name" "$(native_path "${dir%/}")"; then
 				echo "  ✖ unregistered ${name} (loaded by pix-core)"
 				unregistered=$((unregistered + 1))
 			else
 				echo "  ↷ skipped ${name} (loaded by pix-core)"
 			fi
-		elif settings_add "$name" "${dir%/}"; then
+		elif settings_add "$name" "$(native_path "${dir%/}")"; then
 			echo "  ✔ registered local ${name} in settings.json"
 			registered=$((registered + 1))
 		fi
