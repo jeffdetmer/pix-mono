@@ -17,7 +17,9 @@ See `DESIGN.md` for the full contract.
 - Typed, path-filtered change events.
 - One-time migration of legacy unversioned config and the `optimizer.json`
   sidecar.
-- The `/pix` shared-settings command.
+- The `/pix` shared-settings command, with **Settings** and **Binaries** tabs.
+- One catalog, resolver and downloader for every external command pix runs
+  (`binaries`), plus shared `paths` and `platform` helpers.
 
 ## Install
 
@@ -73,6 +75,104 @@ Collapse policy helpers:
 ```ts
 import { shouldCollapse, collapseDelayMs } from "@xynogen/pix-runtime/collapse";
 ```
+
+## Paths and platform
+
+```ts
+import { agentDir, binDir, cacheDir, homeDir } from "@xynogen/pix-runtime/paths";
+import { currentPlatform, hostPlatform } from "@xynogen/pix-runtime/platform";
+
+agentDir();   // PI_CODING_AGENT_DIR (~-expanded) or ~/.pi/agent, same as Pi's getAgentDir
+binDir();     // <agentDir>/bin, the folder where Pi downloads fd/rg
+cacheDir();   // $XDG_CACHE_HOME/pi or ~/.cache/pi (never relies on HOME alone)
+currentPlatform(); // { os, arch, libc?, wsl, termux, exe }
+```
+
+Every helper takes an optional env, so tests can use a temporary agent dir.
+
+## Binaries
+
+Every external command a pix package runs is listed in one catalog
+(`src/binaries/catalog.ts`). The catalog records which packages use each
+command, which OS needs it, an install hint, and, for a few commands, a trusted
+GitHub release.
+
+```ts
+import { ensureTool, requireTool, resolveTool } from "@xynogen/pix-runtime/binaries";
+
+resolveTool("git");                   // sync, no network: { path, source } | undefined
+requireTool("ssh");                   // same, but throws BinaryMissingError with the install hint
+await ensureTool("hunk", { onStatus }); // downloads into <agentDir>/bin when missing
+```
+
+**Resolve order:** `binary.json` path → `<agentDir>/bin` → PATH. `ensureTool`
+then downloads if the catalog has a release for this host.
+
+If `binary.json` names a file that doesn't exist, the entry is **broken**. pix
+never silently falls back to another copy.
+
+| Downloaded when missing | Source | Checksum |
+|---|---|---|
+| `rtk` (Windows, Linux, macOS) | `rtk-ai/rtk` latest release | `checksums.txt` |
+| `hunk` (Windows, Linux, macOS) | `modem-dev/hunk` latest release | `SHA256SUMS` |
+| `aria2c` (Windows only) | official `aria2/aria2` release | none published |
+| `ffmpeg` (Linux only, ~120 MB) | `BtbN/FFmpeg-Builds` lgpl (PulseAudio) | `checksums.sha256` |
+
+Everything else, including `rg`/`fd`, is only checked and never downloaded.
+Pi itself downloads `rg`/`fd`.
+
+The downloader:
+
+- finds the latest version through the `/releases/latest` redirect;
+- extracts with the system `tar`/`unzip`;
+- works in a unique temp folder and cleans it up afterwards;
+- shares one download between concurrent calls for the same binary;
+- respects `PI_OFFLINE`.
+
+Progress is reported only through `onStatus`. Use
+`reportToolStatus(ctx.ui)` from `@xynogen/pix-pretty/tool-status` so every
+package shows downloads the same way.
+
+### `~/.pi/agent/binary.json`
+
+This file is user configuration. It lists every catalogued binary, so it also
+serves as the list of what pix depends on:
+
+```json
+{
+  "$version": 1,
+  "ffmpeg": "D:/tools/ffmpeg/bin/ffmpeg.exe",
+  "git": null,
+  "rtk": null
+}
+```
+
+- `null` means automatic: pix looks in `bin`, then PATH, then downloads.
+- A path means pix always uses exactly that file.
+
+pix writes to the file only in three cases:
+
+- to create it;
+- to add `null` for new catalog entries;
+- when you edit a path in the `/pix` Binaries tab.
+
+Paths pix finds on its own are never written to it. Keys pix doesn't know are
+kept. If the file contains invalid JSON, pix reports it and leaves the file
+unchanged.
+
+### `/pix` → Binaries tab
+
+Press **Tab** / **Shift+Tab** to switch between Settings and Binaries. Each row
+shows a status icon with a text label (ok / missing / broken / not used on this
+OS), the resolved path, where it was found, and its version. Selecting a row
+also shows which packages use it.
+
+| Key | Action |
+|---|---|
+| **enter** | install (downloadable, missing) or re-check |
+| **e** | set a path (saved to `binary.json`) |
+| **d** | reset the entry to `null` (automatic) |
+| **r** | re-check all entries |
 
 ## Agent state and herdr notifications
 

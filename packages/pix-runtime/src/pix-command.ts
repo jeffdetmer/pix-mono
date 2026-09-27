@@ -6,6 +6,7 @@
  * Headless hosts get a notify summary instead of the overlay.
  */
 
+import { dirname } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
 	Key,
@@ -15,6 +16,7 @@ import {
 	visibleWidth,
 	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
+import { createBinariesTab } from "./binaries-tab.ts";
 import { icon } from "./icon-catalog.ts";
 import type { PixRuntime } from "./runtime.ts";
 import type { DeepPartial, SectionHandle } from "./schema.ts";
@@ -184,6 +186,13 @@ const SETTINGS: SettingRow<unknown>[] = [
 	}),
 ];
 
+/** Env whose agent dir is the folder holding pix.json (binary.json lives beside it). */
+function binariesEnv(runtime: PixRuntime): NodeJS.ProcessEnv {
+	return { ...process.env, PI_CODING_AGENT_DIR: dirname(runtime.path) };
+}
+
+const TABS = ["Settings", "Binaries"] as const;
+
 function buildSummary(runtime: PixRuntime): string {
 	const lines = [`Pix Settings (${runtime.path})`, ""];
 	let lastSection = "";
@@ -197,6 +206,12 @@ function buildSummary(runtime: PixRuntime): string {
 		const isDefault = value === row.read(row.handle.defaults);
 		lines.push(`  ${row.label}: ${value}${isDefault ? "" : " *"}`);
 	}
+	const binaries = createBinariesTab({
+		env: binariesEnv(runtime),
+		theme: { fg: (_c, t) => t, bold: (t) => t },
+		requestRender: () => {},
+	});
+	lines.push("", "[Binaries]", ...binaries.summary());
 	return lines.join("\n");
 }
 
@@ -236,6 +251,29 @@ export function registerPixCommand(pi: ExtensionAPI, runtime: PixRuntime): void 
 					let visibleBodyLines = 1;
 					let maxBodyOffset = 0;
 					let inspectingPage = false;
+					let tab: (typeof TABS)[number] = "Settings";
+					let binaries: ReturnType<typeof createBinariesTab> | undefined;
+					const binariesTab = () => {
+						binaries ??= createBinariesTab({
+							env: binariesEnv(runtime),
+							theme,
+							requestRender: () => tui.requestRender(),
+						});
+						return binaries;
+					};
+					const tabBar = () =>
+						TABS.map((name) =>
+							name === tab
+								? theme.fg("accent", theme.bold(`[ ${name} ]`))
+								: theme.fg("muted", `  ${name}  `),
+						).join(theme.fg("muted", "│"));
+					const switchTab = (direction: -1 | 1) => {
+						const next = (TABS.indexOf(tab) + direction + TABS.length) % TABS.length;
+						tab = TABS[next] ?? "Settings";
+						bodyOffset = 0;
+						inspectingPage = false;
+						if (tab === "Binaries") binariesTab().refresh();
+					};
 
 					const cycle = (direction: -1 | 1) => {
 						const row = SETTINGS[selected];
@@ -274,6 +312,40 @@ export function registerPixCommand(pi: ExtensionAPI, runtime: PixRuntime): void 
 
 					return {
 						render: (width: number) => {
+							const frame = {
+								width,
+								maxHeight: modalHeight(
+									tui.terminal?.rows,
+									runtime.get(prettySection).maxRenderHeight,
+								),
+								title: `${icon("settings")} Pix Settings`,
+								titleColor: (s: string) => theme.fg("accent", theme.bold(s)),
+								color: (s: string) => theme.fg("accent", s),
+								bg: (s: string) => theme.bg("customMessageBg", s),
+							};
+							const tabGuide = guide("tab", "switch tab");
+							if (tab === "Binaries") {
+								const bt = binariesTab();
+								const view = bt.view(width);
+								const hints = view.footer.map(([key, action]) => guide(key, action)).join(guideSep);
+								const result = frameModal({
+									...frame,
+									header: [tabBar(), "", ...view.header],
+									body: view.body,
+									footer: [
+										"",
+										bt.editing
+											? hints
+											: hints + guideSep + tabGuide + guideSep + guide("esc", "close"),
+									],
+									bodyOffset,
+									selectedBodyLine: inspectingPage ? undefined : view.selectedBodyLine,
+								});
+								bodyOffset = result.bodyOffset;
+								visibleBodyLines = Math.max(1, result.visibleBodyLines);
+								maxBodyOffset = result.maxBodyOffset;
+								return result.lines;
+							}
 							const labelW = Math.max(...SETTINGS.map((r) => r.label.length));
 							const body: string[] = [];
 							const settingBodyLines: number[] = [];
@@ -295,14 +367,8 @@ export function registerPixCommand(pi: ExtensionAPI, runtime: PixRuntime): void 
 								body.push(`${cursor} ${label}  ${theme.fg(isDefault ? "dim" : "success", value)}`);
 							}
 							const result = frameModal({
-								width,
-								maxHeight: modalHeight(
-									tui.terminal?.rows,
-									runtime.get(prettySection).maxRenderHeight,
-								),
-								title: `${icon("settings")} Pix Settings`,
-								titleColor: (s: string) => theme.fg("accent", theme.bold(s)),
-								header: [""],
+								...frame,
+								header: [tabBar(), ""],
 								body,
 								footer: [
 									"",
@@ -312,12 +378,12 @@ export function registerPixCommand(pi: ExtensionAPI, runtime: PixRuntime): void 
 										guideSep +
 										guide("PgUp/PgDn", "inspect") +
 										guideSep +
+										tabGuide +
+										guideSep +
 										guide("esc", "close"),
 								],
 								bodyOffset,
 								selectedBodyLine: inspectingPage ? undefined : settingBodyLines[selected],
-								color: (s: string) => theme.fg("accent", s),
-								bg: (s: string) => theme.bg("customMessageBg", s),
 							});
 							bodyOffset = result.bodyOffset;
 							visibleBodyLines = Math.max(1, result.visibleBodyLines);
@@ -326,6 +392,17 @@ export function registerPixCommand(pi: ExtensionAPI, runtime: PixRuntime): void 
 						},
 						invalidate: () => {},
 						handleInput: (data: string) => {
+							if (tab === "Binaries" && binariesTab().editing) {
+								binariesTab().handleInput(data, { up: false, down: false, enter: false });
+								tui.requestRender();
+								return;
+							}
+							const shiftTab = matchesKey(data, Key.shift(Key.tab));
+							if (shiftTab || matchesKey(data, Key.tab)) {
+								switchTab(shiftTab ? -1 : 1);
+								tui.requestRender();
+								return;
+							}
 							const pageUp = kb?.matches(data, "tui.select.pageUp") || matchesKey(data, Key.pageUp);
 							const pageDown =
 								kb?.matches(data, "tui.select.pageDown") || matchesKey(data, Key.pageDown);
@@ -341,6 +418,18 @@ export function registerPixCommand(pi: ExtensionAPI, runtime: PixRuntime): void 
 							// `data === "k"` silently fail under the Kitty keyboard protocol.
 							if (kb.matches(data, "tui.select.cancel")) {
 								done(null);
+								return;
+							}
+							if (tab === "Binaries") {
+								const handled = binariesTab().handleInput(data, {
+									up: kb.matches(data, "tui.select.up"),
+									down: kb.matches(data, "tui.select.down"),
+									enter: kb.matches(data, "tui.select.confirm"),
+								});
+								if (handled) {
+									inspectingPage = false;
+									tui.requestRender();
+								}
 								return;
 							}
 							if (kb.matches(data, "tui.select.up")) move(-1);

@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { syncBinaryStore } from "./binaries/store.ts";
 import { bindHerdrNotify } from "./herdr-notify.ts";
 import { bindAgentStateEvents, resetAgentState, resetUnattendedState } from "./herdr-state.ts";
 import { once } from "./once.ts";
@@ -31,6 +32,13 @@ export default function registerRuntime(pi: ExtensionAPI): void {
 				await runtime.init({ origin: "init", source: "session_start" });
 			}
 			surfaceDiagnostics(pi, runtime);
+			// List every catalogued binary in binary.json (user config; null = automatic).
+			try {
+				const store = syncBinaryStore();
+				if (store.error) notifyWarning(pi, `pix: ${store.path} is invalid (${store.error})`);
+			} catch {
+				/* read-only agent dir: the Binaries tab still resolves without the file */
+			}
 		});
 
 		pi.on("session_shutdown", async () => {
@@ -47,7 +55,10 @@ export default function registerRuntime(pi: ExtensionAPI): void {
 function surfaceDiagnostics(pi: ExtensionAPI, runtime: ReturnType<typeof pixRuntime>): void {
 	const errors = runtime.diagnostics().filter((d) => d.severity === "error");
 	if (errors.length === 0) return;
+	notifyWarning(pi, `pix config: ${errors.length} issue(s) — see ${runtime.path}`);
+}
+
+function notifyWarning(pi: ExtensionAPI, msg: string): void {
 	const ui = (pi as unknown as { ui?: { notify?(m: string, t?: string): void } }).ui;
-	const msg = `pix config: ${errors.length} issue(s) — see ${runtime.path}`;
 	ui?.notify?.(msg, "warning");
 }

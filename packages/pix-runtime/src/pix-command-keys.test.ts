@@ -8,6 +8,8 @@
  */
 
 import { afterEach, describe, expect, it } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
 	getKeybindings,
@@ -70,7 +72,7 @@ afterEach(() => {
 });
 
 /** Register /pix against a mock host + isolated runtime and open its overlay. */
-async function openOverlay(kb = getKeybindings()): Promise<Driver> {
+async function openOverlay(kb = getKeybindings(), rows = 12): Promise<Driver> {
 	const iso = createIsolatedRuntime();
 	active = iso;
 	await iso.runtime.init();
@@ -105,7 +107,7 @@ async function openOverlay(kb = getKeybindings()): Promise<Driver> {
 					done: (v: T) => void,
 				) => Overlay,
 			): Promise<T | undefined> => {
-				overlay = cb({ requestRender: () => {}, terminal: { rows: 12 } }, theme, kb, () => {
+				overlay = cb({ requestRender: () => {}, terminal: { rows } }, theme, kb, () => {
 					closed = true;
 				});
 				return undefined;
@@ -340,5 +342,65 @@ describe("/pix overlay keys (guards)", () => {
 		expect(d.cursorLine()).toBe(first);
 		expect(d.iconsValue()).toBe(icons);
 		expect(d.closed()).toBe(false);
+	});
+});
+
+describe("/pix tabs", () => {
+	const TAB = { legacy: "\t", kitty: "\u001b[9u" } as const;
+	const SHIFT_TAB = { legacy: "\u001b[Z", kitty: "\u001b[9;2u" } as const;
+
+	for (const enc of ENCODINGS) {
+		it(`tab / shift+tab switch between Settings and Binaries (${enc})`, async () => {
+			if (enc === "kitty") setKittyProtocolActive(true);
+			try {
+				const d = await openOverlay(getKeybindings(), 60);
+				expect(d.lines()[1]).toMatch(/\[ Settings \].*Binaries/);
+				d.feed(TAB[enc]);
+				expect(d.lines()[1]).toMatch(/Settings.*\[ Binaries \]/);
+				d.feed(SHIFT_TAB[enc]);
+				expect(d.lines()[1]).toMatch(/\[ Settings \]/);
+			} finally {
+				if (enc === "kitty") setKittyProtocolActive(false);
+			}
+		});
+	}
+
+	it("Binaries tab lists catalog rows with a status glyph + text and creates binary.json", async () => {
+		const d = await openOverlay(getKeybindings(), 60);
+		d.feed(TAB.legacy);
+		const text = d.lines().join("\n");
+		expect(text).toMatch(/binary\.json · null = automatic/);
+		// Every visible row: cursor slot, glyph, name, then detail text.
+		const row = /│ [→ ] \S+ (rtk|hunk|git|aria2c|bash)\s+\S/;
+		expect(text).toMatch(row);
+		expect(active && existsSync(join(active.agentDir, "binary.json"))).toBe(true);
+	});
+
+	it("e edits a path into binary.json; d resets it to automatic", async () => {
+		const d = await openOverlay(getKeybindings(), 60);
+		d.feed(TAB.legacy);
+		d.feed("e");
+		expect(d.lines().join("\n")).toMatch(/path: /);
+		// Clear the prefilled value, type a path, save.
+		d.feed("\u0015"); // ctrl+u
+		for (const ch of "/opt/x/tool") d.feed(ch);
+		d.feed("\r");
+		const iso = active as IsolatedRuntime;
+		const doc = () => JSON.parse(readFileSync(join(iso.agentDir, "binary.json"), "utf-8"));
+		const firstName = Object.keys(doc()).find((k) => doc()[k] === "/opt/x/tool");
+		expect(firstName).toBeDefined();
+		d.feed("d");
+		expect(doc()[firstName as string]).toBeNull();
+		expect(d.closed()).toBe(false);
+	});
+
+	it("esc inside the path editor cancels the edit, not the overlay", async () => {
+		const d = await openOverlay(getKeybindings(), 60);
+		d.feed(TAB.legacy);
+		d.feed("e");
+		d.feed("\u001b");
+		expect(d.closed()).toBe(false);
+		d.feed("\u001b");
+		expect(d.closed()).toBe(true);
 	});
 });

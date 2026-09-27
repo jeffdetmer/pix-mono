@@ -1,6 +1,6 @@
 {
 	"name": "@xynogen/pix-runtime",
-	"version": "0.10.2",
+	"version": "0.11.0",
 	"description": "Pix shared runtime — versioned pix.json config, atomic persistence, typed change events",
 	"type": "module",
 	"main": "src/index.ts",
@@ -22,6 +22,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./atomic-write": "./src/atomic-write.ts",
+		"./binaries": "./src/binaries/index.ts",
 		"./config": "./src/runtime.ts",
 		"./sections": "./src/sections/index.ts",
 		"./collapse": "./src/collapse.ts",
@@ -29,6 +30,8 @@
 		"./io": "./src/io.ts",
 		"./lfid": "./src/lfid.ts",
 		"./once": "./src/once.ts",
+		"./paths": "./src/paths.ts",
+		"./platform": "./src/platform.ts",
 		"./testing": "./src/testing.ts",
 		"./which": "./src/which.ts"
 	},

@@ -16,15 +16,24 @@
 import { accessSync, constants, statSync } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { delimiter, isAbsolute, join, sep } from "node:path";
+import { currentPlatform } from "./platform.ts";
 
-const isWindows = process.platform === "win32";
+const isWindows = currentPlatform().os === "win32";
 
 /** Windows executable extensions, from `PATHEXT` with a sane fallback. */
 function pathExtensions(env: NodeJS.ProcessEnv): string[] {
 	if (!isWindows) return [""];
 	const raw = env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD";
-	// Leading "" lets an already-suffixed name (foo.exe) match as-is.
-	return ["", ...raw.split(";").filter(Boolean)];
+	// Leading "" lets an already-suffixed name (foo.exe) match as-is. Lowercased:
+	// NTFS matches either case, and the returned path should read `rtk.exe`, not
+	// `rtk.EXE`, since that is how the files are conventionally named.
+	return [
+		"",
+		...raw
+			.split(";")
+			.filter(Boolean)
+			.map((ext) => ext.toLowerCase()),
+	];
 }
 
 /** Directories to scan, from `PATH`. Windows also probes the current directory first. */
@@ -40,7 +49,15 @@ export interface FindExecutableOptions {
 }
 
 function candidatesFor(name: string, env: NodeJS.ProcessEnv): string[] {
-	const exts = pathExtensions(env);
+	let exts = pathExtensions(env);
+	// Windows cannot spawn an extensionless file (npm ships a `npm` sh script
+	// beside `npm.cmd`), so only accept the bare name when it already carries a
+	// PATHEXT extension.
+	if (isWindows) {
+		const lower = name.toLowerCase();
+		const suffixed = exts.some((ext) => ext && lower.endsWith(ext));
+		exts = suffixed ? [""] : exts.filter(Boolean);
+	}
 	const withExts = (base: string): string[] => exts.map((ext) => base + ext);
 	// A name with a separator (or absolute) is a direct path — do not scan PATH.
 	if (isAbsolute(name) || name.includes(sep) || (isWindows && name.includes("/"))) {
