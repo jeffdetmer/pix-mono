@@ -34,6 +34,42 @@ export function formatToolStatus(s: ToolStatusEvent): string {
 	return `${s.name} unavailable: ${s.error}${s.hint ? ` — install: ${s.hint}` : ""}`;
 }
 
+/** Structural mirror of pix-runtime's BinaryMissingError (no runtime import needed). */
+export interface BinaryMissingLike {
+	name: "BinaryMissingError";
+	tool: string;
+	message: string;
+}
+
+export function isBinaryMissing(err: unknown): err is BinaryMissingLike {
+	return (
+		err instanceof Error &&
+		err.name === "BinaryMissingError" &&
+		typeof (err as { tool?: unknown }).tool === "string"
+	);
+}
+
+const warned = new Set<string>();
+
+/**
+ * Background features (footer branch, welcome, recency) call this when a
+ * binary is missing: one transient warning per tool per process, pointing at
+ * the /pix Binaries tab, instead of failing silently or spamming. Returns true
+ * when `err` was a missing-binary error (handled), false otherwise.
+ */
+export function warnBinaryMissing(ui: TransientErrorUI | undefined, err: unknown): boolean {
+	if (!isBinaryMissing(err)) return false;
+	if (!ui || warned.has(err.tool)) return true;
+	warned.add(err.tool);
+	showTransientMessage(ui, `${err.message} · set a path in /pix → Binaries`, "warning");
+	return true;
+}
+
+/** Test seam: forget which tools already warned. */
+export function resetBinaryWarnings(): void {
+	warned.clear();
+}
+
 /** Build an `onStatus` callback that routes events to the standard surfaces. */
 export function reportToolStatus(ui: ToolStatusUI | undefined): (s: ToolStatusEvent) => void {
 	return (s) => {

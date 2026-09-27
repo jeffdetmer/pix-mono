@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { formatToolStatus, reportToolStatus } from "./tool-status.ts";
+import {
+	formatToolStatus,
+	reportToolStatus,
+	resetBinaryWarnings,
+	warnBinaryMissing,
+} from "./tool-status.ts";
 
 function fakeUi() {
 	const status: Array<[string, string | undefined]> = [];
@@ -62,5 +67,27 @@ describe("tool-status", () => {
 		expect(formatToolStatus({ kind: "failed", name: "a", error: "e", hint: "" })).toBe(
 			"a unavailable: e",
 		);
+	});
+});
+
+describe("warnBinaryMissing", () => {
+	const missing = Object.assign(new Error("ssh not found — install: enable OpenSSH"), {
+		name: "BinaryMissingError",
+		tool: "ssh",
+	});
+
+	test("one warning per tool, naming the /pix Binaries tab", () => {
+		resetBinaryWarnings();
+		const f = fakeUi();
+		expect(warnBinaryMissing(f.ui, missing)).toBe(true);
+		expect(warnBinaryMissing(f.ui, missing)).toBe(true);
+		expect(f.widgets.filter(Boolean)).toHaveLength(1);
+		expect(f.widgets[0]).toMatch(
+			/<warning>.*ssh not found — install: .* · set a path in \/pix → Binaries/,
+		);
+	});
+
+	test("other errors are left to the caller", () => {
+		expect(warnBinaryMissing(fakeUi().ui, new Error("boom"))).toBe(false);
 	});
 });
