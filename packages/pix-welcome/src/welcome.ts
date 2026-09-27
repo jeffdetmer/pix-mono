@@ -37,6 +37,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { padIcon } from "@xynogen/pix-pretty/utils";
+import { runTool } from "@xynogen/pix-runtime/exec";
+import { runGit } from "@xynogen/pix-runtime/os";
 import { agentDir } from "@xynogen/pix-runtime/paths";
 
 // ─── Theme shim (same pattern as footer.ts) ───────────────────────────────────
@@ -81,40 +83,28 @@ const PI_IGNORE_SECTION_HEADER = "# Pix Agent";
 
 // ─── Individual checks ────────────────────────────────────────────────────────
 
-async function checkPiVersion(pi: ExtensionAPI): Promise<CheckResult> {
+/** "<tool> missing · /pix → Binaries" for a BinaryMissingError, else undefined. */
+function missingDetail(err: unknown): string | undefined {
+	return err instanceof Error && err.name === "BinaryMissingError"
+		? `${(err as Error & { tool?: string }).tool ?? "binary"} missing · /pix → Binaries`
+		: undefined;
+}
+
+async function checkPiVersion(): Promise<CheckResult> {
 	try {
-		const localRes = await pi.exec("pi", ["--version"], { timeout: 2_000 });
+		const localRes = await runTool("pi", ["--version"], { timeoutMs: 2_000 });
 		const local = (localRes.stdout.trim() || localRes.stderr.trim()).replace(/^v/, "");
 		return { label: "PI", status: "ok", detail: local || "installed" };
-	} catch {
-		return { label: "PI", status: "warn", detail: "version unavailable" };
+	} catch (err) {
+		return { label: "PI", status: "warn", detail: missingDetail(err) ?? "version unavailable" };
 	}
 }
 
-type ExecResult = {
-	stdout: string;
-	stderr: string;
-	exitCode?: number;
-	code?: number;
-};
-
-function exitCode(r: ExecResult): number {
-	return r.exitCode ?? r.code ?? 0;
-}
-
-function execOpts(cwd: string, timeout: number): { timeout?: number } {
-	// SAFETY: Pi's exec runtime accepts cwd although the published option type omits it.
-	return { cwd, timeout } as unknown as { timeout?: number };
-}
-
-async function checkPiIgnore(pi: ExtensionAPI, cwd: string): Promise<CheckResult> {
+async function checkPiIgnore(cwd: string): Promise<CheckResult> {
 	try {
 		// Find repo root — avoids creating .gitignore in a subfolder
-		const rootRes = await pi.exec("git", ["rev-parse", "--show-toplevel"], execOpts(cwd, 2_000));
-		if (exitCode(rootRes) !== 0) {
-			return { label: "Ignore", status: "ok", detail: "not git" };
-		}
-		const repoRoot = rootRes.stdout.trim();
+		const root = await runGit(["rev-parse", "--show-toplevel"], { cwd, timeoutMs: 2_000 });
+		const repoRoot = root?.trim();
 		if (!repoRoot) return { label: "Ignore", status: "ok", detail: "not git" };
 
 		// Read .gitignore in-process — shelling out to grep/node was fragile
@@ -143,8 +133,8 @@ async function checkPiIgnore(pi: ExtensionAPI, cwd: string): Promise<CheckResult
 			status: "ok",
 			detail: `${missing.length} added`,
 		};
-	} catch {
-		return { label: "Ignore", status: "warn", detail: "check failed" };
+	} catch (err) {
+		return { label: "Ignore", status: "warn", detail: missingDetail(err) ?? "check failed" };
 	}
 }
 
@@ -456,8 +446,8 @@ export default function (pi: ExtensionAPI) {
 		// Expose skills updater so the before_agent_start handler can refine the count.
 		_updateSkills = (r: CheckResult) => update(4, r);
 
-		void checkPiVersion(pi).then((r) => update(0, r));
-		void checkPiIgnore(pi, ctx.cwd).then((r) => update(5, r));
+		void checkPiVersion().then((r) => update(0, r));
+		void checkPiIgnore(ctx.cwd).then((r) => update(5, r));
 		// auth already filled synchronously above; no async needed
 
 		// Tools register during session_start (incl. other extensions); read on
