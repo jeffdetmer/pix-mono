@@ -3,7 +3,7 @@
  * unit-tested without spawning real sudo or loading the Pi extension host.
  */
 
-import { spawn } from "node:child_process";
+import { spawnTool } from "@xynogen/pix-runtime/exec";
 
 export const MAX_OUTPUT_BYTES = 50 * 1024;
 export const MAX_OUTPUT_LINES = 2000;
@@ -77,9 +77,12 @@ export function validateSudoPassword(password: string, signal?: AbortSignal): Pr
  */
 export function hasValidTicket(): Promise<boolean> {
 	return new Promise((resolve) => {
-		const proc = spawn("sudo", ["-n", "true"], {
-			stdio: ["ignore", "ignore", "ignore"],
-		});
+		let proc: ReturnType<typeof spawnTool>;
+		try {
+			proc = spawnTool("sudo", ["-n", "true"], { stdio: ["ignore", "ignore", "ignore"] });
+		} catch {
+			return resolve(false); // sudo missing: no ticket; runWithSudo reports the hint
+		}
 		proc.on("error", () => resolve(false));
 		proc.on("close", (code) => resolve(code === 0));
 	});
@@ -101,9 +104,7 @@ export function runWithSudo(
 
 function spawnSudo(args: string[], password: string, signal?: AbortSignal): Promise<SudoResult> {
 	return new Promise((resolve, reject) => {
-		const proc = spawn("sudo", args, {
-			stdio: ["pipe", "pipe", "pipe"],
-		});
+		const proc = spawnTool("sudo", args, { stdio: ["pipe", "pipe", "pipe"] });
 
 		let stdout = "";
 		let stderr = "";
