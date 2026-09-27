@@ -16,16 +16,19 @@ describe("Pi agent dir paths", () => {
 	const originalOAuthDir = process.env.MCP_OAUTH_DIR;
 
 	afterEach(() => {
-		process.env.HOME = originalHome;
+		if (originalHome === undefined) delete process.env.HOME;
+		else process.env.HOME = originalHome;
 		if (originalAgentDir === undefined) {
 			delete process.env.PI_CODING_AGENT_DIR;
 		} else {
-			process.env.PI_CODING_AGENT_DIR = originalAgentDir;
+			if (originalAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+			else process.env.PI_CODING_AGENT_DIR = originalAgentDir;
 		}
 		if (originalOAuthDir === undefined) {
 			delete process.env.MCP_OAUTH_DIR;
 		} else {
-			process.env.MCP_OAUTH_DIR = originalOAuthDir;
+			if (originalOAuthDir === undefined) delete process.env.MCP_OAUTH_DIR;
+			else process.env.MCP_OAUTH_DIR = originalOAuthDir;
 		}
 	});
 

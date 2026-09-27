@@ -21,7 +21,8 @@ describe("onboarding state", () => {
 	const originalHome = process.env.HOME;
 
 	afterEach(() => {
-		process.env.HOME = originalHome;
+		if (originalHome === undefined) delete process.env.HOME;
+		else process.env.HOME = originalHome;
 	});
 
 	it("returns the default state when no file exists", async () => {

@@ -47,11 +47,13 @@ describe("cli init helper", () => {
 	const originalCwd = process.cwd();
 
 	afterEach(() => {
-		process.env.HOME = originalHome;
+		if (originalHome === undefined) delete process.env.HOME;
+		else process.env.HOME = originalHome;
 		if (originalAgentDir === undefined) {
 			delete process.env.PI_CODING_AGENT_DIR;
 		} else {
-			process.env.PI_CODING_AGENT_DIR = originalAgentDir;
+			if (originalAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+			else process.env.PI_CODING_AGENT_DIR = originalAgentDir;
 		}
 		process.chdir(originalCwd);
 	});

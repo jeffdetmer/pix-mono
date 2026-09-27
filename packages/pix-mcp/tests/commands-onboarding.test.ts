@@ -38,7 +38,8 @@ describe("commands onboarding", () => {
 	const onboardingPath = join(originalHome ?? "", ".pi", "agent", "mcp-onboarding.json");
 
 	beforeEach(() => {
-		process.env.HOME = originalHome;
+		if (originalHome === undefined) delete process.env.HOME;
+		else process.env.HOME = originalHome;
 		rmSync(onboardingPath, { force: true });
 		mocks.createMcpPanel
 			.mockReset()
@@ -55,11 +56,13 @@ describe("commands onboarding", () => {
 	});
 
 	afterEach(() => {
-		process.env.HOME = originalHome;
+		if (originalHome === undefined) delete process.env.HOME;
+		else process.env.HOME = originalHome;
 		if (originalOAuthDir === undefined) {
 			delete process.env.MCP_OAUTH_DIR;
 		} else {
-			process.env.MCP_OAUTH_DIR = originalOAuthDir;
+			if (originalOAuthDir === undefined) delete process.env.MCP_OAUTH_DIR;
+			else process.env.MCP_OAUTH_DIR = originalOAuthDir;
 		}
 		process.chdir(originalCwd);
 	});

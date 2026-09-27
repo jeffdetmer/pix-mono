@@ -37,9 +37,12 @@ describe("config discovery", () => {
 	const originalCwd = process.cwd();
 
 	afterEach(() => {
-		process.env.HOME = originalHome;
-		process.env.USERPROFILE = originalProfile;
-		process.env.PI_CODING_AGENT_DIR = originalAgentDir;
+		if (originalHome === undefined) delete process.env.HOME;
+		else process.env.HOME = originalHome;
+		if (originalProfile === undefined) delete process.env.USERPROFILE;
+		else process.env.USERPROFILE = originalProfile;
+		if (originalAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+		else process.env.PI_CODING_AGENT_DIR = originalAgentDir;
 		process.chdir(originalCwd);
 	});
 

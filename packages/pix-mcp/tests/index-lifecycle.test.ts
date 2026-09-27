@@ -179,7 +179,8 @@ describe("mcpAdapter session lifecycle", () => {
 		if (originalDirectTools === undefined) {
 			delete process.env.MCP_DIRECT_TOOLS;
 		} else {
-			process.env.MCP_DIRECT_TOOLS = originalDirectTools;
+			if (originalDirectTools === undefined) delete process.env.MCP_DIRECT_TOOLS;
+			else process.env.MCP_DIRECT_TOOLS = originalDirectTools;
 		}
 	});
 

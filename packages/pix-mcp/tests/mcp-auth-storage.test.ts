@@ -17,7 +17,8 @@ describe("mcp-auth storage paths", () => {
 		if (originalOAuthDir === undefined) {
 			delete process.env.MCP_OAUTH_DIR;
 		} else {
-			process.env.MCP_OAUTH_DIR = originalOAuthDir;
+			if (originalOAuthDir === undefined) delete process.env.MCP_OAUTH_DIR;
+			else process.env.MCP_OAUTH_DIR = originalOAuthDir;
 		}
 		rmSync(authDir, { recursive: true, force: true });
 	});

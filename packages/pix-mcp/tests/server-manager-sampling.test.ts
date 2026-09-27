@@ -67,7 +67,8 @@ describe("McpServerManager sampling", () => {
 		if (originalMcpTestCwd === undefined) {
 			delete process.env.MCP_TEST_CWD;
 		} else {
-			process.env.MCP_TEST_CWD = originalMcpTestCwd;
+			if (originalMcpTestCwd === undefined) delete process.env.MCP_TEST_CWD;
+			else process.env.MCP_TEST_CWD = originalMcpTestCwd;
 		}
 	});
 
