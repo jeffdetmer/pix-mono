@@ -6,6 +6,7 @@ import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { openProgress, type ProgressHandle, type ProgressUI } from "@xynogen/pix-pretty/progress";
 import { SPINNER } from "@xynogen/pix-pretty/widget-format";
 import { type LookupOptions, resolveTool } from "@xynogen/pix-runtime/binaries";
+import { runTool } from "@xynogen/pix-runtime/exec";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 // ─── Pure logic (exported for tests) ─────────────────────────────────────────
 
@@ -147,8 +148,33 @@ function slashes(path: string | undefined): string | undefined {
 	return path?.replaceAll("\\", "/");
 }
 
-export async function currentVersion(pi: ExtensionAPI) {
-	const result = await pi.exec("pi", ["--version"], { timeout: 10_000 });
+/** Result shape shared with Pi's pi.exec (tests inject a fake). */
+export interface ExecOutput {
+	stdout: string;
+	stderr: string;
+	code?: number | null;
+}
+
+/**
+ * How update commands run. Default: pix-runtime, so pi/npm/bun/vp resolve
+ * through binary.json and Windows .cmd shims (npm.cmd, pi.cmd) work.
+ */
+export type Exec = (
+	command: string,
+	args: string[],
+	opts: { timeout?: number },
+) => Promise<ExecOutput>;
+
+export const runtimeExec: Exec = (command, args, opts) =>
+	runTool(command, args, { timeoutMs: opts.timeout });
+
+/** Pi's ExtensionAPI (tests) or an Exec; both end up as an Exec. */
+function asExec(runner: ExtensionAPI | Exec): Exec {
+	return typeof runner === "function" ? runner : (c, a, o) => runner.exec(c, a, o);
+}
+
+export async function currentVersion(runner: ExtensionAPI | Exec = runtimeExec) {
+	const result = await asExec(runner)("pi", ["--version"], { timeout: 10_000 });
 	return result.stdout.trim() || result.stderr.trim() || "unknown";
 }
 
@@ -183,11 +209,19 @@ export function detectInstallMethod(opts?: LookupOptions): InstallMethod {
 
 /**
  * `nice -n 19` deprioritizes installs so the TUI keeps echoing keystrokes.
- * Skipped where nice is unavailable (Windows without Git Bash on PATH).
+ * The inner command is resolved first (binary.json → bin → known dirs → PATH)
+ * so nice never re-looks it up on its own PATH. Skipped on Windows (MSYS nice
+ * cannot start .cmd shims) and where nice is unavailable.
  */
-export function niced(command: string, args: string[]): [string, string[]] {
-	const nice = resolveCommand("nice");
-	return nice ? [nice, ["-n", "19", command, ...args]] : [command, args];
+export function niced(
+	command: string,
+	args: string[],
+	opts: LookupOptions & { platform?: NodeJS.Platform } = {},
+): [string, string[]] {
+	if ((opts.platform ?? process.platform) === "win32") return [command, args];
+	const nice = resolveCommand("nice", opts);
+	if (!nice) return [command, args];
+	return [nice, ["-n", "19", resolveCommand(command, opts) ?? command, ...args]];
 }
 
 /** Backoff delay between retries. Injectable so tests can skip the real wait. */
@@ -195,13 +229,16 @@ export type Sleep = (ms: number) => Promise<void>;
 
 const realSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function runWithRetry(pi: ExtensionAPI, spec: CommandSpec, sleep: Sleep = realSleep) {
+export async function runWithRetry(
+	runner: ExtensionAPI | Exec,
+	spec: CommandSpec,
+	sleep: Sleep = realSleep,
+) {
+	const exec = asExec(runner);
 	let lastOutput = "";
 	for (let attempt = 1; attempt <= 3; attempt++) {
 		const [command, args] = niced(spec.command, spec.args);
-		const result = await pi.exec(command, args, {
-			timeout: ioTimeoutMs(),
-		});
+		const result = await exec(command, args, { timeout: ioTimeoutMs() });
 		lastOutput = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
 		if ((result.code ?? 0) === 0) return { ok: true, output: lastOutput, attempts: attempt };
 		if (attempt === 3 || !isTransient(lastOutput))
@@ -211,16 +248,12 @@ export async function runWithRetry(pi: ExtensionAPI, spec: CommandSpec, sleep: S
 	return { ok: false, output: lastOutput, attempts: 3 };
 }
 
-async function updatePi(
-	pi: ExtensionAPI,
-	ctx: ExtensionCommandContext,
-	progress?: ProgressHandle,
-): Promise<boolean> {
+async function updatePi(ctx: ExtensionCommandContext, progress?: ProgressHandle): Promise<boolean> {
 	await (ctx as ExtensionCommandContext & { waitForIdle?: () => Promise<void> }).waitForIdle?.();
 
 	// Grab current version + detect install method concurrently.
 	const [before, method] = await Promise.all([
-		currentVersion(pi).catch(() => "unknown"),
+		currentVersion().catch(() => "unknown"),
 		detectInstallMethod(),
 	]);
 	const spec = commandFor(method);
@@ -234,8 +267,12 @@ async function updatePi(
 	}
 
 	progress?.setLabel(`Updating Pi via ${method}…`);
-	const result = await runWithRetry(pi, spec);
-	const after = await currentVersion(pi).catch(() => "unknown");
+	const result = await runWithRetry(runtimeExec, spec).catch((err: unknown) => ({
+		ok: false,
+		output: err instanceof Error ? err.message : String(err),
+		attempts: 1,
+	}));
+	const after = await currentVersion().catch(() => "unknown");
 
 	if (!result.ok) {
 		ctx.ui.notify(
@@ -249,16 +286,16 @@ async function updatePi(
 	return true;
 }
 
-async function updatePackages(
-	pi: ExtensionAPI,
-	ctx: ExtensionCommandContext,
-	progress?: ProgressHandle,
-) {
+async function updatePackages(ctx: ExtensionCommandContext, progress?: ProgressHandle) {
 	progress?.setLabel("Updating pi packages…");
 	const [command, args] = niced("pi", ["update", "--extensions"]);
-	const result = await pi.exec(command, args, {
-		timeout: ioTimeoutMs(),
-	});
+	const result = await runtimeExec(command, args, { timeout: ioTimeoutMs() }).catch(
+		(err: unknown) => ({
+			stdout: "",
+			stderr: err instanceof Error ? err.message : String(err),
+			code: 1,
+		}),
+	);
 	const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
 	if ((result.code ?? 0) !== 0) {
 		ctx.ui.notify(`Pi package update failed. ${output || "No output."}`, "error");
@@ -267,7 +304,7 @@ async function updatePackages(
 	ctx.ui.notify("Pi packages updated.", "info");
 }
 
-async function updateAll(pi: ExtensionAPI, ctx: ExtensionCommandContext) {
+async function updateAll(ctx: ExtensionCommandContext) {
 	if (ctx.hasUI) {
 		// SAFETY: ctx.ui structurally provides the ConfirmUI surface (custom/theme);
 		// the host's UI type is wider, so we narrow to the subset confirmOverlay uses.
@@ -290,8 +327,8 @@ async function updateAll(pi: ExtensionAPI, ctx: ExtensionCommandContext) {
 		? openProgress(ctx.ui as unknown as ProgressUI, "Updating Pi & extensions")
 		: undefined;
 	try {
-		await updatePi(pi, ctx, progress);
-		await updatePackages(pi, ctx, progress);
+		await updatePi(ctx, progress);
+		await updatePackages(ctx, progress);
 	} finally {
 		progress?.close();
 	}
@@ -315,7 +352,7 @@ export default function (pi: ExtensionAPI) {
 	pi.registerCommand("update", {
 		description: "Update Pi, pix extensions, and pi packages",
 		handler: async (_args, ctx) => {
-			await updateAll(pi, ctx);
+			await updateAll(ctx);
 		},
 	});
 
