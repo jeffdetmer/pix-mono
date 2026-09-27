@@ -43,9 +43,14 @@ describe("isWaylandSession", () => {
 });
 
 describe("readClipboardImageToFile gating", () => {
-	test("returns null on non-linux platforms without spawning", () => {
+	test("returns null on macOS (no dependency-free bridge)", () => {
 		expect(readClipboardImageToFile({}, "darwin")).toBeNull();
-		expect(readClipboardImageToFile({}, "win32")).toBeNull();
+	});
+
+	test("no clipboard tool reachable → null, no throw", () => {
+		expect(
+			readClipboardImageToFile({ PATH: "", PI_CODING_AGENT_DIR: "/nonexistent" }, "linux"),
+		).toBeNull();
 	});
 
 	test("returns null under Termux", () => {
