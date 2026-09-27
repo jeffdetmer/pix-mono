@@ -1,12 +1,14 @@
 import { execFile } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+import { reportToolStatus, type ToolStatusUI } from "@xynogen/pix-pretty/tool-status";
 import {
 	dotJoin,
 	formatCollapsedToolRow,
 	frameToolResult,
 	hideCollapsedToolCall,
 } from "@xynogen/pix-pretty/utils";
+import { ensureTool } from "@xynogen/pix-runtime/binaries";
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
 import { Type } from "typebox";
 import {
@@ -26,11 +28,21 @@ export interface HunkRunResult {
 	code: number;
 }
 
-export type HunkRunner = (args: string[], signal?: AbortSignal) => Promise<HunkRunResult>;
+export type HunkRunner = (
+	args: string[],
+	signal?: AbortSignal,
+	ui?: ToolStatusUI,
+) => Promise<HunkRunResult>;
 
-export const runHunk: HunkRunner = (args, signal) =>
-	new Promise((resolve, reject) => {
-		execFile("hunk", args, { maxBuffer: MAX_OUTPUT_BYTES, signal }, (error, stdout, stderr) => {
+/**
+ * Default runner: resolve hunk via pix-runtime (binary.json → agent bin →
+ * PATH), downloading the official release on first use with a visible status.
+ * A missing binary throws BinaryMissingError carrying the install hint.
+ */
+export const runHunk: HunkRunner = async (args, signal, ui) => {
+	const hunk = await ensureTool("hunk", { signal, onStatus: reportToolStatus(ui) });
+	return new Promise((resolve, reject) => {
+		execFile(hunk.path, args, { maxBuffer: MAX_OUTPUT_BYTES, signal }, (error, stdout, stderr) => {
 			if (error && signal?.aborted) {
 				reject(error);
 				return;
@@ -42,6 +54,7 @@ export const runHunk: HunkRunner = (args, signal) =>
 			});
 		});
 	});
+};
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -361,10 +374,7 @@ function modelText(results: HunkOperationResult[], ops: ToolOp[], maxCharacters:
 }
 
 function executionError(run: HunkRunResult): string {
-	const raw = (run.stderr || run.stdout || `hunk exited ${run.code}`).trim();
-	return /(?:^|\s)(?:spawn\s+)?hunk\s+ENOENT(?:\s|$)/i.test(raw)
-		? "Hunk CLI not found. Install Hunk, launch a review session, then retry."
-		: raw;
+	return (run.stderr || run.stdout || `hunk exited ${run.code}`).trim();
 }
 
 function actionSummary(actions: HunkAction[]): string {
@@ -505,7 +515,7 @@ export default function registerHunk(pi: ExtensionAPI, runner: HunkRunner = runH
 			const results: HunkOperationResult[] = [];
 			for (const op of ops) {
 				try {
-					const run = await runner(buildHunkArgs(op, ctx.cwd), signal);
+					const run = await runner(buildHunkArgs(op, ctx.cwd), signal, ctx.ui);
 					results.push(
 						run.code === 0
 							? { action: op.action, ok: true, data: parseOutput(run.stdout || run.stderr) }

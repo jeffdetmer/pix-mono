@@ -397,12 +397,10 @@ test("allows a bounded model-output override", async () => {
 	expect(result.content[0]?.text).toContain("[truncated; full result in tool details]");
 });
 
-test("reports a missing Hunk executable clearly", async () => {
-	const runner: HunkRunner = async () => ({
-		stdout: "",
-		stderr: "spawn hunk ENOENT",
-		code: 1,
-	});
+test("reports a missing Hunk executable with the install hint", async () => {
+	const runner: HunkRunner = async () => {
+		throw new Error("hunk not found — install: npm install -g hunkdiff");
+	};
 	const result = await capture(runner).execute(
 		"t3",
 		{ ops: [{ action: "list" }] },
@@ -411,5 +409,5 @@ test("reports a missing Hunk executable clearly", async () => {
 		{ cwd: "/repo" },
 	);
 
-	expect(result.content[0]?.text).toContain("Hunk CLI not found");
+	expect(result.content[0]?.text).toMatch(/hunk not found — install: [\w@/-]+/);
 });

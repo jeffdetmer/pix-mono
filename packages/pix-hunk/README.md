@@ -7,7 +7,10 @@ quoting.
 
 ## Requirements
 
-Install Hunk and launch its interactive TUI in another terminal. This extension
+Launch Hunk's interactive TUI in another terminal. If `hunk` isn't found
+(`~/.pi/agent/binary.json` → `~/.pi/agent/bin` → `PATH`), pix downloads the
+official `modem-dev/hunk` release on first use and verifies it against
+`SHA256SUMS`, with a visible status. This extension
 only calls `hunk session *`; it never starts `hunk diff`, `show`, `patch`, or
 another interactive command.
 
