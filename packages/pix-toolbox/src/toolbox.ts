@@ -144,26 +144,59 @@ export function toggleTool(
 
 // ─── Persistence ───────────────────────────────────────────────────────────
 
+/**
+ * Persisted gate state. Stores the tools the user turned OFF, so a newly
+ * installed tool is active by default. `enabledTools` is the legacy form
+ * (an allow-list that hid every tool installed later); it is read once and
+ * migrated to `disabledTools` on the next write.
+ */
 interface ToolboxState {
-	enabledTools: string[];
+	disabledTools?: string[];
+	enabledTools?: string[];
 }
 
 function getStatePath(): string {
 	return join(getAgentDir(), "toolbox.json");
 }
 
+const isStringArray = (v: unknown): v is string[] =>
+	Array.isArray(v) && v.every((x) => typeof x === "string");
+
+/**
+ * Disabled tool names from a saved state, or undefined when it holds none.
+ * A legacy allow-list maps to "every known non-core tool not in it".
+ */
+export function disabledFromState(raw: unknown, allNames: string[]): string[] | undefined {
+	const state = raw as ToolboxState | undefined;
+	if (isStringArray(state?.disabledTools))
+		return state.disabledTools.filter((n) => !CORE_TOOLS.has(n));
+	if (isStringArray(state?.enabledTools)) {
+		const enabled = new Set(state.enabledTools);
+		return allNames.filter((n) => !enabled.has(n) && !CORE_TOOLS.has(n));
+	}
+	return undefined;
+}
+
 // ─── State ──────────────────────────────────────────────────────────────────
 
 function createState(pi: ExtensionAPI) {
-	let enabledTools = new Set<string>();
+	let disabledTools = new Set<string>();
 	let initialized = false;
 
+	function allNames(): string[] {
+		try {
+			return (pi.getAllTools() ?? []).map((t) => t.name);
+		} catch (err) {
+			console.warn("toolbox: getAllTools failed:", err);
+			return [];
+		}
+	}
+
 	function persist(): void {
+		const data: ToolboxState = { disabledTools: [...disabledTools].sort() };
 		// Write to session so state survives branch navigation within a session
 		try {
-			pi.appendEntry<ToolboxState>("toolbox-config", {
-				enabledTools: [...enabledTools],
-			});
+			pi.appendEntry<ToolboxState>("toolbox-config", data);
 		} catch (err) {
 			console.warn("toolbox: persist failed:", err);
 		}
@@ -171,104 +204,68 @@ function createState(pi: ExtensionAPI) {
 		try {
 			const sp = getStatePath();
 			mkdirSync(dirname(sp), { recursive: true });
-			writeFileSync(sp, JSON.stringify({ enabledTools: [...enabledTools] }, null, 2), "utf-8");
+			writeFileSync(sp, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
 		} catch (err) {
 			console.warn("toolbox: file persist failed:", err);
 		}
 	}
 
-	/** Load previously persisted enabled tool names from disk. */
-	function loadFromFile(): string[] | undefined {
+	/** Raw persisted state from disk, or undefined when absent/corrupt. */
+	function loadFromFile(): { raw: unknown; legacy: boolean } | undefined {
 		try {
 			const sp = getStatePath();
 			if (!existsSync(sp)) return undefined;
 			const raw = JSON.parse(readFileSync(sp, "utf-8")) as ToolboxState;
-			if (Array.isArray(raw?.enabledTools)) return raw.enabledTools;
+			return { raw, legacy: !isStringArray(raw?.disabledTools) };
 		} catch {
-			// File doesn't exist, is corrupt, or we're in a test env without getAgentDir
+			// corrupt, or a test env without getAgentDir
+			return undefined;
 		}
-		return undefined;
 	}
 
-	function restoreFromBranch(ctx: ExtensionContext): void {
-		// Prefer file-based persistence (survives across sessions).
-		// Fall back to session entries (survives branch navigation within a session).
-		// Fall back to full enable (first run).
-		const fileSaved = loadFromFile();
-		if (fileSaved) {
-			const validNames = new Set((pi.getAllTools() ?? []).map((t) => t.name));
-			enabledTools = new Set(fileSaved.filter((n) => validNames.has(n) || CORE_TOOLS.has(n)));
-			for (const ct of CORE_TOOLS) enabledTools.add(ct);
-			initialized = true;
-			apply();
-			return;
-		}
-
-		// Fall back to plain init if sessionManager is unavailable (e.g. tests / headless)
-		if (!ctx?.sessionManager) {
-			ensureInit();
-			return;
-		}
-
+	/** Latest toolbox-config entry in the session, or undefined. */
+	function loadFromSession(ctx: ExtensionContext): unknown {
+		if (!ctx?.sessionManager) return undefined;
 		// getEntries() returns ALL entries in the session file — unlike getBranch()
 		// which only walks ancestors. Custom entries appended via appendCustomEntry
 		// are children of the leaf, not ancestors.
-		const allEntries = ctx.sessionManager.getEntries();
-		let saved: string[] | undefined;
-
-		for (const entry of allEntries) {
-			if (entry.type === "custom" && entry.customType === "toolbox-config") {
-				const data = entry.data as ToolboxState | undefined;
-				if (data?.enabledTools) saved = data.enabledTools;
-			}
+		let saved: unknown;
+		for (const entry of ctx.sessionManager.getEntries()) {
+			if (entry.type === "custom" && entry.customType === "toolbox-config") saved = entry.data;
 		}
-
-		if (saved) {
-			const validNames = new Set((pi.getAllTools() ?? []).map((t) => t.name));
-			enabledTools = new Set(saved.filter((n) => validNames.has(n) || CORE_TOOLS.has(n)));
-			for (const ct of CORE_TOOLS) enabledTools.add(ct);
-		} else {
-			const names = (pi.getAllTools() ?? []).map((t) => t.name);
-			enabledTools = new Set(names);
-		}
-		initialized = true;
-		apply();
-		// Persist to disk on first init so future sessions pick it up
-		persist();
+		return saved;
 	}
 
-	function ensureInit(): void {
-		if (initialized) return;
-		let names: string[] = [];
-		try {
-			names = (pi.getAllTools() ?? []).map((t) => t.name);
-		} catch (err) {
-			console.warn("toolbox: getAllTools failed:", err);
-		}
-		if (!names.length) return;
-		enabledTools = new Set(names);
+	function restoreFromBranch(ctx: ExtensionContext): void {
+		// Prefer file-based persistence (survives across sessions), then session
+		// entries (survive branch navigation), then nothing disabled (first run).
+		const names = allNames();
+		const file = loadFromFile();
+		const fromFile = file ? disabledFromState(file.raw, names) : undefined;
+		const disabled = fromFile ?? disabledFromState(loadFromSession(ctx), names) ?? [];
+		disabledTools = new Set(disabled);
 		initialized = true;
 		apply();
-		persist();
+		// Migrate a legacy allow-list file to the disabled-list form.
+		if (file?.legacy && fromFile) persist();
 	}
 
 	function apply(): void {
 		if (!initialized) return;
 		try {
-			pi.setActiveTools([...enabledTools]);
+			pi.setActiveTools(allNames().filter((n) => !disabledTools.has(n)));
 		} catch (err) {
 			console.warn("toolbox: setActiveTools failed:", err);
 		}
 	}
 
 	function isActive(name: string): boolean {
-		return enabledTools.has(name);
+		return !disabledTools.has(name);
 	}
 
 	function onActivate(name: string): boolean {
 		if (!initialized) return false;
-		if (enabledTools.has(name)) return false;
-		enabledTools.add(name);
+		if (!disabledTools.delete(name)) return false;
 		apply();
 		persist();
 		return true;
@@ -276,17 +273,14 @@ function createState(pi: ExtensionAPI) {
 
 	function onDeactivate(name: string): boolean {
 		if (!initialized) return false;
-		if (CORE_TOOLS.has(name)) return false;
-		const did = enabledTools.delete(name);
-		if (did) {
-			apply();
-			persist();
-		}
-		return did;
+		if (CORE_TOOLS.has(name) || disabledTools.has(name)) return false;
+		disabledTools.add(name);
+		apply();
+		persist();
+		return true;
 	}
 
 	return {
-		ensureInit,
 		restoreFromBranch,
 		isActive,
 		onActivate,

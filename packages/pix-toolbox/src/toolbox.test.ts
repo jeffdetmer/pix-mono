@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import registerToolbox, {
 	buildRows,
+	disabledFromState,
 	parseTargets,
 	renderList,
 	type ToggleOps,
@@ -315,5 +316,49 @@ describe("/toolbox command", () => {
 		await host.command("toolbox")?.handler("", ctx);
 		expect(customCalled).toBe(1);
 		expect(notes.length).toBe(0);
+	});
+});
+
+// ─── Persistence: disabledTools ─────────────────────────────────────────────
+
+describe("toolbox.json persistence", () => {
+	const statePath = () => join(tmpAgentDir, "toolbox.json");
+	const clear = () => rmSync(statePath(), { force: true });
+
+	async function bootWith(tools: string[]) {
+		const host = makeHost(tools);
+		registerToolbox(host.pi);
+		await host.emit("session_start", {}, {});
+		return host;
+	}
+
+	test("first run activates every tool and writes no file", async () => {
+		clear();
+		const host = await bootWith(["read", "grep", "find"]);
+		expect(host.getActive()).toEqual(["read", "grep", "find"]);
+		expect(existsSync(statePath())).toBe(false);
+	});
+
+	test("disable saves only the disabled tool; a tool installed later is active", async () => {
+		clear();
+		const first = await bootWith(["read", "grep", "find"]);
+		await first.command("toolbox")?.handler("disable grep", makeCtx().ctx);
+		expect(JSON.parse(readFileSync(statePath(), "utf-8"))).toEqual({ disabledTools: ["grep"] });
+
+		const next = await bootWith(["read", "grep", "find", "newtool"]);
+		expect(next.getActive()).toEqual(["read", "find", "newtool"]);
+	});
+
+	test("legacy enabledTools file migrates to disabledTools", async () => {
+		writeFileSync(statePath(), JSON.stringify({ enabledTools: ["read", "grep"] }));
+		const host = await bootWith(["read", "grep", "find"]);
+		expect(host.getActive()).toEqual(["read", "grep"]);
+		expect(JSON.parse(readFileSync(statePath(), "utf-8"))).toEqual({ disabledTools: ["find"] });
+	});
+
+	test("core tools cannot be stored as disabled", () => {
+		expect(disabledFromState({ disabledTools: ["bash", "grep"] }, [])).toEqual(["grep"]);
+		expect(disabledFromState({ enabledTools: [] }, ["read", "grep"])).toEqual(["grep"]);
+		expect(disabledFromState({}, ["grep"])).toBeUndefined();
 	});
 });

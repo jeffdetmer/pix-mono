@@ -8,7 +8,7 @@ Registers a `/toolbox` slash command — a TUI fuzzy-search picker listing every
 
 - Toggling only affects **prompt visibility** — all tools stay callable via their function definitions.
 - Four tools (`bash`, `edit`, `read`, `write`) are protected and can't be disabled.
-- Gate state persists to `~/.pi/agent/toolbox.json`.
+- Gate state persists to `~/.pi/agent/toolbox.json` as `disabledTools` — only the tools you turn off. A newly installed tool is active by default. The file does not exist until you disable a tool. A legacy `enabledTools` file is migrated on the next session start.
 - Headless subcommands: `/toolbox enable <names>`, `/toolbox disable <names>`, `/toolbox list [query]`.
 
 ## Install

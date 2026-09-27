@@ -509,7 +509,7 @@
     },
     "packages/pix-toolbox": {
       "name": "@xynogen/pix-toolbox",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "dependencies": {
         "@xynogen/pix-pretty": "^1.11.2",
       },
