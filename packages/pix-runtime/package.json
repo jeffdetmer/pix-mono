@@ -33,6 +33,8 @@
 		"./paths": "./src/paths.ts",
 		"./platform": "./src/platform.ts",
 		"./testing": "./src/testing.ts",
+		"./exec": "./src/exec.ts",
+		"./os": "./src/os.ts",
 		"./which": "./src/which.ts"
 	},
 	"keywords": [

@@ -157,6 +157,15 @@ export const CATALOG = {
 			default: "install openssh-client",
 		},
 	},
+	scp: {
+		usedBy: ["pix-ssh"],
+		os: ALL,
+		versionArgs: null,
+		hint: {
+			win32: "enable the OpenSSH Client optional feature",
+			default: "install openssh-client",
+		},
+	},
 	sshpass: {
 		usedBy: ["pix-ssh"],
 		os: UNIX,
@@ -197,6 +206,7 @@ export const CATALOG = {
 		usedBy: ["pix-mcp"],
 		os: ["win32"],
 		versionArgs: null,
+		knownPaths: (env) => [`${envVar(env, "SystemRoot") ?? "C:\\Windows"}\\System32\\cmd.exe`],
 		hint: { default: "built into Windows" },
 	},
 	npm: { usedBy: ["pix-mcp", "pix-update"], os: ALL, hint: { default: "install Node.js" } },
@@ -234,8 +244,17 @@ export const CATALOG = {
 	powershell: {
 		usedBy: ["pix-powershell", "pix-ask"],
 		os: ["win32", "linux"],
+		// WSL reaches Windows PowerShell through interop as powershell.exe.
+		names: ["powershell", "powershell.exe"],
 		versionArgs: null,
-		hint: { default: "built into Windows" },
+		hint: { linux: "WSL only (Windows interop)", default: "built into Windows" },
+	},
+	wslview: {
+		usedBy: ["pix-mcp"],
+		os: LINUX,
+		optional: true,
+		versionArgs: null,
+		hint: { default: "WSL only: install wslu" },
 	},
 	bash: {
 		usedBy: ["pix-bash"],

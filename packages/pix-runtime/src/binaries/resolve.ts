@@ -62,7 +62,9 @@ export class BinaryMissingError extends Error {
 		const what =
 			state === "broken"
 				? `${tool}: the path set in binary.json does not exist`
-				: `${tool} not found`;
+				: state === "unsupported"
+					? `${tool} is not used on this OS (set a path in binary.json to override)`
+					: `${tool} not found`;
 		super([what, detail, hint && `install: ${hint}`].filter(Boolean).join(" — "));
 		this.name = "BinaryMissingError";
 		this.tool = tool;

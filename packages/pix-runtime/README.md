@@ -133,6 +133,53 @@ Progress is reported only through `onStatus`. Use
 `reportToolStatus(ctx.ui)` from `@xynogen/pix-pretty/tool-status` so every
 package shows downloads the same way.
 
+### Running a binary — `./exec`
+
+Packages never start a catalogued binary by bare name. `./exec` resolves it
+through the order above, then runs it:
+
+```ts
+import { runTool, runToolSync, spawnTool } from "@xynogen/pix-runtime/exec";
+
+const r = await runTool("git", ["status", "--porcelain"], { cwd, timeoutMs: 2_000 });
+// { code, stdout, stderr, stdoutBytes, timedOut, tool: { path, source } }
+
+const child = spawnTool("ssh", args, { stdio: ["ignore", "pipe", "pipe"] }); // Node ChildProcess
+const sync = runToolSync("npm", ["root", "-g"], { timeoutMs: 10_000 });
+```
+
+- `runTool` downloads first when the binary is missing and has a recipe
+  (progress via `onStatus`). `spawnTool` and `runToolSync` never download.
+- A missing binary throws `BinaryMissingError` with the install hint. A
+  non-zero exit resolves normally, so check `code`.
+- Windows `.cmd`/`.bat` shims (`npm`, `npx`, `pi`) run through
+  `cmd.exe /d /s /c` with strict quoting, since Node cannot spawn them
+  directly. Spaces, quotes, `&|<>^%` and parentheses survive intact.
+- Timeouts and aborts kill the whole process tree on Windows
+  (`taskkill /T`), so a wrapped shim does not keep running.
+
+### OS jobs — `./os`
+
+Jobs that need a different program on each OS sit behind one call. Each
+program still resolves through `binary.json`:
+
+```ts
+import { openTarget, readClipboardImage, runGit } from "@xynogen/pix-runtime/os";
+
+await openTarget(url, { app: process.env.BROWSER }); // open / cmd start / xdg-open / wslview
+const img = readClipboardImage();                    // PowerShell (Windows, WSL) / wl-paste / xclip
+const branch = await runGit(["branch", "--show-current"], { cwd }); // stdout | null
+```
+
+`runGit` returns `null` for any git failure (not a repo, timeout, abort) but
+rejects with `BinaryMissingError` when git itself is missing. Background
+features pass that to `warnBinaryMissing(ctx.ui, err)` from
+`@xynogen/pix-pretty/tool-status`, which shows one warning per binary per
+session, pointing at the `/pix` Binaries tab.
+
+`scripts/binaries.test.ts` fails CI when a package starts a catalogued binary
+by bare name.
+
 ### `~/.pi/agent/binary.json`
 
 This file is user configuration. It lists every catalogued binary, so it also
