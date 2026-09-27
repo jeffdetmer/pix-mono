@@ -7,6 +7,7 @@
  */
 
 import { CustomEditor, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { warnBinaryMissing } from "@xynogen/pix-pretty/tool-status";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { attachPicker } from "./editor.ts";
 import { FilePicker } from "./picker.ts";
@@ -22,9 +23,12 @@ export default function (pi: ExtensionAPI): void {
 		// Warm the git-recency cache in the background; picker reads whatever is
 		// ready when it opens (empty until the first git log returns).
 		let recency: RecencyMap = new Map();
-		void loadRecency(cwd).then((map) => {
-			recency = map;
-		});
+		void loadRecency(cwd).then(
+			(map) => {
+				recency = map;
+			},
+			(err: unknown) => warnBinaryMissing(ctx.ui, err),
+		);
 
 		// Open the picker overlay and resolve with the chosen path (or null).
 		const openPicker = () =>

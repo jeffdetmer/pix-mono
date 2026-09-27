@@ -4,7 +4,7 @@
  * Cached per session, refreshed on demand.
  */
 
-import { execFile } from "node:child_process";
+import { runGit } from "@xynogen/pix-runtime/os";
 
 const MAX_COMMITS = 200;
 const DECAY = 0.97; // exponential decay per commit position
@@ -28,32 +28,16 @@ export function buildRecencyScores(gitOutput: string): RecencyMap {
 	return scores;
 }
 
+/**
+ * Recency scores for files in `cwd` (empty outside a repo, on abort, or on
+ * git failure). A missing git binary rejects with BinaryMissingError so the
+ * caller can show the install hint once.
+ */
 export async function loadRecency(cwd: string, signal?: AbortSignal): Promise<RecencyMap> {
-	return new Promise((resolve) => {
-		if (signal?.aborted) {
-			resolve(new Map());
-			return;
-		}
-
-		const child = execFile(
-			"git",
-			["log", "--name-only", "--pretty=format:", `-n${MAX_COMMITS}`, "--diff-filter=ACMR"],
-			{ cwd, maxBuffer: 2 * 1024 * 1024, signal },
-			(err, stdout) => {
-				if (err || !stdout) {
-					resolve(new Map());
-					return;
-				}
-				resolve(buildRecencyScores(stdout));
-			},
-		);
-
-		signal?.addEventListener(
-			"abort",
-			() => {
-				child.kill("SIGKILL");
-			},
-			{ once: true },
-		);
-	});
+	if (signal?.aborted) return new Map();
+	const stdout = await runGit(
+		["log", "--name-only", "--pretty=format:", `-n${MAX_COMMITS}`, "--diff-filter=ACMR"],
+		{ cwd, signal, timeoutMs: 15_000, maxBuffer: 2 * 1024 * 1024 },
+	);
+	return stdout ? buildRecencyScores(stdout) : new Map();
 }
