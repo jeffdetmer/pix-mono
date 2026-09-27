@@ -1,7 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import * as nodeOs from "node:os";
 import { dirname, join } from "node:path";
+
+const { tmpdir } = nodeOs;
+// Bun caches os.homedir() at startup on Linux, so a HOME set by the test
+// preload would not reach src/config.ts. Resolve home from the env instead.
+const systemHomedir = nodeOs.homedir();
+mock.module("node:os", () => ({
+	...nodeOs,
+	homedir: () => process.env.HOME ?? systemHomedir,
+}));
 
 function writeJson(path: string, value: unknown): void {
 	mkdirSync(dirname(path), { recursive: true });
