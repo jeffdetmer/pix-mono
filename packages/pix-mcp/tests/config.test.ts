@@ -32,10 +32,14 @@ function readJson(path: string): Record<string, any> {
 
 describe("config discovery", () => {
 	const originalHome = process.env.HOME;
+	const originalProfile = process.env.USERPROFILE;
+	const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 	const originalCwd = process.cwd();
 
 	afterEach(() => {
 		process.env.HOME = originalHome;
+		process.env.USERPROFILE = originalProfile;
+		process.env.PI_CODING_AGENT_DIR = originalAgentDir;
 		process.chdir(originalCwd);
 	});
 
@@ -43,6 +47,8 @@ describe("config discovery", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-mcp-config-home-"));
 		const project = mkdtempSync(join(tmpdir(), "pi-mcp-config-project-"));
 		process.env.HOME = home;
+		process.env.USERPROFILE = home;
+		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 		process.chdir(project);
 
 		writeJson(join(home, ".config", "mcp", "mcp.json"), {
@@ -98,6 +104,8 @@ describe("config discovery", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-mcp-import-home-"));
 		const project = mkdtempSync(join(tmpdir(), "pi-mcp-import-project-"));
 		process.env.HOME = home;
+		process.env.USERPROFILE = home;
+		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 		process.chdir(project);
 		const realProject = realpathSync(project);
 
@@ -122,6 +130,8 @@ describe("config discovery", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-mcp-merge-home-"));
 		const project = mkdtempSync(join(tmpdir(), "pi-mcp-merge-project-"));
 		process.env.HOME = home;
+		process.env.USERPROFILE = home;
+		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 		process.chdir(project);
 
 		writeJson(join(home, ".config", "mcp", "mcp.json"), {
@@ -181,6 +191,8 @@ describe("config discovery", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-mcp-provenance-home-"));
 		const project = mkdtempSync(join(tmpdir(), "pi-mcp-provenance-project-"));
 		process.env.HOME = home;
+		process.env.USERPROFILE = home;
+		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 		process.chdir(project);
 		const realProject = realpathSync(project);
 
@@ -250,6 +262,8 @@ describe("config discovery", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-mcp-summary-home-"));
 		const project = mkdtempSync(join(tmpdir(), "pi-mcp-summary-project-"));
 		process.env.HOME = home;
+		process.env.USERPROFILE = home;
+		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 		process.chdir(project);
 		const realProject = realpathSync(project);
 
@@ -287,6 +301,8 @@ describe("config discovery", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-mcp-write-home-"));
 		const project = mkdtempSync(join(tmpdir(), "pi-mcp-write-project-"));
 		process.env.HOME = home;
+		process.env.USERPROFILE = home;
+		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 		process.chdir(project);
 
 		writeJson(join(home, ".config", "mcp", "mcp.json"), {
@@ -336,6 +352,8 @@ describe("config discovery", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-mcp-preview-home-"));
 		const project = mkdtempSync(join(tmpdir(), "pi-mcp-preview-project-"));
 		process.env.HOME = home;
+		process.env.USERPROFILE = home;
+		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 		process.chdir(project);
 
 		writeJson(join(home, ".pi", "agent", "mcp.json"), {
@@ -367,6 +385,8 @@ describe("config discovery", () => {
 	it("previews and removes a server entry, leaving siblings intact", async () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-mcp-remove-home-"));
 		process.env.HOME = home;
+		process.env.USERPROFILE = home;
+		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 
 		const cfgPath = join(home, ".pi", "agent", "mcp.json");
 		writeJson(cfgPath, { mcpServers: { keep: { command: "a" }, drop: { command: "b" } } });
@@ -387,6 +407,8 @@ describe("config discovery", () => {
 		const home = mkdtempSync(join(tmpdir(), "pi-mcp-setup-home-"));
 		const project = mkdtempSync(join(tmpdir(), "pi-mcp-setup-project-"));
 		process.env.HOME = home;
+		process.env.USERPROFILE = home;
+		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 		process.chdir(project);
 
 		const { ensureCompatibilityImports, getPiGlobalConfigPath, writeStarterProjectConfig } =
