@@ -9,7 +9,10 @@ async function until(pred: () => boolean, timeoutMs = 3000): Promise<void> {
 	while (!pred() && Date.now() - start < timeoutMs) await wait(25);
 }
 
-describe("ProcManager lifecycle", () => {
+// POSIX-only: uses `sleep`, `sh` job control (&) and process-group kills
+// (process.kill(-pgid)). On Windows it also spawns Git's sleep.exe in popup
+// consoles. ponytail: skip on win32 rather than port the suite.
+describe.skipIf(process.platform === "win32")("ProcManager lifecycle", () => {
 	let mgr: ProcManager;
 	afterEach(async () => {
 		await mgr?.shutdown();
