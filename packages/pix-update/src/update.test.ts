@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { LookupOptions } from "@xynogen/pix-runtime/binaries";
 import {
 	commandFor,
 	currentVersion,
@@ -26,29 +30,29 @@ function makePi(execImpl: (...args: unknown[]) => Promise<ExecResult>) {
 	return { exec: execImpl } as unknown as ExtensionAPI;
 }
 
-/** Exec stub: returns a fixed path for `command -v <cmd>`, empty for others. */
-function makePathPi(paths: Partial<Record<string, string>>) {
-	return makePi(async (_cmd: unknown, args: unknown) => {
-		const argv = args as string[];
-		// `command -v <name> || true` → single shell arg in args[1]
-		const match = (argv[1] ?? "").match(/command -v (\S+)/);
-		if (match) {
-			const found = paths[match[1] ?? ""];
-			return { stdout: found ?? "", stderr: "", code: 0 };
-		}
-		// realpath call
-		if ((argv[1] ?? "").startsWith("realpath")) {
-			const piPath = paths.pi ?? "";
-			return { stdout: piPath, stderr: "", code: 0 };
-		}
-		// npm-walk check (exits 0 = npm detected, exits 1 = not)
-		if ((argv[1] ?? "").startsWith("p=")) {
-			const piPath = paths.pi ?? "";
-			const isNpm = piPath.includes("/npm-global/");
-			return { stdout: "", stderr: "", code: isNpm ? 0 : 1 };
-		}
-		return { stdout: "", stderr: "", code: 0 };
-	});
+const isWin = process.platform === "win32";
+
+/**
+ * Sandbox PATH + agent dir. `tools` maps a command to the directory (relative
+ * to the sandbox) it should live in, so path markers like /.bun/ are real.
+ */
+function sandbox(tools: Partial<Record<string, string>>): LookupOptions {
+	const root = mkdtempSync(join(tmpdir(), "pix-update-"));
+	const dirs = new Set<string>();
+	for (const [name, rel] of Object.entries(tools)) {
+		if (!rel) continue;
+		const dir = join(root, rel);
+		mkdirSync(dir, { recursive: true });
+		const file = join(dir, isWin ? `${name}.cmd` : name);
+		writeFileSync(file, isWin ? "@echo off\n" : "#!/bin/sh\n");
+		if (!isWin) chmodSync(file, 0o755);
+		dirs.add(dir);
+	}
+	const agent = join(root, "agent");
+	mkdirSync(agent);
+	return {
+		env: { PATH: [...dirs].join(delimiter), PATHEXT: ".CMD;.EXE", PI_CODING_AGENT_DIR: agent },
+	};
 }
 
 // ─── isTransient ─────────────────────────────────────────────────────────────
@@ -215,27 +219,13 @@ describe("constants", () => {
 // ─── resolveCommand ───────────────────────────────────────────────────────────
 
 describe("resolveCommand", () => {
-	it("returns the path when command exists", async () => {
-		const pi = makePi(async () => ({
-			stdout: "/usr/bin/bun\n",
-			stderr: "",
-			code: 0,
-		}));
-		expect(await resolveCommand("bun", pi)).toBe("/usr/bin/bun");
+	it("returns the path when the command is on PATH", () => {
+		const opts = sandbox({ bun: "usr/bin" });
+		expect(resolveCommand("bun", opts)).toMatch(/usr[\\/]bin[\\/]bun(\.cmd)?$/);
 	});
 
-	it("returns undefined when command is absent (empty stdout)", async () => {
-		const pi = makePi(async () => ({ stdout: "", stderr: "", code: 0 }));
-		expect(await resolveCommand("vp", pi)).toBeUndefined();
-	});
-
-	it("returns only the first line when stdout has multiple lines", async () => {
-		const pi = makePi(async () => ({
-			stdout: "/usr/bin/bun\n/usr/local/bin/bun\n",
-			stderr: "",
-			code: 0,
-		}));
-		expect(await resolveCommand("bun", pi)).toBe("/usr/bin/bun");
+	it("returns undefined when the command is absent", () => {
+		expect(resolveCommand("vp", sandbox({}))).toBeUndefined();
 	});
 });
 
@@ -269,80 +259,35 @@ describe("currentVersion", () => {
 // ─── detectInstallMethod ─────────────────────────────────────────────────────
 
 describe("detectInstallMethod", () => {
-	it("detects vp from pi path containing /.vite-plus/", async () => {
-		const pi = makePathPi({ pi: "/home/user/.vite-plus/bin/pi" });
-		expect(await detectInstallMethod(pi)).toBe("vp");
+	it("detects vp from a pi path containing /.vite-plus/", () => {
+		expect(detectInstallMethod(sandbox({ pi: "home/.vite-plus/bin" }))).toBe("vp");
 	});
 
-	it("detects bun from pi path containing /.bun/", async () => {
-		const pi = makePathPi({ pi: "/home/user/.bun/bin/pi" });
-		expect(await detectInstallMethod(pi)).toBe("bun");
+	it("detects bun from a pi path containing /.bun/", () => {
+		expect(detectInstallMethod(sandbox({ pi: "home/.bun/bin" }))).toBe("bun");
 	});
 
-	it("detects brew from pi path containing /Homebrew/", async () => {
-		const pi = makePathPi({ pi: "/opt/Homebrew/bin/pi" });
-		expect(await detectInstallMethod(pi)).toBe("brew");
+	it("detects brew from Homebrew / homebrew pi paths", () => {
+		expect(detectInstallMethod(sandbox({ pi: "opt/Homebrew/bin" }))).toBe("brew");
+		expect(detectInstallMethod(sandbox({ pi: "usr/local/homebrew/bin" }))).toBe("brew");
 	});
 
-	it("detects brew (lowercase homebrew path)", async () => {
-		const pi = makePathPi({ pi: "/usr/local/homebrew/bin/pi" });
-		expect(await detectInstallMethod(pi)).toBe("brew");
+	it("detects npm when pi sits in a global npm tree", () => {
+		const opts = sandbox({ pi: "npm-global/bin" });
+		const bin = (opts.env?.PATH ?? "").split(delimiter)[0] ?? "";
+		mkdirSync(join(bin, "..", "node_modules", PACKAGE_NAME), { recursive: true });
+		expect(detectInstallMethod(opts)).toBe("npm");
 	});
 
-	it("falls back to vp when pi path is unrecognised but vp is on PATH", async () => {
-		const pi = makePathPi({ pi: "/usr/local/bin/pi", vp: "/usr/local/bin/vp" });
-		// npm-walk exits 1 (no node_modules found for unrecognised path)
-		expect(await detectInstallMethod(pi)).toBe("vp");
+	it("falls back to the first package manager found: vp, bun, npm, brew", () => {
+		expect(detectInstallMethod(sandbox({ pi: "local/bin", vp: "vpbin" }))).toBe("vp");
+		expect(detectInstallMethod(sandbox({ pi: "local/bin", bun: "bunbin" }))).toBe("bun");
+		expect(detectInstallMethod(sandbox({ pi: "local/bin", npm: "npmbin" }))).toBe("npm");
+		expect(detectInstallMethod(sandbox({ pi: "local/bin", brew: "brewbin" }))).toBe("brew");
 	});
 
-	it("falls back to bun when pi path is unrecognised and bun is on PATH", async () => {
-		const pi = makePathPi({
-			pi: "/usr/local/bin/pi",
-			bun: "/home/user/.bun/bin/bun",
-		});
-		expect(await detectInstallMethod(pi)).toBe("bun");
-	});
-
-	it("falls back to npm when pi path is unrecognised and npm is on PATH", async () => {
-		const pi = makePathPi({
-			pi: "/usr/local/bin/pi",
-			npm: "/usr/bin/npm",
-		});
-		expect(await detectInstallMethod(pi)).toBe("npm");
-	});
-
-	it("falls back to brew when only brew is on PATH", async () => {
-		const pi = makePathPi({
-			pi: "/usr/local/bin/pi",
-			brew: "/usr/local/bin/brew",
-		});
-		expect(await detectInstallMethod(pi)).toBe("brew");
-	});
-
-	it("returns native when pi not found and no package manager on PATH", async () => {
-		const pi = makePathPi({});
-		expect(await detectInstallMethod(pi)).toBe("native");
-	});
-
-	it("issues parallel exec calls for path probes (perf guard)", async () => {
-		// All 5 probes (pi, vp, bun, npm, brew) + optional realpath + npm-walk
-		// should be fired without blocking each other. Verify by tracking
-		// in-flight count: if sequential, max concurrent is always 1.
-		let inflight = 0;
-		let maxInflight = 0;
-		const pi = makePi(async (_cmd, args) => {
-			inflight++;
-			maxInflight = Math.max(maxInflight, inflight);
-			await new Promise((r) => setTimeout(r, 5));
-			inflight--;
-			const argv = args as string[];
-			// Return empty for all probes (→ native path)
-			const isNpmWalk = (argv[1] ?? "").startsWith("p=");
-			return { stdout: "", stderr: "", code: isNpmWalk ? 1 : 0 };
-		});
-		await detectInstallMethod(pi);
-		// At least the 5 parallel probes must have overlapped.
-		expect(maxInflight).toBeGreaterThanOrEqual(5);
+	it("returns native when neither pi nor a package manager is found", () => {
+		expect(detectInstallMethod(sandbox({}))).toBe("native");
 	});
 });
 

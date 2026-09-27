@@ -1,8 +1,11 @@
+import { existsSync, realpathSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { type ConfirmUI, confirmOverlay } from "@xynogen/pix-pretty/confirm";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { openProgress, type ProgressHandle, type ProgressUI } from "@xynogen/pix-pretty/progress";
 import { SPINNER } from "@xynogen/pix-pretty/widget-format";
+import { type LookupOptions, resolveTool } from "@xynogen/pix-runtime/binaries";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 // ─── Pure logic (exported for tests) ─────────────────────────────────────────
 
@@ -116,11 +119,32 @@ export async function withSpinner<T>(
 	}
 }
 
-export async function resolveCommand(command: string, pi: ExtensionAPI) {
-	const result = await pi.exec("/bin/sh", ["-lc", `command -v ${command} || true`], {
-		timeout: 10_000,
-	});
-	return result.stdout.trim().split("\n")[0] || undefined;
+/** Path of `command` via pix-runtime (binary.json → agent bin → PATH); works on Windows. */
+export function resolveCommand(command: string, opts?: LookupOptions): string | undefined {
+	return resolveTool(command, opts)?.path;
+}
+
+function realPath(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch {
+		return path;
+	}
+}
+
+/** True when `pi` sits inside a global npm tree (…/node_modules/<pkg> within 5 parents). */
+function inGlobalNpm(piPath: string): boolean {
+	let dir = piPath;
+	for (let i = 0; i < 5; i++) {
+		dir = dirname(dir);
+		if (existsSync(join(dir, "node_modules", PACKAGE_NAME))) return true;
+	}
+	return false;
+}
+
+/** Forward-slash form so path markers match on Windows too. */
+function slashes(path: string | undefined): string | undefined {
+	return path?.replaceAll("\\", "/");
 }
 
 export async function currentVersion(pi: ExtensionAPI) {
@@ -128,23 +152,14 @@ export async function currentVersion(pi: ExtensionAPI) {
 	return result.stdout.trim() || result.stderr.trim() || "unknown";
 }
 
-export async function detectInstallMethod(pi: ExtensionAPI): Promise<InstallMethod> {
-	// Resolve pi path + realpath + all fallback command probes in parallel.
-	const [piPath, vpPath, bunPath, npmPath, brewPath] = await Promise.all([
-		resolveCommand("pi", pi),
-		resolveCommand("vp", pi),
-		resolveCommand("bun", pi),
-		resolveCommand("npm", pi),
-		resolveCommand("brew", pi),
-	]);
-
-	const realPiPath = piPath
-		? (
-				await pi.exec("/bin/sh", ["-lc", `realpath ${piPath} 2>/dev/null || printf %s ${piPath}`], {
-					timeout: 10_000,
-				})
-			).stdout.trim()
-		: undefined;
+/** Detect how Pi was installed from where `pi` resolves (no shell; Windows-safe). */
+export function detectInstallMethod(opts?: LookupOptions): InstallMethod {
+	const rawPi = resolveCommand("pi", opts);
+	const [vpPath, bunPath, npmPath, brewPath] = ["vp", "bun", "npm", "brew"].map((c) =>
+		resolveCommand(c, opts),
+	);
+	const piPath = slashes(rawPi);
+	const realPiPath = rawPi ? slashes(realPath(rawPi)) : undefined;
 
 	if (piPath?.includes("/.vite-plus/") || realPiPath?.includes("/.vite-plus/")) return "vp";
 	if (piPath?.includes("/.bun/") || realPiPath?.includes("/.bun/")) return "bun";
@@ -156,17 +171,7 @@ export async function detectInstallMethod(pi: ExtensionAPI): Promise<InstallMeth
 	)
 		return "brew";
 
-	if (piPath) {
-		const hasGlobalNpm = await pi.exec(
-			"/bin/sh",
-			[
-				"-lc",
-				`p=${piPath}; i=0; while [ $i -lt 5 ]; do d=$(dirname "$p"); [ -d "$d/node_modules/${PACKAGE_NAME}" ] && exit 0; p=$d; i=$((i+1)); done; exit 1`,
-			],
-			{ timeout: 10_000 },
-		);
-		if ((hasGlobalNpm.code ?? 1) === 0) return "npm";
-	}
+	if (rawPi && inGlobalNpm(realPath(rawPi))) return "npm";
 
 	// Fall back to whichever package manager was found.
 	if (vpPath) return "vp";
@@ -174,6 +179,15 @@ export async function detectInstallMethod(pi: ExtensionAPI): Promise<InstallMeth
 	if (npmPath) return "npm";
 	if (brewPath) return "brew";
 	return "native";
+}
+
+/**
+ * `nice -n 19` deprioritizes installs so the TUI keeps echoing keystrokes.
+ * Skipped where nice is unavailable (Windows without Git Bash on PATH).
+ */
+export function niced(command: string, args: string[]): [string, string[]] {
+	const nice = resolveCommand("nice");
+	return nice ? [nice, ["-n", "19", command, ...args]] : [command, args];
 }
 
 /** Backoff delay between retries. Injectable so tests can skip the real wait. */
@@ -184,8 +198,8 @@ const realSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms
 export async function runWithRetry(pi: ExtensionAPI, spec: CommandSpec, sleep: Sleep = realSleep) {
 	let lastOutput = "";
 	for (let attempt = 1; attempt <= 3; attempt++) {
-		// nice -n 19: deprioritize the install so the TUI keeps echoing keystrokes.
-		const result = await pi.exec("nice", ["-n", "19", spec.command, ...spec.args], {
+		const [command, args] = niced(spec.command, spec.args);
+		const result = await pi.exec(command, args, {
 			timeout: ioTimeoutMs(),
 		});
 		lastOutput = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
@@ -207,7 +221,7 @@ async function updatePi(
 	// Grab current version + detect install method concurrently.
 	const [before, method] = await Promise.all([
 		currentVersion(pi).catch(() => "unknown"),
-		detectInstallMethod(pi),
+		detectInstallMethod(),
 	]);
 	const spec = commandFor(method);
 
@@ -241,7 +255,8 @@ async function updatePackages(
 	progress?: ProgressHandle,
 ) {
 	progress?.setLabel("Updating pi packages…");
-	const result = await pi.exec("nice", ["-n", "19", "pi", "update", "--extensions"], {
+	const [command, args] = niced("pi", ["update", "--extensions"]);
+	const result = await pi.exec(command, args, {
 		timeout: ioTimeoutMs(),
 	});
 	const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
