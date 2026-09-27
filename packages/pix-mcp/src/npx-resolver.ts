@@ -1,6 +1,5 @@
 // npx-resolver.ts - Resolve npx/npm exec binaries to avoid npm parent processes
 
-import { spawn, spawnSync } from "node:child_process";
 import {
 	closeSync,
 	existsSync,
@@ -15,6 +14,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
+import { runToolSync, spawnTool } from "@xynogen/pix-runtime/exec";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 import { getAgentPath } from "./agent-dir.ts";
 
@@ -246,7 +246,7 @@ function resolveFromNpmCache(packageSpec: string, binName?: string): NpxCacheEnt
 async function forceNpxCache(packageSpec: string): Promise<void> {
 	try {
 		await new Promise<void>((resolve, reject) => {
-			const proc = spawn(
+			const proc = spawnTool(
 				"npm",
 				["exec", "--yes", "--package", packageSpec, "--", "node", "-e", "1"],
 				{ stdio: "ignore" },
@@ -371,8 +371,8 @@ function getNpmCacheDir(): string | null {
 		return npmCacheDirCached;
 	}
 	try {
-		const result = spawnSync("npm", ["config", "get", "cache"], { encoding: "utf-8" });
-		if (result.status === 0) {
+		const result = runToolSync("npm", ["config", "get", "cache"], { timeoutMs: 10_000 });
+		if (result.code === 0) {
 			const path = String(result.stdout).trim();
 			npmCacheDirCached = path || null;
 			return npmCacheDirCached;

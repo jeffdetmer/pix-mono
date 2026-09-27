@@ -1,34 +1,20 @@
-import { homedir, platform } from "node:os";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { openTarget } from "@xynogen/pix-runtime/os";
 import type { McpConfig, ServerEntry } from "./types.ts";
 
-async function execOpen(pi: ExtensionAPI, target: string, browser?: string) {
-	const os = platform();
-
-	if (os === "darwin") {
-		return browser ? pi.exec("open", ["-a", browser, target]) : pi.exec("open", [target]);
-	}
-	if (os === "win32") {
-		return browser
-			? pi.exec("cmd", ["/c", "start", "", browser, target])
-			: pi.exec("cmd", ["/c", "start", "", target]);
-	}
-	return browser ? pi.exec(browser, [target]) : pi.exec("xdg-open", [target]);
+/**
+ * Open a URL in `browser` (or the OS default). pix-runtime picks the opener
+ * per OS (open / cmd start / xdg-open / wslview) and resolves it through
+ * binary.json, so a missing opener reports an install hint.
+ */
+export async function openUrl(_pi: ExtensionAPI, url: string, browser?: string): Promise<void> {
+	await openTarget(url, { app: browser });
 }
 
-export async function openUrl(pi: ExtensionAPI, url: string, browser?: string): Promise<void> {
-	const result = await execOpen(pi, url, browser);
-	if (result.code !== 0) {
-		throw new Error(result.stderr || `Failed to open browser (exit code ${result.code})`);
-	}
-}
-
-export async function openPath(pi: ExtensionAPI, targetPath: string): Promise<void> {
-	const result = await execOpen(pi, targetPath);
-	if (result.code !== 0) {
-		throw new Error(result.stderr || `Failed to open path (exit code ${result.code})`);
-	}
+export async function openPath(_pi: ExtensionAPI, targetPath: string): Promise<void> {
+	await openTarget(targetPath);
 }
 
 export async function parallelLimit<T, R>(

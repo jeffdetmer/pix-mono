@@ -1,8 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { platform } from "node:os";
 import { dirname, join } from "node:path";
+import { runToolSync } from "@xynogen/pix-runtime/exec";
 
 let glimpseAvailable: boolean | null = null;
 let resolvedBinaryPath: string | null = null;
@@ -35,7 +35,7 @@ function getGlimpseBinaryPath(): string | null {
 
 	// Global npm install
 	try {
-		const globalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf-8" }).trim();
+		const globalRoot = runToolSync("npm", ["root", "-g"], { timeoutMs: 10_000 }).stdout.trim();
 		const binaryPath = join(globalRoot, "glimpseui", "src", "glimpse");
 		if (existsSync(binaryPath)) return binaryPath;
 	} catch {}
