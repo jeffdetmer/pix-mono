@@ -148,6 +148,20 @@ describe("resolve order", () => {
 		expect(resolveTool("rtk", { env: s.env, host })).toBeUndefined();
 	});
 
+	test("bash is found in Git for Windows' install dir when not on PATH", () => {
+		const s = sandbox();
+		const win: HostPlatform = { os: "win32", arch: "x64", wsl: false, termux: false, exe: ".exe" };
+		const gitBin = join(s.root, "Program Files", "Git", "bin");
+		mkdirSync(gitBin, { recursive: true });
+		const bash = join(gitBin, "bash.exe");
+		writeFileSync(bash, "MZ");
+		if (!isWin) chmodSync(bash, 0o755);
+		const env = { ...s.env, ProgramFiles: join(s.root, "Program Files") };
+		const hit = lookupTool("bash", { env, host: win });
+		expect(hit).toMatchObject({ state: "ok", source: "system" });
+		expect(hit.path?.replaceAll("\\", "/")).toMatch(/Program Files\/Git\/bin\/bash\.exe$/);
+	});
+
 	test("alternate names (fdfind) resolve", () => {
 		const s = sandbox();
 		s.put(s.pathDir, "fdfind");

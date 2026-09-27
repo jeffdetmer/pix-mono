@@ -301,7 +301,7 @@ Every external command a pix package runs is listed in the pix-runtime catalog (
 
 - **Resolve:** `resolveTool` / `requireTool` / `ensureTool` from `@xynogen/pix-runtime/binaries`. Do not add a package-local PATH lookup, a `command -v` shell-out, or an ENOENT probe.
 - **Status:** route download progress through `reportToolStatus(ctx.ui)` from `@xynogen/pix-pretty/tool-status`.
-- **`binary.json`:** user config. It lists every catalog entry as `name → path | null`, where `null` means automatic (`bin` → PATH → download). pix never writes discovered paths into it. The `/pix` Binaries tab shows each entry's state and edits the file.
+- **`binary.json`:** user config. It lists every catalog entry as `name → path | null`, where `null` means automatic (`bin` → known install dirs → PATH → download). pix never writes discovered paths into it. The `/pix` Binaries tab shows each entry's state and edits the file.
 - **Paths:** use `agentDir()` / `binDir()` / `cacheDir()` from `@xynogen/pix-runtime/paths`. Never hardcode `~/.pi/agent`, and never read `process.env.HOME` for directories; `HOME` is unset on Windows.
 - **New command dependency:** add it to the catalog, with every OS and an install hint, in the same change.
 

@@ -1,7 +1,8 @@
 /**
  * resolve.ts — synchronous, network-free binary lookup.
  *
- * Order: binary.json user choice → `<agentDir>/bin` → PATH. A user choice that
+ * Order: binary.json user choice → `<agentDir>/bin` → known install locations
+ * (`system`, e.g. Git Bash on Windows) → PATH. A user choice that
  * does not resolve is "broken" and never silently falls back.
  */
 
@@ -20,7 +21,7 @@ import {
 } from "./catalog.ts";
 import { type BinaryStoreState, cachedBinaryStore, readBinaryStore, userChoice } from "./store.ts";
 
-export type ToolSource = "user" | "bin" | "path" | "download";
+export type ToolSource = "user" | "bin" | "system" | "path" | "download";
 export type ToolState = "ok" | "missing" | "broken" | "unsupported";
 
 export interface ResolvedTool {
@@ -99,6 +100,10 @@ export function lookupTool(name: string, opts: LookupOptions = {}): ToolLookup {
 	for (const n of namesOf(name, spec)) {
 		const local = findExecutableSync(join(bin, n), { env });
 		if (local) return { ...base, state: "ok", path: local, source: "bin" };
+	}
+	for (const known of spec?.knownPaths?.(env, host) ?? []) {
+		const hit = findExecutableSync(known, { env });
+		if (hit) return { ...base, state: "ok", path: hit, source: "system" };
 	}
 	for (const n of namesOf(name, spec)) {
 		const onPath = findExecutableSync(n, { env });

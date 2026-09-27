@@ -105,7 +105,7 @@ requireTool("ssh");                   // same, but throws BinaryMissingError wit
 await ensureTool("hunk", { onStatus }); // downloads into <agentDir>/bin when missing
 ```
 
-**Resolve order:** `binary.json` path → `<agentDir>/bin` → PATH. `ensureTool`
+**Resolve order:** `binary.json` path → `<agentDir>/bin` → known install dirs (`system`, e.g. Git Bash on Windows) → PATH. `ensureTool`
 then downloads if the catalog has a release for this host.
 
 If `binary.json` names a file that doesn't exist, the entry is **broken**. pix
@@ -147,7 +147,7 @@ serves as the list of what pix depends on:
 }
 ```
 
-- `null` means automatic: pix looks in `bin`, then PATH, then downloads.
+- `null` means automatic: pix looks in `bin`, then known install dirs, then PATH, then downloads.
 - A path means pix always uses exactly that file.
 
 pix writes to the file only in three cases:

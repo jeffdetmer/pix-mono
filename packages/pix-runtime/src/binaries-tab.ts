@@ -152,7 +152,10 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 			} else if (matchesKey(data, "e") && row) {
 				const input = new Input({ prompt: `${row.name} path: ` });
 				input.focused = true;
-				input.setValue(row.choice ?? row.path ?? "");
+				// setValue keeps the cursor at 0; paste the prefill as typed text so the
+				// cursor sits at the end and ctrl+u clears the whole value.
+				const prefill = row.choice ?? row.path ?? "";
+				if (prefill) input.handleInput(`\x1b[200~${prefill}\x1b[201~`);
 				input.onSubmit = (value) => {
 					editor = undefined;
 					save(row.name, value.trim() ? value : null);
