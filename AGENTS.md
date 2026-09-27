@@ -299,8 +299,9 @@ Loader: `@xynogen/pix-runtime/config` (sections in `@xynogen/pix-runtime/section
 
 Every external command a pix package runs is listed in the pix-runtime catalog (`packages/pix-runtime/src/binaries/catalog.ts`).
 
-- **Resolve:** `resolveTool` / `requireTool` / `ensureTool` from `@xynogen/pix-runtime/binaries`. Do not add a package-local PATH lookup, a `command -v` shell-out, or an ENOENT probe.
-- **Status:** route download progress through `reportToolStatus(ctx.ui)` from `@xynogen/pix-pretty/tool-status`.
+- **Run:** start catalogued binaries only through `@xynogen/pix-runtime/exec` (`runTool` / `spawnTool` / `runToolSync`), or `@xynogen/pix-runtime/os` for per-OS jobs (`openTarget`, `runGit`, `readClipboardImage`). Never call `spawn("git")`, `execFile("ssh")` or `pi.exec("npm")` by bare name. `scripts/binaries.test.ts` enforces this. The layer handles `binary.json`, Windows `.cmd` shims and install hints.
+- **Resolve:** `resolveTool` / `requireTool` / `ensureTool` from `@xynogen/pix-runtime/binaries` when you only need the path. Do not add a package-local PATH lookup, a `command -v` shell-out, or an ENOENT probe.
+- **Status:** route download progress through `reportToolStatus(ctx.ui)`, and background missing-binary errors through `warnBinaryMissing(ctx.ui, err)`, both from `@xynogen/pix-pretty/tool-status`.
 - **`binary.json`:** user config. It lists every catalog entry as `name → path | null`, where `null` means automatic (`bin` → known install dirs → PATH → download). pix never writes discovered paths into it. The `/pix` Binaries tab shows each entry's state and edits the file.
 - **Paths:** use `agentDir()` / `binDir()` / `cacheDir()` from `@xynogen/pix-runtime/paths`. Never hardcode `~/.pi/agent`, and never read `process.env.HOME` for directories; `HOME` is unset on Windows.
 - **New command dependency:** add it to the catalog, with every OS and an install hint, in the same change.
