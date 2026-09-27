@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
+import { cacheDir } from "@xynogen/pix-runtime/paths";
 
 const SKILLS_SH = "https://skills.sh";
 const GITHUB_API = "https://api.github.com";
@@ -90,8 +90,7 @@ export function parseGitHubSource(source: string): { owner: string; repo: string
 }
 
 export function remoteSkillsCacheRoot(): string {
-	const cacheHome = process.env.XDG_CACHE_HOME?.trim() || join(homedir(), ".cache");
-	return join(cacheHome, "pi", "skills.sh");
+	return join(cacheDir(), "skills.sh");
 }
 
 export async function searchRemoteSkills(

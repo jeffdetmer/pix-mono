@@ -1,13 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { agentDir } from "@xynogen/pix-runtime/paths";
 
 export interface FetchConfig {
 	provider: string;
 	nineRouterModel: string;
 }
 
-export const FETCH_CONFIG_PATH = join(homedir(), ".pi", "agent", "fetch.json");
+export const FETCH_CONFIG_PATH = join(agentDir(), "fetch.json");
 
 const DEFAULT_CONFIG: FetchConfig = {
 	provider: "auto",

@@ -20,10 +20,10 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { agentDir } from "@xynogen/pix-runtime/paths";
 import { isBundled, loadEngine, parse, parseDynamic, type SgNode } from "./engine.ts";
 
 const run = promisify(execFile);
@@ -56,15 +56,6 @@ const LANG_PACKAGE: Record<string, string> = {
 /** Languages that need a `@ast-grep/lang-*` package (not the napi six). */
 export function packageForLanguage(lang: string): string | undefined {
 	return LANG_PACKAGE[lang];
-}
-
-/** Resolve the Pi agent dir, honoring PI_CODING_AGENT_DIR and `~`. */
-function agentDir(): string {
-	const configured = process.env.PI_CODING_AGENT_DIR?.trim();
-	if (!configured) return join(homedir(), ".pi", "agent");
-	if (configured === "~") return homedir();
-	if (configured.startsWith("~/")) return resolve(homedir(), configured.slice(2));
-	return resolve(configured);
 }
 
 /** Cache root for installed grammars: `<agentDir>/pix-astgrep/grammars`. */

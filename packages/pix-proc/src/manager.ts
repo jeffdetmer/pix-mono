@@ -31,12 +31,12 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { generateLfid } from "@xynogen/pix-runtime/lfid";
+import { cacheDir } from "@xynogen/pix-runtime/paths";
 import { type LogView, logSince, MAX_LOG_LINES, type ProcMeta, tailLines } from "./format.ts";
 
-export const PROC_DIR = join(homedir(), ".cache", "pi", "proc");
+export const PROC_DIR = join(cacheDir(), "proc");
 export const MAX_LOG_BYTES = 50 * 1024 * 1024; // 50 MiB
 
 /** Best-effort cleanup: a failed fd close / file unlink / signal is not fatal here. */

@@ -1,6 +1,6 @@
 {
 	"name": "@xynogen/pix-proc",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"description": "Pi tool — run and manage long-lived processes (npm run dev, vite, python) that outlive a turn",
 	"type": "module",
 	"main": "src/index.ts",
@@ -46,7 +46,7 @@
 	},
 	"dependencies": {
 		"@xynogen/pix-pretty": "^1.26.0",
-		"@xynogen/pix-runtime": "^0.10.1",
+		"@xynogen/pix-runtime": "^0.11.0",
 		"typebox": "^1.1.38"
 	},
 	"peerDependencies": {

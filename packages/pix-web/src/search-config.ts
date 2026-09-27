@@ -1,13 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { agentDir } from "@xynogen/pix-runtime/paths";
 
 export interface SearchConfig {
 	provider: string;
 	nineRouterModel: string;
 }
 
-export const SEARCH_CONFIG_PATH = join(homedir(), ".pi", "agent", "search.json");
+export const SEARCH_CONFIG_PATH = join(agentDir(), "search.json");
 
 const DEFAULT_CONFIG: SearchConfig = {
 	provider: "auto",

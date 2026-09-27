@@ -21,9 +21,9 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
+import { cacheDir } from "@xynogen/pix-runtime/paths";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -258,7 +258,7 @@ async function fetchModelGrepAll(
 
 // ── Cache dir ─────────────────────────────────────────────────────────────────
 
-export const CACHE_DIR = join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "pi");
+export const CACHE_DIR = cacheDir();
 
 // ── Data sources ──────────────────────────────────────────────────────────────
 

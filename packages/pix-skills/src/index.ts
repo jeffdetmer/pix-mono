@@ -13,7 +13,6 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, readFile, realpath, rename, rm, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -28,6 +27,7 @@ import {
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 import { once } from "@xynogen/pix-runtime/once";
+import { agentDir } from "@xynogen/pix-runtime/paths";
 import { Type } from "typebox";
 import {
 	directiveBlockReason,
@@ -60,7 +60,7 @@ function skillsRoot(): string {
 
 /** Absolute path to the user-level skills directory (~/.pi/agent/skills). */
 function userSkillsRoot(): string {
-	return join(homedir(), ".pi", "agent", "skills");
+	return join(agentDir(), "skills");
 }
 
 interface SkillEntry {

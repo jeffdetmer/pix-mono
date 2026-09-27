@@ -32,12 +32,12 @@
  */
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { padIcon } from "@xynogen/pix-pretty/utils";
+import { agentDir } from "@xynogen/pix-runtime/paths";
 
 // ─── Theme shim (same pattern as footer.ts) ───────────────────────────────────
 
@@ -162,7 +162,7 @@ interface SkillInfo {
  * Does NOT depend on before_agent_start — safe to call at session_start.
  */
 export function discoverSkillDirs(extraDirs: string[] = []): string[] {
-	const npmDir = join(homedir(), ".pi", "agent", "npm", "node_modules");
+	const npmDir = join(agentDir(), "npm", "node_modules");
 	const found: string[] = [];
 
 	// Walk npm extensions dir: flat packages + scoped (@scope/pkg)
@@ -193,7 +193,7 @@ export function discoverSkillDirs(extraDirs: string[] = []): string[] {
 	}
 
 	// User-level skills dir
-	const userSkills = join(homedir(), ".pi", "agent", "skills");
+	const userSkills = join(agentDir(), "skills");
 	if (existsSync(userSkills)) found.push(userSkills);
 
 	found.push(...extraDirs);
