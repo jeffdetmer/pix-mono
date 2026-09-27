@@ -89,6 +89,9 @@ test("renderHistoryChips collapses sent-message tags into inline-code chips", ()
 	expect(longChip).toContain("…");
 	expect(longChip.length).toBeLessThanOrEqual(41);
 	expect(out).toContain(`\`${icon("paste.image")} image\``);
+	expect(
+		renderHistoryChips("<paste>C:\\Users\\xynogen\\AppData\\Local\\Temp\\pi-clip-1.png</paste>"),
+	).toContain(`\`${icon("paste.image")} image\``);
 	expect(out).toContain(`\`${fileIcon("src/x.ts")}@x.ts\``);
 	expect(out).toContain(`\`${dirIcon()}@pkg/\``);
 	expect(out).toContain("11 lines · a b c d e f g h i j k");
@@ -115,6 +118,36 @@ test("installChips renders pasted image paths as image chips", () => {
 	const rendered = e.render(100).join("\n");
 	expect(rendered).toContain("image");
 	expect(rendered).not.toContain("text");
+});
+
+test("installChips renders Windows image paths as image chips", () => {
+	const e = editor();
+	const winPath =
+		"C:\\Users\\xynogen\\AppData\\Local\\Temp\\pi-clipboard-42b62690-50a7-4713-be2d-84ece77de24b.png";
+	e.insertTextAtCursor(winPath);
+	expect(e.getExpandedText()).toBe(`<paste>${winPath}</paste> `);
+	const rendered = e.render(100).join("\n");
+	expect(rendered).toContain("image");
+	expect(rendered).not.toContain("C:\\Users");
+});
+
+test("installChips renders Windows image path pasted in terminal", () => {
+	const e = editor();
+	const winPath = "C:\\Users\\xynogen\\AppData\\Local\\Temp\\shot.png";
+	e.handleInput(`\x1b[200~${winPath}\x1b[201~`);
+	expect(e.getExpandedText()).toBe(`<paste>${winPath}</paste> `);
+	const rendered = e.render(100).join("\n");
+	expect(rendered).toContain("image");
+	expect(rendered).not.toContain("text");
+});
+
+test("installChips renders Windows image path embedded in text", () => {
+	const e = editor();
+	const winPath = "C:\\images\\shot.png";
+	e.insertTextAtCursor(`check ${winPath} now`);
+	expect(e.getExpandedText()).toBe(`check <paste>${winPath}</paste> now`);
+	const rendered = e.render(100).join("\n");
+	expect(rendered).toContain("image");
 });
 
 test("installChips: paste, image path and <path> round-trip on a real editor", () => {

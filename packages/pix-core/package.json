@@ -49,7 +49,7 @@
 		"@xynogen/pix-welcome": "^0.2.4",
 		"@xynogen/pix-footer": "^0.2.6",
 		"@xynogen/pix-diagnostics": "^0.3.3",
-		"@xynogen/pix-display": "^0.2.1",
+		"@xynogen/pix-display": "^0.2.2",
 		"@xynogen/pix-prompts": "^0.5.2",
 		"@xynogen/pix-skills": "^0.8.9",
 		"@xynogen/pix-models": "^0.2.9",

@@ -35,7 +35,7 @@ const PATH_TAG = /<path>([^<]+)<\/path>/g;
 const PASTE_TAG = /<paste>([\s\S]*?)<\/paste>/g;
 const CODES = /\x1b\[[0-9;]*m|\x1b_pi:c\x07/g;
 const IMAGE_PATH =
-	/(^|[^\w/@])((?:~|\/)[^\s,;'"(){}[\]]+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif))(?=$|[\s,;'"(){}[\]])/gi;
+	/(^|[^\w/@])((?:~|[a-zA-Z]:[/\\]|\/|\\\\)[^\s,;'"(){}[\]]+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif))(?=$|[\s,;'"(){}[\]])/gi;
 
 /** Expand once: token-looking text inside a paste is literal user content. */
 export function expandChips(text: string, registry: Registry): string {
@@ -101,7 +101,8 @@ export function renderChips(line: string, registry: Registry): string {
 }
 
 const HISTORY_TAG = /<(paste|path)>([\s\S]*?)<\/\1>/g;
-const IMAGE_FILE = /^(?:~|\/)\S+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
+const IMAGE_FILE =
+	/^(?:~|[a-zA-Z]:[/\\]|\/|\\\\)[^\r\n]+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
 const PREVIEW_CHARS = 40;
 
 /** Head…tail glimpse of a paste (whitespace collapsed, backticks dropped for inline code). */
@@ -155,6 +156,12 @@ export function installChips(editor: CustomEditor): void {
 			pi.pastes.set(id, value);
 			return `[paste #${id} ${length} chars]`;
 		};
+		if (IMAGE_FILE.test(text.trim())) {
+			const trimmed = text.trim();
+			const replaced = chip({ kind: "image", path: trimmed }, trimmed.length);
+			insertTextAtCursor(`${replaced} `);
+			return;
+		}
 		const replaced = text
 			.replace(PATH_TAG, (_match, path: string) => chip({ kind: "path", path }, path.length))
 			.replace(PASTE_TAG, (_match, body: string) =>
