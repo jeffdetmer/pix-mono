@@ -15,6 +15,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
+import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { COLLAPSED_TOOL_GLYPH, frameToolResult, rule } from "@xynogen/pix-pretty/utils";
 import { collapseDelayMs } from "@xynogen/pix-runtime/collapse";
 import { generateLfid } from "@xynogen/pix-runtime/lfid";
@@ -46,10 +47,12 @@ class DownloadManager {
 		this.ui ??= ctx.ui;
 		if (this.daemon) return this.daemon;
 		if (!this.starting) {
-			this.starting = startDaemon({ dir: ctx.cwd }).then((d) => {
-				this.daemon = d;
-				return d;
-			});
+			this.starting = startDaemon({ dir: ctx.cwd, onStatus: reportToolStatus(this.ui) }).then(
+				(d) => {
+					this.daemon = d;
+					return d;
+				},
+			);
 		}
 		try {
 			return await this.starting;

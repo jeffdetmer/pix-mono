@@ -9,9 +9,11 @@ The extension starts `aria2c` only when first used, binds RPC to `127.0.0.1`, au
 This package requires:
 
 - [Pi Coding Agent](https://github.com/earendil-works/pi)
-- `aria2c` available on `PATH`
+- `aria2c`. pix finds it in this order: `~/.pi/agent/binary.json` → `~/.pi/agent/bin` → `PATH`.
 
-Install aria2 with your operating system's package manager. For example:
+On **Windows**, pix downloads the official `aria2/aria2` release into
+`~/.pi/agent/bin` on first use, with a visible status. On Linux and macOS,
+install aria2 with your package manager. For example:
 
 ```bash
 # Fedora

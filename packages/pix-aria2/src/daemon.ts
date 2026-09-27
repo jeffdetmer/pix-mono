@@ -17,15 +17,11 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
-import { findExecutableSync } from "@xynogen/pix-runtime/which";
+import { BinaryMissingError, ensureTool, type ToolStatus } from "@xynogen/pix-runtime/binaries";
 import { type Conn, createWebSocket, open } from "maria2/dist/index.js";
 
-export class Aria2MissingError extends Error {
-	constructor() {
-		super("aria2c not found on PATH. Install aria2 to use pix-aria2.");
-		this.name = "Aria2MissingError";
-	}
-}
+/** aria2c is missing (message carries the per-OS install hint). */
+export const Aria2MissingError = BinaryMissingError;
 
 /** Ask the OS for a free loopback TCP port. Not held — see the ponytail note above. */
 function freePort(): Promise<number> {
@@ -56,19 +52,23 @@ export interface DaemonHandle {
 export interface StartDaemonOptions {
 	/** Default download directory passed to aria2 (`--dir`). Defaults to cwd. */
 	dir?: string;
-	/** Override the aria2c binary path; otherwise resolved from PATH. */
+	/** Override the aria2c binary path; otherwise resolved by pix-runtime. */
 	binary?: string;
+	/** Download progress when aria2c is fetched on first use (Windows). */
+	onStatus?: (status: ToolStatus) => void;
 	/** Milliseconds to wait for the RPC socket to come up. Default 5000. */
 	readyTimeoutMs?: number;
 }
 
 /**
  * Spawn a private aria2 daemon and open an RPC connection to it.
- * Throws {@link Aria2MissingError} when aria2c is not installed.
+ * Resolves aria2c via binary.json → agent bin → PATH; on Windows the official
+ * release is downloaded on first use. Throws {@link Aria2MissingError} with an
+ * install hint when unavailable.
  */
 export async function startDaemon(options: StartDaemonOptions = {}): Promise<DaemonHandle> {
-	const binary = options.binary ?? findExecutableSync("aria2c");
-	if (!binary) throw new Aria2MissingError();
+	const binary =
+		options.binary ?? (await ensureTool("aria2c", { onStatus: options.onStatus })).path;
 
 	const secret = randomBytes(16).toString("hex");
 	const port = await freePort();

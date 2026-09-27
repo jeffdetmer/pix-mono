@@ -10,11 +10,11 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findExecutableSync } from "@xynogen/pix-runtime/which";
+import { resolveTool } from "@xynogen/pix-runtime/binaries";
 import { aria2 } from "maria2";
 import { type DaemonHandle, startDaemon } from "./daemon.ts";
 
-const hasAria2 = Boolean(findExecutableSync("aria2c"));
+const hasAria2 = Boolean(resolveTool("aria2c"));
 const PAYLOAD = Buffer.from("pix-aria2 e2e payload ".repeat(1000)); // ~25 KiB
 
 let fileServer: Server;
