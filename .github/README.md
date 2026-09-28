@@ -117,65 +117,84 @@ Installed with any feature package. Install one directly only when you build you
 
 ## Install
 
-The installer installs Pi, configures its theme and tools, and installs Pix.
+Each installer does 5 steps: install or update Pi, then install `pix-core` + `pix-themes`, recommended code intelligence, optional Pix extensions, and optional community extensions. It asks before each optional package. It is safe to re-run.
 
-Direct from GitHub (no clone needed):
+From a local clone, one command picks the right script for your OS:
+
+```bash
+bun run distro:install     # Windows → scripts/install.ps1, Linux/macOS → scripts/install.sh
+bun run distro:uninstall
+```
+
+### Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
 ```
 
-Or from a local clone:
+- **Prerequisite:** [Bun](https://bun.sh). The installer falls back to npm when Bun is missing.
+- **PATH:** after the install, `pi` must be on `PATH`. If it is not, add the global bin dir (`~/.bun/bin` for Bun) to your shell rc, then re-run.
+- **Clipboard image paste:** needs `wl-paste` (Wayland, package `wl-clipboard`) or `xclip` (X11).
+- **Opening URLs** (MCP OAuth): uses `xdg-open` (package `xdg-utils`).
+- **User `!` commands** run through `$SHELL`. For zsh, the command sources `.zshrc`, so aliases work.
+- **`pix-sudo`:** it needs `sudo` with PAM. Your `sudo` ticket timeout decides how often it asks for a password.
+- **WSL:** use the Linux installer inside WSL. `wslview` and `wslpath` open links and paths on the Windows side.
+- **External tools** (`aria2c`, `ffmpeg`): install them with `apt`, `dnf`, or `pacman`. `ffmpeg` also downloads automatically into `~/.pi/agent/bin` on first use.
+
+### macOS
 
 ```bash
-sh scripts/install.sh   # or: bun run distro:install
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
 ```
 
-### Windows (PowerShell)
+- **Prerequisite:** [Bun](https://bun.sh) (or npm). You need Git from `xcode-select --install`.
+- **External tools:** install with Homebrew: `brew install aria2 ffmpeg`, and `brew install sshpass` for `pix-ssh` password login. Pix does not download `ffmpeg` on macOS.
+- **Opening URLs:** uses the built-in `open`.
+- **User `!` commands** run through `$SHELL`. zsh is the macOS default, so `.zshrc` aliases work.
+- **`pix-sudo`:** the installer offers it. It uses the macOS `sudo` + PAM.
 
-Runs in Windows PowerShell 5.1 or PowerShell 7. Pi itself installs through Pi's official Windows installer (`pi.dev/install.ps1`), which also sets up Node.js and Git Bash when missing.
+### Windows
+
+Run in Windows PowerShell 5.1 or PowerShell 7:
 
 ```powershell
 irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
 ```
 
-Or from a local clone:
+- **Pi install:** the script runs Pi's official installer (`pi.dev/install.ps1`). That installer also sets up Node.js and Git Bash when they are missing.
+- **Bash for the model:** Pi's `bash` tool needs Git Bash. If the installer finds no Bash, run `winget install --id Git.Git -e`, or set `shellPath` in `~/.pi/agent/settings.json`.
+- **User `!` commands** run through PowerShell (`pwsh` 7, else `powershell.exe` 5.1), not Git Bash.
+- **PATH:** if `pi` is not found after the install, restart the terminal and re-run the installer.
+- **`powershell` tool:** Pi's optional `powershell` tool stays off until you enable it. On 5.1, `pix-powershell` rewrites `&&` / `||`, and it shows a note when it does.
+- **`pix-sudo` is not offered.** Windows has no `sudo` + PAM. The installer prints the manual `pi install` command.
+- **`pix-ssh`:** needs an `ssh` with ControlMaster support first on `PATH`. The Git for Windows `ssh` works. The built-in Windows OpenSSH does not. Password login also needs `sshpass`.
+- **`pix-voice`:** push-to-talk records through `ffmpeg` (DirectShow). `speak` plays through the built-in `MediaPlayer`. A missing `ffmpeg` downloads automatically on first use.
+- **External tools:** use `winget`, for example `winget install aria2.aria2`, `winget install Gyan.FFmpeg`, or `winget install rtk-ai.rtk`.
+- **CI:** it runs on Linux only, so Windows gets less test coverage.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install.ps1   # or: bun run distro:install:win
-```
+### Uninstall
 
-`pix-sudo` is not offered on Windows (it needs sudo/PAM); the installer prints the manual `pi install` command instead. `pix-voice` and `pix-ssh` are offered with a Windows caveat.
-
-## Uninstall
-
-Removes every `@xynogen/pix-*` package from Pi. It also removes sub-packages from an older install that listed them one by one.
+This removes every `@xynogen/pix-*` package from Pi. It also removes the sub-packages that an older install listed one by one.
 
 ```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/uninstall.sh | sh
 ```
 
-Or from a local checkout:
-
-```bash
-sh scripts/uninstall.sh   # or: bun run distro:uninstall
-```
-
-On Windows:
-
 ```powershell
+# Windows
 irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/uninstall.ps1 | iex
-# or: bun run distro:uninstall:win
 ```
 
 ### Upgrade / clean reinstall
 
-Before you upgrade across breaking changes, uninstall first:
+Before you upgrade across breaking changes, uninstall first, then install again. Use the uninstall and install commands for your OS above. From a local clone:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/uninstall.sh | sh
-curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+bun run distro:uninstall && bun run distro:install
 ```
+
+Windows PowerShell 5.1 has no `&&`. Run the two commands one after the other.
 
 ## Development
 
