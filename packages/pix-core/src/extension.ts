@@ -40,6 +40,7 @@ import registerUpdate from "@xynogen/pix-update/extension";
 import registerWelcome from "@xynogen/pix-welcome/extension";
 import registerWrite from "@xynogen/pix-write/extension";
 import registerCompaction from "./compaction.ts";
+import registerPlanMode from "./plan-mode.ts";
 
 type PixExtension = (pi: ExtensionAPI) => void;
 
@@ -81,6 +82,8 @@ const MEMBERS = [
 	// Custom compaction: replaces pi's built-in summary + trigger (reads
 	// compaction section; runs after runtime is live).
 	registerCompaction,
+	// /plan: plan mode (read + bash + write to .pi/plans only) and plan manager modal.
+	registerPlanMode,
 ] satisfies readonly PixExtension[];
 
 export default function (pi: ExtensionAPI): void {
