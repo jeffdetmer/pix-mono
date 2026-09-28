@@ -2,14 +2,6 @@
 
 Theme pack for Pi Coding Agent. Bundles Pix Dark Themes.
 
-## Install
-
-```bash
-pi install npm:@xynogen/pix-themes
-```
-
-> Standalone — **not** bundled by [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core). The theme pack installs on its own; the one-shot [distro installer](#full-distro) sets a default theme for you.
-
 ## Themes
 
 ```text
@@ -24,16 +16,28 @@ pix-rose-pine         # Rosé Pine
 
 Select a theme in Pi by its name above.
 
-## Full distro
-
-Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
-
-To install the complete pix suite (all packages + Pi itself):
+## Install
 
 ```bash
+pi install npm:@xynogen/pix-themes
+```
+
+> Standalone. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. The [distro installer](#full-distro) installs it and sets a default theme.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
 ```
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

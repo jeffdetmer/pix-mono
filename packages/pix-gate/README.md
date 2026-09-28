@@ -35,18 +35,6 @@ Bare `sudo` in bash is always redirected to `sudo_run`, regardless of mode.
 
 **Circuit breaker.** A small set of catastrophic, unrecoverable commands — `rm -rf /` or `~`, `dd`/redirect onto a raw disk, `mkfs` on a device, a fork bomb — can never be auto-approved by any mode, including YOLO. They always fall through to the interactive dialog (or a no-UI block). This mirrors Claude Code's `bypassPermissions` floor, which still prompts on root/home wipes.
 
-## Install
-
-```bash
-pi install npm:@xynogen/pix-gate
-```
-
-> Also included in [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core):
->
-> ```bash
-> pi install npm:@xynogen/pix-core
-> ```
-
 ## Reusable exports
 
 The gate is split into a pure rule engine and the interactive prompt, so the
@@ -82,14 +70,26 @@ Gate rules are read from the **`gate` section of `~/.pi/agent/pix.json`** (the u
 
 The schema is identical to the old `pix-gate.json` — move your existing config into `pix.json` under the `gate` key.
 
-## Full distro
-
-Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
-
-To install the complete pix suite (all packages + Pi itself):
+## Install
 
 ```bash
+pi install npm:@xynogen/pix-gate
+```
+
+> Bundled in [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core). Install it alone only if you do not use pix-core.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
 ```
 
 ## License

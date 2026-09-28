@@ -1,4 +1,4 @@
-# @xynogen/pix-graph
+# pix-graph
 
 Native-TS code knowledge graph — extract, cluster, analyze, and query a codebase
 without Python or an external service. TS/JS is parsed with the TypeScript
@@ -77,16 +77,20 @@ a graph built by either tool works with the other's `query`.
 pi install npm:@xynogen/pix-graph
 ```
 
-> Standalone/opt-in — **not** bundled by [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core). Install it directly if you want code-graph Q&A; the one recurring `graph` tool schema is only present when it's installed.
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. You run it on demand. Its `graph` tool schema loads only when you install it.
 
 ## Full distro
 
-Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
-
-To install the complete pix suite (all packages + Pi itself):
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
 
 ```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
 ```
 
 ## License

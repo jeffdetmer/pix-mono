@@ -1,20 +1,10 @@
-# @xynogen/pix-mcp
+# pix-mcp
 
 Token-efficient MCP gateway for the [Pix](https://github.com/xynogen/pix-mono)
 Pi distro.
 
 See the monorepo's root [README](../../README.md#lineage) for upstream lineage
 and [LICENSE](LICENSE) for the retained MIT license.
-
-## Install
-
-```bash
-pi install npm:@xynogen/pix-mcp
-```
-
-Restart Pi after installation.
-
-> Standalone/opt-in — **not** bundled by [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core). External servers may require credentials, execute local commands, or expose sensitive data, so you enable it deliberately.
 
 ## Configure
 
@@ -108,3 +98,31 @@ command so bare runs pass everywhere (`bunfig.toml` does not support
 The package preserves the upstream MCP transport, OAuth, sampling,
 elicitation, MCP Apps/UI, resource, direct-tool, lifecycle, and output-guard
 capabilities. Existing `.mcp.json` files remain compatible.
+
+## Install
+
+```bash
+pi install npm:@xynogen/pix-mcp
+```
+
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. External servers can run local commands, need credentials, or expose sensitive data.
+
+Restart Pi after installation.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

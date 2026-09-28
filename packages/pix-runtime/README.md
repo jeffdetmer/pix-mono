@@ -24,16 +24,6 @@ See `DESIGN.md` for the full contract.
   else 5.1), and through `$SHELL` on Linux/macOS (zsh sources `.zshrc` so
   aliases expand).
 
-## Install
-
-```bash
-pi install npm:@xynogen/pix-runtime
-```
-
-Standalone-installable: importing an accessor lazily creates the singleton even
-without the extension factory. Installed via `pix-core` it registers `/pix` and
-session hooks once.
-
 ## Usage
 
 ```ts
@@ -333,3 +323,33 @@ const { runtime, cleanup } = createIsolatedRuntime();
 // ... exercise runtime against a temp agent dir ...
 cleanup();
 ```
+
+## Install
+
+```bash
+pi install npm:@xynogen/pix-runtime
+```
+
+> Foundation library. Feature packages install it as a dependency. Install it directly only when you build your own extension on it.
+
+Standalone-installable: importing an accessor lazily creates the singleton even
+without the extension factory. Installed via `pix-core` it registers `/pix` and
+session hooks once.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
+
+## License
+
+MIT

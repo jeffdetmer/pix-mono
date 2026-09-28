@@ -1,18 +1,6 @@
-# @xynogen/pix-subagent
+# pix-subagent
 
 Pi extension — planner-driven sub-agents with 2 tools, live widget (model always visible), and explicit work-splitting.
-
-## Install
-
-```bash
-pi install npm:@xynogen/pix-subagent
-```
-
-> Also included in [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core):
->
-> ```bash
-> pi install npm:@xynogen/pix-core
-> ```
 
 ## What it does
 
@@ -150,3 +138,29 @@ always; the type/persona config never overrides it.
 
 Spawn engine ported from [tintinweb/pi-subagents](https://github.com/tintinweb/pi-subagents) (MIT).
 Work-splitting design inspired by [nicobailon/pi-subagents](https://github.com/nicobailon/pi-subagents) (MIT).
+
+## Install
+
+```bash
+pi install npm:@xynogen/pix-subagent
+```
+
+> Bundled in [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core). Install it alone only if you do not use pix-core.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

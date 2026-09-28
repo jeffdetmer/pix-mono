@@ -33,8 +33,22 @@ The standard names win when both sets exist.
 pi install npm:@xynogen/pix-9router
 ```
 
-This package is standalone and opt-in. It is not bundled by `@xynogen/pix-core`.
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. It needs a 9Router API key.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

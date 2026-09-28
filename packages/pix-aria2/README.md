@@ -1,4 +1,4 @@
-# @xynogen/pix-aria2
+# pix-aria2
 
 Pi tool for direct, resumable downloads through a private [aria2](https://aria2.github.io/) RPC daemon. It gives the agent short `dl-*` handles for controlling transfers and shows active progress in the TUI.
 
@@ -25,16 +25,6 @@ sudo apt install aria2
 # macOS
 brew install aria2
 ```
-
-## Install
-
-Install the extension from npm:
-
-```bash
-pi install npm:@xynogen/pix-aria2
-```
-
-`pix-aria2` is standalone and opt-in. It is not bundled by `@xynogen/pix-core` because it requires the external `aria2c` binary and starts a local daemon.
 
 ## Tool
 
@@ -110,16 +100,28 @@ bun run typecheck
 
 `bun run typecheck` checks the full monorepo, not only this package.
 
-## Full distro
-
-The full Pix source and installer live in the monorepo:
+## Install
 
 ```bash
+pi install npm:@xynogen/pix-aria2
+```
+
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. It needs the external `aria2c` binary and starts a local daemon.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
 ```
 
-Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

@@ -58,12 +58,6 @@ UI features that used to live here have moved to [`pix-display`](packages/pix-di
 paste chip rendering and reasoning-tag (`<think>`/`<thinking>`) → native
 `thinking` content blocks.
 
-## Install
-
-```bash
-pi install npm:@xynogen/pix-pretty
-```
-
 ## Configuration
 
 Configuration is read from **`~/.pi/agent/pix.json`** (the unified config file owned by `@xynogen/pix-runtime/config`). The `pretty` section of that file sets the defaults for theme, icon mode, and preview lines. Environment variables still override `pix.json` values.
@@ -133,16 +127,28 @@ The package exposes its sub-modules via `exports`:
 @xynogen/pix-pretty/shell-tool   (shared bash/powershell tool registrar + renderer)
 ```
 
-## Full distro
-
-Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
-
-To install the complete pix suite (all packages + Pi itself):
+## Install
 
 ```bash
+pi install npm:@xynogen/pix-pretty
+```
+
+> Foundation library. Feature packages install it as a dependency. Install it directly only when you build your own extension on it.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
 ```
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

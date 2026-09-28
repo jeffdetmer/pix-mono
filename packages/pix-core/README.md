@@ -57,18 +57,22 @@ Pi activates extensions per installed package via each package's `pi.extensions`
 pi install npm:@xynogen/pix-core
 ```
 
-> Installs and activates the core pix UI/UX extensions in one command. Members are deduped if also installed directly.
+> Installs and activates every bundled pix package. A package that you also install directly loads only once.
 
 ## Full distro
 
-Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
-
-To install the complete pix suite (all packages + Pi itself):
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
 
 ```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
 ```
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

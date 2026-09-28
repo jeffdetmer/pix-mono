@@ -1,4 +1,4 @@
-# @xynogen/pix-hunk
+# pix-hunk
 
 Pi tool for driving a live [Hunk](https://github.com/modem-dev/hunk) diff review.
 One `hunk` call accepts ordered `ops[]`, so an agent can inspect, navigate,
@@ -57,20 +57,33 @@ Model-facing output defaults to 10,000 characters. Set `maxCharacters` between
 quota, so a large patch cannot hide later results. Full structured results
 remain available in tool details for inspection.
 
+## Scope ceiling
+
+`comment apply`, STML markup, and comment clearing are intentionally omitted.
+Use Hunk's CLI directly until repeated demand justifies extending the schema.
+
 ## Install
 
 ```bash
 pi install npm:@xynogen/pix-hunk
 ```
 
-Standalone/opt-in: Hunk and a live local review session are required, so this
-package is not bundled by `@xynogen/pix-core`.
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. It needs the external Hunk CLI and a live review session.
 
-## Scope ceiling
+## Full distro
 
-`comment apply`, STML markup, and comment clearing are intentionally omitted.
-Use Hunk's CLI directly until repeated demand justifies extending the schema.
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

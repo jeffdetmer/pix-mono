@@ -135,12 +135,6 @@ machine used to live here. They now live in
 pix-data no longer exports `pixConfig`, `reloadPixConfig`, `shouldCollapse`,
 `collapseDelayMs`, or `tickCollapse` — update any imports to `pix-runtime`.
 
-## Install
-
-```bash
-pi install npm:@xynogen/pix-data
-```
-
 ## How it works
 
 On session start the extension fires two non-blocking fetches in parallel
@@ -149,16 +143,28 @@ either. If the cache is fresh both fetches are skipped. The cache files live
 in `~/.cache/pi/` — any Pi extension using the same `DataSource` shares them
 automatically.
 
-## Full distro
-
-Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
-
-To install the complete pix suite (all packages + Pi itself):
+## Install
 
 ```bash
+pi install npm:@xynogen/pix-data
+```
+
+> Foundation library. Feature packages install it as a dependency. Install it directly only when you build your own extension on it.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
 ```
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

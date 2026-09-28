@@ -151,14 +151,6 @@ registerProvider("stt", {
 });
 ```
 
-## Install
-
-```bash
-pi install npm:@xynogen/pix-voice
-```
-
-This package is standalone and opt-in. It is not bundled by `@xynogen/pix-core`.
-
 ## Attribution
 
 The push-to-talk dictation design comes from
@@ -168,6 +160,28 @@ prompt. That package runs a local model. `pix-voice` sends the audio to the
 provider you pick in `/voice`. No code is copied. Thanks to the pi-voice
 authors.
 
+## Install
+
+```bash
+pi install npm:@xynogen/pix-voice
+```
+
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. Each provider needs its own API key.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
+
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

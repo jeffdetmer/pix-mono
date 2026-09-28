@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD013 MD040 -->
 
-# @xynogen/pix-env
+# pix-env
 
 Broker `.env` secrets to tools without ever putting the values in the model's context.
 
@@ -49,14 +49,6 @@ pix-ssh (set via the unattended toggle in pix-commands):
   resolution.
 - **Normal** — the approval popup is shown per tool call, including a leak
   warning (see below).
-
-## Install
-
-```bash
-pi install npm:@xynogen/pix-env
-```
-
-> Standalone/opt-in — **not** bundled by [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core). It wires secret injection into tool calls, so you enable it deliberately.
 
 ## Usage
 
@@ -120,6 +112,28 @@ Other known limits:
   a reason), rather than resolving silently. Run from an interactive Pi session
   and approve the popup, or use YOLO mode to auto-inject.
 
+## Install
+
+```bash
+pi install npm:@xynogen/pix-env
+```
+
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. It reads local `.env` values and injects them into tool calls.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
+
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

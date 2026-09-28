@@ -32,6 +32,22 @@ boundary `@` opens the picker.
 pi install npm:@xynogen/pix-search
 ```
 
-Standalone — **not** bundled by `@xynogen/pix-core`. It wraps whatever editor
-is already installed (via `getEditorComponent`/`setEditorComponent`), so it
-composes with `pix-display` in either load order.
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. It replaces Pi's built-in `@` autocomplete. It wraps the installed editor, so it works with `pix-display` in either load order.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

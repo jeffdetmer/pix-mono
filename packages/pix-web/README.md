@@ -119,10 +119,28 @@ Search settings stay separate from fetch in `~/.pi/agent/search.json`:
 Other packages can register search providers through
 `@xynogen/pix-web/search-providers`.
 
-Install:
+## Install
 
 ```bash
 pi install npm:@xynogen/pix-web
 ```
 
-This package is standalone. It is not bundled by `@xynogen/pix-core`.
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. Most providers need an API key.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

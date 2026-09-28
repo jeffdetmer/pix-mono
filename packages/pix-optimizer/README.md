@@ -129,18 +129,6 @@ Optimizer state lives in `~/.pi/agent/pix.json`. You can edit it by hand, or use
 }
 ```
 
-## Installation
-
-```bash
-pi install npm:@xynogen/pix-optimizer
-```
-
-> Also included in [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core):
->
-> ```bash
-> pi install npm:@xynogen/pix-core
-> ```
-
 ## Architecture
 
 | File              | Role                                                      |
@@ -184,16 +172,28 @@ All upstreams are MIT licensed. No codebase was copied directly — the logic wa
 rewritten and combined into a single extension with a unified `/optimizer`
 command and shared status bar. This package does not sync back to any upstream.
 
-## Full distro
-
-Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
-
-To install the complete pix suite (all packages + Pi itself):
+## Install
 
 ```bash
+pi install npm:@xynogen/pix-optimizer
+```
+
+> Bundled in [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core). Install it alone only if you do not use pix-core.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
 ```
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

@@ -1,4 +1,4 @@
-# @xynogen/pix-astgrep
+# pix-astgrep
 
 AST-aware structural code search, symbol reads, and rewrites for Pi, built on
 [ast-grep](https://ast-grep.github.io/). Match code by its syntax tree with
@@ -35,6 +35,22 @@ The outline and symbol tools support ts, tsx, js, jsx, css, and html.
 
 ```bash
 pi install npm:@xynogen/pix-astgrep
+```
+
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. It needs the `@ast-grep/napi` native addon.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
 ```
 
 ## License

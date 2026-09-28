@@ -1,4 +1,4 @@
-# @xynogen/pix-proc
+# pix-proc
 
 Pi tool to run and manage long-lived processes that must outlive a single agent
 turn — `npm run dev`, `vite`, `python main.py`, or a test watcher. The `proc`
@@ -12,19 +12,6 @@ supervise a process that keeps running. `proc` starts a process, returns a handl
 and lets the agent keep working, then read output, or stop it later. For one-shot
 commands use `bash` — `proc start` reports and steers you back when a command
 exits fast.
-
-## Install
-
-```bash
-pi install npm:@xynogen/pix-proc
-```
-
-`pix-proc` is standalone and opt-in. It is not bundled by `@xynogen/pix-core`
-because it spawns background processes.
-
-Install `@xynogen/pix-gate` for command gating on `proc`, the same gate that
-guards `bash`. Without pix-gate, `proc start` is exactly as ungated as `bash` is
-without pix-gate — the same trust surface.
 
 ## Tool
 
@@ -101,14 +88,32 @@ bun run typecheck
 
 `bun run typecheck` checks the full monorepo, not only this package.
 
-## Full distro
+## Install
 
 ```bash
+pi install npm:@xynogen/pix-proc
+```
+
+> Standalone and opt-in. [`@xynogen/pix-core`](https://www.npmjs.com/package/@xynogen/pix-core) does not bundle it. It starts background processes.
+
+Install `@xynogen/pix-gate` for command gating on `proc`, the same gate that
+guards `bash`. Without pix-gate, `proc start` is exactly as ungated as `bash` is
+without pix-gate — the same trust surface.
+
+## Full distro
+
+This package is part of [Pix](https://github.com/xynogen/pix-mono). The installer sets up Pi and the full distro. See [Install](https://github.com/xynogen/pix-mono#install) for the notes for each OS.
+
+```bash
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.sh | sh
 ```
 
-Source: [github.com/xynogen/pix-mono](https://github.com/xynogen/pix-mono)
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/install.ps1 | iex
+```
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
