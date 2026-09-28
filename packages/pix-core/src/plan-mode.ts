@@ -149,10 +149,12 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 		}
 		const path = join(PLAN_DIR, result.plan.file);
 		if (result.kind === "edit") {
-			// The model edits the file; the user only states the change after the path.
+			// The model edits the file. The chip holds the instruction + path; the user
+			// types only the change after it.
 			apply(ctx, true);
-			ctx.ui.setEditorText(
-				`Edit the plan in \`${path}\`. Keep its title/description header. Change: `,
+			ctx.ui.setEditorText("");
+			ctx.ui.pasteToEditor(
+				`<prompt name="plan-edit">Edit the plan in \`${path}\` with \`write\`. Keep its title/description header. Apply the change the user gives after this tag.</prompt>`,
 			);
 			requestRender();
 			return;
