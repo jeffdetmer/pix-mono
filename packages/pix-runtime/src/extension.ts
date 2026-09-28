@@ -1,10 +1,16 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+	type BashOperations,
+	createLocalBashOperations,
+	createLocalPowerShellOperations,
+	type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import { syncBinaryStore } from "./binaries/store.ts";
 import { bindHerdrNotify } from "./herdr-notify.ts";
 import { bindAgentStateEvents, resetAgentState, resetUnattendedState } from "./herdr-state.ts";
 import { once } from "./once.ts";
 import { registerPixCommand } from "./pix-command.ts";
 import { pixRuntime } from "./runtime.ts";
+import { userShell } from "./user-shell.ts";
 
 /**
  * Runtime extension entry. Idempotent per `pi` instance: registers `/pix` and
@@ -21,6 +27,20 @@ export default function registerRuntime(pi: ExtensionAPI): void {
 		registerPixCommand(pi, runtime);
 		const unbindAgentState = bindAgentStateEvents(pi.events);
 		const unbindHerdrNotify = bindHerdrNotify(pi.events);
+
+		// User `!` commands: PowerShell on Windows, $SHELL on POSIX (zsh gets rc + aliases).
+		const shell = userShell();
+		// Older Pi has no PowerShell backend. Keep Pi's default shell then.
+		const inner =
+			shell?.kind === "powershell"
+				? createLocalPowerShellOperations?.()
+				: shell && createLocalBashOperations({ shellPath: shell.shellPath });
+		if (shell && inner) {
+			const operations: BashOperations = {
+				exec: (command, cwd, options) => inner.exec(shell.wrap(command), cwd, options),
+			};
+			pi.on("user_bash", () => ({ operations }));
+		}
 
 		let initialized = false;
 		pi.on("session_start", async () => {
