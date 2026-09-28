@@ -9,7 +9,7 @@ Pi extension providing focused slash commands:
 
 ## `/clear`
 
-Deletes `~/.cache/pi` to flush stale model-data cache, then prompts you to run `/reload`.
+Deletes `~/.cache/pi` (and `$TMPDIR` when set) to flush stale model-data cache. A confirm dialog lists the exact paths first. Choose **Delete** to go on, or **Cancel** / `esc` to stop. After it deletes, it prompts you to run `/reload`. Without a TUI (headless or RPC) it deletes with no prompt.
 
 ## `/btw`
 
