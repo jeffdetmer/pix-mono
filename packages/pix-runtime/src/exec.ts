@@ -111,20 +111,35 @@ export interface ToolRunResult {
 	/** Raw stdout for binary output (clipboard images, archives). */
 	stdoutBytes: Buffer;
 	timedOut: boolean;
+	/** Output passed `maxBuffer` and was cut. A zero exit code is then not a complete result. */
+	truncated: boolean;
 	/** The binary that ran and where it was found. */
 	tool: ResolvedTool;
 }
 
 const MAX_BUFFER = 50 * 1024 * 1024;
+/** Time between SIGTERM and SIGKILL, and then before open pipes are dropped. */
+const KILL_GRACE_MS = 1500;
 
 function lookupOpts(opts: ToolExecOptions): LookupOptions {
 	return { env: opts.env, host: opts.host };
 }
 
-/** Kill a child and, on Windows, its tree (a cmd.exe wrapper leaves the shim running otherwise). */
-function killTree(child: ChildProcess, host: HostPlatform, env: NodeJS.ProcessEnv): void {
-	if (child.exitCode !== null || child.signalCode !== null) return;
-	if (host.os === "win32" && child.pid) {
+/**
+ * Kill a child and its descendants. Windows: `taskkill /T /F` (a cmd.exe wrapper
+ * leaves the shim running otherwise). POSIX: signal the child's process group
+ * (runTool starts it as a group leader), because a descendant that keeps
+ * stdout open would otherwise delay "close" past the timeout.
+ */
+function killTree(
+	child: ChildProcess,
+	host: HostPlatform,
+	env: NodeJS.ProcessEnv,
+	signal: NodeJS.Signals = "SIGTERM",
+): void {
+	if (!child.pid) return;
+	if (host.os === "win32") {
+		if (child.exitCode !== null || child.signalCode !== null) return;
 		const root = env.SystemRoot ?? env.SYSTEMROOT ?? "C:\\Windows";
 		spawnSync(join(root, "System32", "taskkill.exe"), ["/pid", String(child.pid), "/T", "/F"], {
 			stdio: "ignore",
@@ -132,7 +147,13 @@ function killTree(child: ChildProcess, host: HostPlatform, env: NodeJS.ProcessEn
 		});
 		return;
 	}
-	child.kill("SIGTERM");
+	// The group can outlive the leader, so do not skip on child exit.
+	try {
+		process.kill(-child.pid, signal);
+	} catch {
+		// ESRCH: the group is gone. EPERM: not a group we own; fall back to the child.
+		if (child.exitCode === null && child.signalCode === null) child.kill(signal);
+	}
 }
 
 type HostOpt = { host?: HostPlatform };
@@ -196,9 +217,11 @@ function collect(
 		let outLen = 0;
 		let errLen = 0;
 		let timedOut = false;
+		let truncated = false;
 		const push = (list: Buffer[], chunk: Buffer, len: number): number => {
-			if (len >= cap) return len;
 			const room = cap - len;
+			if (chunk.length > room) truncated = true;
+			if (room <= 0) return len;
 			list.push(chunk.length > room ? chunk.subarray(0, room) : chunk);
 			return len + Math.min(chunk.length, room);
 		};
@@ -208,18 +231,32 @@ function collect(
 		child.stderr?.on("data", (c: Buffer) => {
 			errLen = push(err, c, errLen);
 		});
+		const escalation: NodeJS.Timeout[] = [];
+		const stop = () => {
+			if (escalation.length > 0) return;
+			killTree(child, host, env);
+			// A child may ignore SIGTERM. A descendant may leave the group and keep a
+			// pipe open. Both would hold "close" forever, so escalate, then drop pipes.
+			escalation.push(
+				setTimeout(() => killTree(child, host, env, "SIGKILL"), KILL_GRACE_MS),
+				setTimeout(() => {
+					child.stdout?.destroy();
+					child.stderr?.destroy();
+				}, KILL_GRACE_MS * 2),
+			);
+		};
 		const timer =
 			opts.timeoutMs && opts.timeoutMs > 0
 				? setTimeout(() => {
 						timedOut = true;
-						killTree(child, host, env);
+						stop();
 					}, opts.timeoutMs)
 				: undefined;
-		const onAbort = () => killTree(child, host, env);
-		opts.signal?.addEventListener("abort", onAbort, { once: true });
+		opts.signal?.addEventListener("abort", stop, { once: true });
 		const done = () => {
 			if (timer) clearTimeout(timer);
-			opts.signal?.removeEventListener("abort", onAbort);
+			for (const t of escalation) clearTimeout(t);
+			opts.signal?.removeEventListener("abort", stop);
 		};
 		child.on("error", (e) => {
 			done();
@@ -234,6 +271,7 @@ function collect(
 				stderr: Buffer.concat(err).toString("utf-8"),
 				stdoutBytes,
 				timedOut,
+				truncated,
 				tool,
 			});
 		});
@@ -274,6 +312,12 @@ export async function runTool(
 		cwd: opts.cwd,
 		env,
 		stdio: ["pipe", "pipe", "pipe"],
+		// POSIX: own process group, so killTree reaches descendants. On Windows
+		// `detached` opens a new console, and taskkill /T covers the tree.
+		// ponytail: the group also has no controlling terminal, so a tool cannot
+		// prompt on /dev/tty. runTool is for captured, non-interactive runs.
+		// Interactive tools use spawnTool.
+		detached: host.os !== "win32",
 		windowsHide: true,
 		windowsVerbatimArguments: line.windowsVerbatimArguments,
 	});
@@ -303,6 +347,8 @@ export function runToolSync(
 		windowsVerbatimArguments: line.windowsVerbatimArguments,
 	};
 	const r = spawnSync(line.command, line.args, sync);
+	// Over maxBuffer, spawnSync kills the child and sets ENOBUFS. That throws below,
+	// so a sync result is never truncated.
 	if (r.error && (r.error as NodeJS.ErrnoException).code !== "ETIMEDOUT") throw r.error;
 	const stdoutBytes = Buffer.isBuffer(r.stdout) ? r.stdout : Buffer.from(r.stdout ?? "");
 	const stderr = Buffer.isBuffer(r.stderr) ? r.stderr.toString("utf-8") : String(r.stderr ?? "");
@@ -313,6 +359,7 @@ export function runToolSync(
 		stderr,
 		stdoutBytes,
 		timedOut,
+		truncated: false,
 		tool,
 	};
 }

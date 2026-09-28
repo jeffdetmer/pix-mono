@@ -77,7 +77,7 @@ export interface GitOptions extends OsOptions {
 
 /**
  * `git args…` in `cwd`: stdout on exit 0, null on any git failure (not a
- * repo, timeout, abort). A missing git binary rejects with BinaryMissingError
+ * repo, timeout, abort, or output cut at `maxBuffer`). A missing git binary rejects with BinaryMissingError
  * so the caller can surface the install hint once (pix-pretty warnBinaryMissing).
  */
 export async function runGit(args: readonly string[], opts: GitOptions): Promise<string | null> {
@@ -92,7 +92,7 @@ export async function runGit(args: readonly string[], opts: GitOptions): Promise
 		if (err instanceof Error && err.name === "BinaryMissingError") throw err;
 		return null;
 	});
-	return r && r.code === 0 ? r.stdout : null;
+	return r && r.code === 0 && !r.truncated ? r.stdout : null;
 }
 
 // ── Clipboard image ─────────────────────────────────────────────────────────

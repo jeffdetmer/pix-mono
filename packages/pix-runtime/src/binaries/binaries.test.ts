@@ -15,7 +15,7 @@ import { join } from "node:path";
 import type { HostPlatform } from "../platform.ts";
 import { BINARY_NAMES, type BinarySpec, CATALOG, downloadAsset } from "./catalog.ts";
 import { ensureTool, installFromRelease, type ToolStatus } from "./ensure.ts";
-import { BinaryMissingError, listTools, lookupTool, resolveTool } from "./resolve.ts";
+import { BinaryMissingError, listTools, lookupTool, requireTool, resolveTool } from "./resolve.ts";
 import { binaryFilePath, readBinaryStore, setBinaryChoice, syncBinaryStore } from "./store.ts";
 
 const isWin = process.platform === "win32";
@@ -153,6 +153,21 @@ describe("resolve order", () => {
 		const hit = lookupTool("rtk", { env: s.env, host });
 		expect(hit.state).toBe("broken");
 		expect(resolveTool("rtk", { env: s.env, host })).toBeUndefined();
+	});
+
+	test("an invalid binary.json blocks lookup instead of falling back", () => {
+		const s = sandbox();
+		s.put(s.pathDir, "hunk");
+		writeFileSync(binaryFilePath(s.env), '{ "hunk": "/opt/hunk", }');
+		const hit = lookupTool("hunk", { env: s.env, host });
+		expect(hit).toMatchObject({
+			state: "broken",
+			error: expect.stringMatching(/^binary\.json is invalid \(/),
+		});
+		expect(resolveTool("hunk", { env: s.env, host })).toBeUndefined();
+		expect(() => requireTool("hunk", { env: s.env, host })).toThrow(
+			/^hunk: binary\.json is invalid \(/,
+		);
 	});
 
 	test("bash is found in Git for Windows' install dir when not on PATH", () => {

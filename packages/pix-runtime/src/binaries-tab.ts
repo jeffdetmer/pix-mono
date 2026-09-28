@@ -279,7 +279,9 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 					const pathRoom = Math.max(12, room - Math.min(tag.length, Math.max(0, room - 12)));
 					detail = `${theme.fg("dim", middleTruncate(row.path ?? "", pathRoom))}${theme.fg("muted", tag)}`;
 				} else if (row.state === "broken") {
-					detail = `${theme.fg("warning", `${row.choice} (not found)`)} ${theme.fg("muted", "· binary.json")}`;
+					detail = row.error
+						? theme.fg("warning", "blocked: binary.json is invalid")
+						: `${theme.fg("warning", `${row.choice} (not found)`)} ${theme.fg("muted", "· binary.json")}`;
 				} else if (busy) {
 					detail = theme.fg("accent", "installing…");
 				} else if (soft) {
@@ -351,7 +353,7 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 					r.state === "ok"
 						? `${r.path} (${r.source})`
 						: r.state === "broken"
-							? `${r.choice} (broken)`
+							? (r.error ?? `${r.choice} (broken)`)
 							: r.state;
 				return `  ${r.name}: ${where}`;
 			});

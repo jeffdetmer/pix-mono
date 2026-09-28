@@ -9,6 +9,7 @@
 import {
 	closeSync,
 	existsSync,
+	linkSync,
 	mkdirSync,
 	openSync,
 	readFileSync,
@@ -18,6 +19,7 @@ import {
 	writeFileSync,
 	writeSync,
 } from "node:fs";
+import { hostname } from "node:os";
 import { dirname, join } from "node:path";
 import type { RawDocument } from "./schema.ts";
 
@@ -59,9 +61,40 @@ export interface StorageAdapter {
 	ensureDir(): void;
 }
 
-const LOCK_STALE_MS = 30_000;
+// A healthy holder keeps the lock for milliseconds (read + write + rename).
+// Stale must be shorter than the retry budget, or a crashed holder makes every
+// writer fail until it expires.
+const LOCK_STALE_MS = 4_000;
 const LOCK_RETRY_MS = 25;
 const LOCK_MAX_RETRIES = 200; // ~5s budget
+
+interface LockOwner {
+	pid: number;
+	host: string;
+}
+
+function parseOwner(text: string): LockOwner | undefined {
+	try {
+		const o = JSON.parse(text) as Partial<LockOwner>;
+		return typeof o.pid === "number" && typeof o.host === "string"
+			? { pid: o.pid, host: o.host }
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** True only when the owner ran on this host and its process is gone. */
+function ownerIsDead(owner: LockOwner | undefined): boolean {
+	if (!owner || owner.host !== hostname() || owner.pid === process.pid) return false;
+	try {
+		process.kill(owner.pid, 0);
+		return false;
+	} catch (err) {
+		// EPERM: the process exists under another user.
+		return (err as NodeJS.ErrnoException).code === "ESRCH";
+	}
+}
 
 /** Node/Bun filesystem storage rooted at `<agentDir>/pix.json`. */
 export class FileStorage implements StorageAdapter {
@@ -87,28 +120,63 @@ export class FileStorage implements StorageAdapter {
 	}
 
 	private acquireLock(): void {
+		const me = JSON.stringify({ pid: process.pid, host: hostname() } satisfies LockOwner);
 		for (let i = 0; i < LOCK_MAX_RETRIES; i++) {
 			try {
 				const fd = openSync(this.lockPath, "wx", 0o600);
-				writeSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }));
-				closeSync(fd);
-				return;
-			} catch {
-				// Reclaim a stale lock only when older than the threshold.
 				try {
-					const age = Date.now() - statSync(this.lockPath).mtimeMs;
-					if (age > LOCK_STALE_MS) {
-						rmSync(this.lockPath, { force: true });
-						continue;
-					}
-				} catch {
-					// Lock vanished between open and stat — retry immediately.
-					continue;
+					writeSync(fd, me);
+				} finally {
+					closeSync(fd);
 				}
-				Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, LOCK_RETRY_MS);
+				return;
+			} catch (err) {
+				// Only EEXIST means "another writer holds it". EACCES/EROFS/ENOSPC will
+				// not clear by waiting, so fail at once with the real cause.
+				if ((err as NodeJS.ErrnoException).code !== "EEXIST")
+					throw new ConfigLockError(`could not create ${this.lockPath}`, err);
 			}
+			if (this.reclaimIfStale()) continue;
+			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, LOCK_RETRY_MS);
 		}
-		throw new ConfigLockError(`could not acquire ${this.lockPath}`);
+		throw new ConfigLockError(`could not acquire ${this.lockPath} (held by another process)`);
+	}
+
+	/**
+	 * Remove the lock when its owner process is dead (same host) or it is older
+	 * than {@link LOCK_STALE_MS}. Returns true when the caller should retry now.
+	 *
+	 * The lock moves away by rename, which is atomic, so only one waiter takes a
+	 * given lock file. If that file is not the one judged stale (another waiter
+	 * already reclaimed it and a new holder wrote a fresh lock), it goes back with
+	 * linkSync, which never overwrites.
+	 * ponytail: a third writer can still lock in the few microseconds between the
+	 * rename and the link. Then the restored holder loses mutual exclusion once.
+	 * Upgrade path: an OS file lock (flock / LockFileEx) through a native addon.
+	 */
+	private reclaimIfStale(): boolean {
+		let text: string;
+		let mtimeMs: number;
+		try {
+			text = readFileSync(this.lockPath, "utf-8");
+			mtimeMs = statSync(this.lockPath).mtimeMs;
+		} catch {
+			return true; // The lock vanished between open and read: retry at once.
+		}
+		if (!ownerIsDead(parseOwner(text)) && Date.now() - mtimeMs <= LOCK_STALE_MS) return false;
+		const moved = `${this.lockPath}.stale-${process.pid}-${Math.random().toString(36).slice(2)}`;
+		try {
+			renameSync(this.lockPath, moved);
+		} catch {
+			return true; // Another waiter took it first.
+		}
+		try {
+			if (readFileSync(moved, "utf-8") !== text) linkSync(moved, this.lockPath);
+		} catch {
+			// EEXIST: a newer lock exists, which is correct. Unreadable: treat as stale.
+		}
+		rmSync(moved, { force: true });
+		return true;
 	}
 
 	private releaseLock(): void {

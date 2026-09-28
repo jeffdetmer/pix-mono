@@ -1,4 +1,3 @@
-import { execFile } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { reportToolStatus, type ToolStatusUI } from "@xynogen/pix-pretty/tool-status";
@@ -8,8 +7,8 @@ import {
 	frameToolResult,
 	hideCollapsedToolCall,
 } from "@xynogen/pix-pretty/utils";
-import { ensureTool } from "@xynogen/pix-runtime/binaries";
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
+import { runTool } from "@xynogen/pix-runtime/exec";
 import { Type } from "typebox";
 import {
 	buildHunkArgs,
@@ -37,23 +36,19 @@ export type HunkRunner = (
 /**
  * Default runner: resolve hunk via pix-runtime (binary.json → agent bin →
  * PATH), downloading the official release on first use with a visible status.
- * A missing binary throws BinaryMissingError carrying the install hint.
+ * runTool also runs the npm `hunk.cmd` shim on Windows. A missing binary
+ * throws BinaryMissingError carrying the install hint.
  */
 export const runHunk: HunkRunner = async (args, signal, ui) => {
-	const hunk = await ensureTool("hunk", { signal, onStatus: reportToolStatus(ui) });
-	return new Promise((resolve, reject) => {
-		execFile(hunk.path, args, { maxBuffer: MAX_OUTPUT_BYTES, signal }, (error, stdout, stderr) => {
-			if (error && signal?.aborted) {
-				reject(error);
-				return;
-			}
-			resolve({
-				stdout,
-				stderr: stderr || error?.message || "",
-				code: typeof error?.code === "number" ? error.code : error ? 1 : 0,
-			});
-		});
+	const r = await runTool("hunk", args, {
+		signal,
+		onStatus: reportToolStatus(ui),
+		maxBuffer: MAX_OUTPUT_BYTES,
 	});
+	if (signal?.aborted) throw signal.reason ?? new Error("aborted");
+	if (r.truncated)
+		return { stdout: r.stdout, stderr: `hunk output exceeded ${MAX_OUTPUT_BYTES} bytes`, code: 1 };
+	return { stdout: r.stdout, stderr: r.stderr, code: r.code ?? 1 };
 };
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };

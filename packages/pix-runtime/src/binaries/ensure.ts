@@ -65,7 +65,7 @@ export function ensureTool(
 		return Promise.resolve({ name, path: hit.path, source: hit.source });
 	}
 	if (hit.state === "broken")
-		return Promise.reject(new BinaryMissingError(name, "broken", hit.hint));
+		return Promise.reject(new BinaryMissingError(name, "broken", hit.hint, hit.error));
 	const spec = specOf(name);
 	const host = opts.host ?? currentPlatform();
 	if (!spec || !downloadAsset(spec, host)) {

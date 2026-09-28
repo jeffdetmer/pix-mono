@@ -28,8 +28,9 @@ export default function registerRuntime(pi: ExtensionAPI): void {
 			if (initialized) {
 				await runtime.reload({ origin: "reload", source: "session_start" });
 			} else {
-				initialized = true;
 				await runtime.init({ origin: "init", source: "session_start" });
+				// Set only on success: a failed init retries init (with migrations) next session.
+				initialized = true;
 			}
 			surfaceDiagnostics(pi, runtime);
 			// binary.json holds overrides only; drop legacy `null` padding, report bad JSON.

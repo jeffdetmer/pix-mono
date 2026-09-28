@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
-import registerHunk, { type HunkRunner } from "./index.ts";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, join } from "node:path";
+import registerHunk, { type HunkRunner, runHunk } from "./index.ts";
 
 type RenderTheme = {
 	fg: (color: string, text: string) => string;
@@ -410,4 +413,27 @@ test("reports a missing Hunk executable with the install hint", async () => {
 	);
 
 	expect(result.content[0]?.text).toMatch(/hunk not found — install: [\w@/-]+/);
+});
+
+test("runHunk runs hunk through pix-runtime and returns its exit code and output", async () => {
+	const root = mkdtempSync(join(tmpdir(), "pix-hunk-"));
+	const isWin = process.platform === "win32";
+	const bin = join(root, isWin ? "hunk.cmd" : "hunk");
+	writeFileSync(
+		bin,
+		isWin ? '@echo {"ok":true}\r\n@exit /b 3\r\n' : "#!/bin/sh\necho '{\"ok\":true}'\nexit 3\n",
+	);
+	if (!isWin) chmodSync(bin, 0o755);
+	const saved = { path: process.env.PATH, agent: process.env.PI_CODING_AGENT_DIR };
+	process.env.PATH = `${root}${delimiter}${saved.path ?? ""}`;
+	process.env.PI_CODING_AGENT_DIR = join(root, "agent");
+	try {
+		const r = await runHunk(["session", "list", "--json"]);
+		expect(r).toMatchObject({ code: 3, stdout: expect.stringMatching(/^\{"ok":true\}\r?\n$/) });
+	} finally {
+		process.env.PATH = saved.path;
+		if (saved.agent === undefined) delete process.env.PI_CODING_AGENT_DIR;
+		else process.env.PI_CODING_AGENT_DIR = saved.agent;
+		rmSync(root, { recursive: true, force: true });
+	}
 });

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { migrate } from "./migrations.ts";
 import { FileStorage, type StorageAdapter } from "./persistence.ts";
@@ -238,6 +239,53 @@ describe("persistence", () => {
 		});
 	});
 
+	it("reclaims a lock whose owner process is dead, without waiting for it to age", async () => {
+		const { runtime, agentDir } = fresh();
+		const lock = join(agentDir, "pix.json.lock");
+		// PID 2^22 + 1 is past Linux pid_max and past macOS PIDs, so it is dead.
+		writeFileSync(lock, JSON.stringify({ pid: 4_194_305, host: hostname() }));
+		const started = Date.now();
+		await runtime.update(prettySection, { icons: "ascii" });
+		expect(Date.now() - started).toBeLessThan(1_000);
+		expect((readConfig(agentDir).pretty as { icons: string }).icons).toBe("ascii");
+		expect(existsSync(lock)).toBe(false);
+	});
+
+	it("waits for a fresh lock held by a live process instead of taking it", async () => {
+		const { runtime, agentDir } = fresh();
+		const lock = join(agentDir, "pix.json.lock");
+		const holder = JSON.stringify({ pid: process.ppid, host: hostname() });
+		writeFileSync(lock, holder);
+		// The lock loop blocks this thread, so a child process releases the lock.
+		const release = Bun.spawn([
+			"bun",
+			"-e",
+			`await Bun.sleep(300); require("fs").rmSync(${JSON.stringify(lock)})`,
+		]);
+		const started = Date.now();
+		await runtime.update(prettySection, { icons: "ascii" });
+		await release.exited;
+		expect(Date.now() - started).toBeGreaterThanOrEqual(250);
+		expect((readConfig(agentDir).pretty as { icons: string }).icons).toBe("ascii");
+	});
+
+	// chmod has no effect on Windows ACLs, and root ignores the mode bits.
+	it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+		"fails at once when the lock cannot be created (EACCES, not EEXIST)",
+		() => {
+			const { agentDir } = fresh();
+			const storage = new FileStorage(agentDir);
+			chmodSync(agentDir, 0o555);
+			const started = Date.now();
+			try {
+				expect(() => storage.transact(() => "{}")).toThrow(/^could not create .*pix\.json\.lock$/);
+				expect(Date.now() - started).toBeLessThan(1_000);
+			} finally {
+				chmodSync(agentDir, 0o755);
+			}
+		},
+	);
+
 	it("serializes concurrent updates without lost fields", async () => {
 		const { runtime, agentDir } = fresh();
 		await Promise.all([
@@ -394,6 +442,23 @@ describe("events and lifecycle", () => {
 		const { runtime } = fresh();
 		const [a, b] = await Promise.all([runtime.init(), runtime.init()]);
 		expect(a).toBe(b);
+	});
+
+	it("a failed init is not cached, so the next init retries", async () => {
+		let fail = true;
+		const storage: StorageAdapter = {
+			path: "/virtual/pix.json",
+			readRaw: () => {
+				if (fail) throw new Error("EACCES");
+				return undefined;
+			},
+			ensureDir: () => {},
+			transact: () => {},
+		};
+		const runtime = createRuntime({ agentDir: "/virtual", storage });
+		await expect(runtime.init()).rejects.toThrow("EACCES");
+		fail = false;
+		await expect(runtime.init()).resolves.toBeDefined();
 	});
 
 	it("reset restores defaults", async () => {

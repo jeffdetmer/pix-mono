@@ -273,6 +273,10 @@ class RuntimeImpl implements PixRuntime {
 			}
 			return snapshot;
 		});
+		// A failed init (unreadable agent dir) must not stay cached: the next call retries.
+		this.initPromise.catch(() => {
+			this.initPromise = null;
+		});
 		return this.initPromise;
 	}
 

@@ -3,7 +3,9 @@
  *
  * Order: binary.json user choice → `<agentDir>/bin` → known install locations
  * (`system`, e.g. Git Bash on Windows) → PATH. A user choice that
- * does not resolve is "broken" and never silently falls back.
+ * does not resolve is "broken" and never silently falls back. An invalid
+ * binary.json is "broken" for every tool: its overrides are unknown, so no
+ * automatic path may stand in for them.
  */
 
 import { spawn } from "node:child_process";
@@ -39,6 +41,8 @@ export interface ToolLookup {
 	source?: ToolSource;
 	/** The raw binary.json value when the user set one. */
 	choice?: string;
+	/** Why the state is "broken" when binary.json itself is invalid. */
+	error?: string;
 	hint: string;
 	usedBy: readonly string[];
 	/** True when pix can download it on this host. */
@@ -61,11 +65,12 @@ export class BinaryMissingError extends Error {
 	constructor(tool: string, state: ToolState, hint: string, detail?: string) {
 		const what =
 			state === "broken"
-				? `${tool}: the path set in binary.json does not exist`
+				? `${tool}: ${detail ?? "the path set in binary.json does not exist"}`
 				: state === "unsupported"
 					? `${tool} is not used on this OS (set a path in binary.json to override)`
 					: `${tool} not found`;
-		super([what, detail, hint && `install: ${hint}`].filter(Boolean).join(" — "));
+		const extra = state === "broken" ? undefined : detail;
+		super([what, extra, hint && `install: ${hint}`].filter(Boolean).join(" — "));
 		this.name = "BinaryMissingError";
 		this.tool = tool;
 		this.hint = hint;
@@ -95,6 +100,8 @@ export function lookupTool(name: string, opts: LookupOptions = {}): ToolLookup {
 	const needed =
 		!spec || (spec.os.includes(host.os) && !(spec.wslOnly && host.os === "linux" && !host.wsl));
 	if (!needed) return { ...base, state: "unsupported" };
+	if (store.error)
+		return { ...base, state: "broken", error: `binary.json is invalid (${store.error})` };
 	const choice = store.choices[name] ?? undefined;
 	const pinned = userChoice(store, name, env);
 	if (pinned) {
@@ -138,7 +145,7 @@ export function requireTool(
 	const hit = lookupTool(name, opts);
 	if (hit.state === "ok" && hit.path && hit.source)
 		return { name, path: hit.path, source: hit.source };
-	throw new BinaryMissingError(name, hit.state, hit.hint);
+	throw new BinaryMissingError(name, hit.state, hit.hint, hit.error);
 }
 
 /** Every catalog entry plus user-added binary.json keys, sorted by name. */

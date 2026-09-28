@@ -120,6 +120,28 @@ describe("runTool / runToolSync", () => {
 		expect(r.code).toBe(0);
 	});
 
+	test("output past maxBuffer is flagged truncated", async () => {
+		const s = sandbox();
+		echoTool(s.pathDir, "pixecho");
+		const r = await runTool("pixecho", ["abcdefgh"], { env: s.env, maxBuffer: 3 });
+		expect(r).toMatchObject({ code: 0, stdout: "abc", truncated: true });
+		const full = await runTool("pixecho", ["ab"], { env: s.env });
+		expect(full.truncated).toBe(false);
+	});
+
+	test.skipIf(isWin)("a timeout stops descendants that hold stdout open", async () => {
+		const s = sandbox();
+		const name = "pixforker";
+		// The child ignores SIGTERM and its descendant keeps stdout open.
+		writeFileSync(join(s.pathDir, name), "#!/bin/sh\ntrap '' TERM\nsleep 30 &\nwait\n");
+		chmodSync(join(s.pathDir, name), 0o755);
+		const started = Date.now();
+		const r = await runTool(name, [], { env: s.env, timeoutMs: 100 });
+		expect(r.timedOut).toBe(true);
+		// timeout + SIGTERM-to-SIGKILL grace, with margin for a slow CI host.
+		expect(Date.now() - started).toBeLessThan(5_000);
+	});
+
 	test("a missing tool is a BinaryMissingError with the catalog hint", async () => {
 		const s = sandbox();
 		await expect(runTool("sshpass-nope", [], { env: s.env })).rejects.toBeInstanceOf(
