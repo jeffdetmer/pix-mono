@@ -20,6 +20,9 @@ See `DESIGN.md` for the full contract.
 - The `/pix` shared-settings command, with **Settings** and **Binaries** tabs.
 - One catalog, resolver and downloader for every external command pix runs
   (`binaries`), plus shared `paths` and `platform` helpers.
+- **User shell** — user `!` commands run through PowerShell on Windows (pwsh 7,
+  else 5.1), and through `$SHELL` on Linux/macOS (zsh sources `.zshrc` so
+  aliases expand).
 
 ## Install
 
