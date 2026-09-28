@@ -86,13 +86,23 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 	const versions = new Map<string, string | null>();
 	const installing = new Set<string>();
 	let editor: { name: string; input: Input } | undefined;
+	/** Name/used-by filter. `typing` holds the input while the user types it. */
+	let query = "";
+	let typing: Input | undefined;
+
+	/** Rows that match the filter, in display order. */
+	const shown = (): ToolLookup[] => {
+		const q = query.trim().toLowerCase();
+		if (!q) return rows;
+		return rows.filter((r) => [r.name, ...r.usedBy].some((t) => t.toLowerCase().includes(q)));
+	};
 
 	const refresh = () => {
 		const store = syncBinaryStore(env);
 		storeError = store.error;
 		storePath = store.path;
 		rows = ordered(listTools({ env, store: readBinaryStore(env) }));
-		selected = Math.min(selected, Math.max(0, rows.length - 1));
+		selected = Math.min(selected, Math.max(0, shown().length - 1));
 		for (const row of rows) {
 			const key = `${row.name}\0${row.path ?? ""}`;
 			if (row.state !== "ok" || !row.path || versions.has(key)) continue;
@@ -140,25 +150,49 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 	refresh();
 
 	return {
-		/** True while the path editor owns the keyboard (esc/tab must not leave the tab). */
+		/** True while the path editor or the filter owns the keyboard (esc/tab must not leave the tab). */
 		get editing(): boolean {
+			return editor !== undefined || typing !== undefined;
+		},
+
+		/** True while the path editor is open. It keeps ↑↓ for itself. */
+		get editingPath(): boolean {
 			return editor !== undefined;
 		},
 
 		refresh,
+
+		/** Esc with a kept filter clears it before it closes the overlay. True when it cleared one. */
+		clearFilter(): boolean {
+			if (!query) return false;
+			query = "";
+			selected = 0;
+			return true;
+		},
 
 		handleInput(data: string, keys: { up: boolean; down: boolean; enter: boolean }): boolean {
 			if (editor) {
 				editor.input.handleInput(data);
 				return true;
 			}
-			const row = rows[selected];
+			const count = Math.max(1, shown().length);
+			if (typing && !keys.up && !keys.down) {
+				const input = typing;
+				input.handleInput(data);
+				// onEscape clears the query and closes the input. Keep that result.
+				if (typing === input) query = input.getValue();
+				selected = Math.min(selected, Math.max(0, shown().length - 1));
+				return true;
+			}
+			// Other-platform rows are read-only: the cursor reaches them, the actions do not.
+			const candidate = shown()[selected];
+			const row = candidate?.state === "unsupported" ? undefined : candidate;
 			// Moving on dismisses the last action's status so the detail line tracks the cursor.
 			if (keys.up) {
-				selected = (selected - 1 + rows.length) % Math.max(1, rows.length);
+				selected = (selected - 1 + count) % count;
 				status = undefined;
 			} else if (keys.down) {
-				selected = (selected + 1) % Math.max(1, rows.length);
+				selected = (selected + 1) % count;
 				status = undefined;
 			} else if (keys.enter && row) {
 				if (row.downloadable && row.state === "missing") install(row);
@@ -183,6 +217,23 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 					opts.requestRender();
 				};
 				editor = { name: row.name, input };
+			} else if (matchesKey(data, "/")) {
+				const input = new Input({ prompt: "filter: " });
+				input.focused = true;
+				if (query) input.handleInput(`\x1b[200~${query}\x1b[201~`);
+				// Live filter: every keystroke narrows the list. Enter keeps it, esc clears it.
+				input.onSubmit = () => {
+					typing = undefined;
+					opts.requestRender();
+				};
+				input.onEscape = () => {
+					typing = undefined;
+					query = "";
+					selected = 0;
+					opts.requestRender();
+				};
+				typing = input;
+				selected = 0;
 			} else if (matchesKey(data, "d") && row) save(row.name, null);
 			else if (matchesKey(data, "r")) {
 				versions.clear();
@@ -200,8 +251,9 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 			const body: string[] = [];
 			let selectedBodyLine: number | undefined;
 			let otherHeader = false;
-			for (let i = 0; i < rows.length; i++) {
-				const row = rows[i] as ToolLookup;
+			const list = shown();
+			for (let i = 0; i < list.length; i++) {
+				const row = list[i] as ToolLookup;
 				if (row.state === "unsupported" && !otherHeader) {
 					otherHeader = true;
 					body.push("", theme.fg("dim", "  Other platforms"));
@@ -212,7 +264,8 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 				const glyph = soft
 					? theme.fg("muted", icon("status.pending"))
 					: theme.fg(STATE_COLOR[row.state], icon(STATE_ICON[row.state]));
-				const name = theme.fg(sel ? "accent" : "text", row.name.padEnd(nameW));
+				const nameColor = row.state === "unsupported" ? "muted" : sel ? "accent" : "text";
+				const name = theme.fg(nameColor, row.name.padEnd(nameW));
 				const busy = installing.has(row.name);
 				let detail: string;
 				if (row.state === "ok") {
@@ -256,25 +309,38 @@ export function createBinariesTab(opts: BinariesTabOptions) {
 			}
 			// One fixed detail line (editor › action status › selected row) so the
 			// list never shifts as the cursor moves.
-			const current = rows[selected];
+			const current = list[selected];
 			if (editor) header.push(editor.input.render(Math.max(10, width - 4))[0] ?? "");
+			else if (typing) header.push(typing.render(Math.max(10, width - 4))[0] ?? "");
 			else if (status) header.push(theme.fg(status.color, status.text));
 			else if (current)
 				header.push(
-					`${theme.fg("accent", current.name)} ${theme.fg("muted", `· used by ${current.usedBy.join(", ") || "binary.json"}`)}`,
+					`${theme.fg("accent", current.name)} ${theme.fg("muted", `· used by ${current.usedBy.join(", ") || "binary.json"}${current.state === "unsupported" ? " · not used on this OS" : ""}`)}`,
+				);
+			if (query && !typing)
+				header.push(
+					`${theme.fg("accent", `filter: ${query}`)} ${theme.fg("muted", `· ${list.length} of ${rows.length} · / change · esc clear`)}`,
 				);
 
+			if (list.length === 0) body.push(theme.fg("muted", `  no binary matches "${query}"`));
 			const footer: Array<[string, string]> = editor
 				? [
 						["enter", "save (empty = automatic)"],
 						["esc", "cancel"],
 					]
-				: [
-						["enter", "install/re-check"],
-						["e", "set path"],
-						["d", "automatic"],
-						["r", "refresh"],
-					];
+				: typing
+					? [
+							["↑↓", "move"],
+							["enter", "keep filter"],
+							["esc", "clear filter"],
+						]
+					: [
+							["enter", "install/re-check"],
+							["/", "filter"],
+							["e", "set path"],
+							["d", "automatic"],
+							["r", "refresh"],
+						];
 			return { header, body, selectedBodyLine, footer };
 		},
 

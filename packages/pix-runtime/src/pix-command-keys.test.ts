@@ -394,6 +394,29 @@ describe("/pix tabs", () => {
 		expect(after.filter((l) => /used by/.test(l)).length).toBe(1);
 	});
 
+	it("↑ from the first row on a short terminal moves to the last Other platforms row", async () => {
+		const d = await openOverlay(getKeybindings(), 20);
+		d.feed(TAB.legacy);
+		expect(d.lines().join("\n")).not.toMatch(/Other platforms/);
+		d.feed(KEYS.up.legacy);
+		expect(d.lines().join("\n")).toMatch(/│ → ○ wslview\s+not used on this OS/);
+	});
+
+	it("/ filters the Binaries list; esc clears the filter before it closes the overlay", async () => {
+		const d = await openOverlay(getKeybindings(), 40);
+		d.feed(TAB.legacy);
+		d.feed("/");
+		for (const ch of "ssh") d.feed(ch);
+		const rows = () => d.lines().filter((l) => /│ [→ ] \S+ [\w-]+\s{2}/.test(l));
+		expect(rows().every((l) => /ssh|scp|sshpass/.test(l))).toBe(true);
+		d.feed("\r");
+		d.feed("\u001b");
+		expect(d.closed()).toBe(false);
+		expect(rows().length).toBeGreaterThan(3);
+		d.feed("\u001b");
+		expect(d.closed()).toBe(true);
+	});
+
 	it("e edits a path into binary.json; d resets it to automatic", async () => {
 		const d = await openOverlay(getKeybindings(), 60);
 		d.feed(TAB.legacy);

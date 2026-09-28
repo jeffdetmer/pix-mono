@@ -69,7 +69,7 @@ $__pixInstaller = {
 	}
 	# Partially supported packages are offered with a visible caveat.
 	$WindowsCaveats = @{
-		"npm:@xynogen/pix-voice" = "Windows: transcribe works; speak needs ffplay or mpv on PATH; push-to-talk recording uses PulseAudio and does not work yet."
+		"npm:@xynogen/pix-voice" = "Windows: transcribe works; speak plays with the built-in MediaPlayer; push-to-talk records through ffmpeg (DirectShow)."
 		"npm:@xynogen/pix-ssh"   = "Windows: needs an ssh with ControlMaster support first on PATH (Git for Windows ssh works; the built-in Windows OpenSSH does not). Password login also needs sshpass."
 	}
 

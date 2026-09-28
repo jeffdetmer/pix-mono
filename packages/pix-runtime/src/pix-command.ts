@@ -393,7 +393,14 @@ export function registerPixCommand(pi: ExtensionAPI, runtime: PixRuntime): void 
 						invalidate: () => {},
 						handleInput: (data: string) => {
 							if (tab === "Binaries" && binariesTab().editing) {
-								binariesTab().handleInput(data, { up: false, down: false, enter: false });
+								// The filter input takes ↑↓ to move through its matches.
+								const nav = !binariesTab().editingPath;
+								binariesTab().handleInput(data, {
+									up: nav && kb.matches(data, "tui.select.up"),
+									down: nav && kb.matches(data, "tui.select.down"),
+									enter: false,
+								});
+								inspectingPage = false;
 								tui.requestRender();
 								return;
 							}
@@ -417,6 +424,10 @@ export function registerPixCommand(pi: ExtensionAPI, runtime: PixRuntime): void 
 							// for letters and special keys alike — raw string compares like
 							// `data === "k"` silently fail under the Kitty keyboard protocol.
 							if (kb.matches(data, "tui.select.cancel")) {
+								if (tab === "Binaries" && binariesTab().clearFilter()) {
+									tui.requestRender();
+									return;
+								}
 								done(null);
 								return;
 							}

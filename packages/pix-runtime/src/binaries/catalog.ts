@@ -7,6 +7,7 @@
  * catalogued; `which.ts` keeps serving those.
  */
 
+import { join } from "node:path";
 import type { HostOs, HostPlatform } from "../platform.ts";
 
 export interface DownloadRecipe {
@@ -25,6 +26,8 @@ export interface BinarySpec {
 	usedBy: readonly string[];
 	/** OSes where it is used. */
 	os: readonly HostOs[];
+	/** On Linux, used only under WSL (Windows interop). */
+	wslOnly?: boolean;
 	/** Alternative executable names tried in order (defaults to the key). */
 	names?: readonly string[];
 	/** Install hint per OS; `default` otherwise. */
@@ -112,7 +115,7 @@ export const CATALOG = {
 	},
 	ffmpeg: {
 		usedBy: ["pix-voice"],
-		os: ["linux", "win32"],
+		os: ["linux", "win32", "darwin"],
 		versionArgs: ["-version"],
 		hint: {
 			linux: "apt install ffmpeg · dnf install ffmpeg · pacman -S ffmpeg",
@@ -140,16 +143,6 @@ export const CATALOG = {
 			android: "pkg install ripgrep",
 			win32: "restart Pi (it downloads rg) or winget install BurntSushi.ripgrep.MSVC",
 			default: "restart Pi (it downloads rg) or install ripgrep",
-		},
-	},
-	fd: {
-		usedBy: ["pix-find"],
-		os: ALL,
-		names: ["fd", "fdfind"],
-		hint: {
-			android: "pkg install fd",
-			win32: "restart Pi (it downloads fd) or winget install sharkdp.fd",
-			default: "restart Pi (it downloads fd) or install fd",
 		},
 	},
 	git: {
@@ -188,24 +181,6 @@ export const CATALOG = {
 		hint: { darwin: "brew install sshpass", default: "install sshpass" },
 	},
 	sudo: { usedBy: ["pix-sudo"], os: UNIX, hint: { default: "install sudo" } },
-	pactl: {
-		usedBy: ["pix-voice"],
-		os: LINUX,
-		hint: { default: "install pulseaudio-utils (or pipewire-pulse)" },
-	},
-	"pw-play": { usedBy: ["pix-voice"], os: LINUX, hint: { default: "install pipewire" } },
-	paplay: { usedBy: ["pix-voice"], os: LINUX, hint: { default: "install pulseaudio-utils" } },
-	ffplay: {
-		usedBy: ["pix-voice"],
-		os: ["linux", "win32"],
-		versionArgs: ["-version"],
-		hint: { win32: "winget install Gyan.FFmpeg", default: "install ffmpeg" },
-	},
-	mpv: {
-		usedBy: ["pix-voice"],
-		os: ["linux", "win32"],
-		hint: { win32: "winget install shinchiro.mpv", default: "install mpv" },
-	},
 	"wl-paste": { usedBy: ["pix-ask"], os: LINUX, hint: { default: "install wl-clipboard" } },
 	xclip: {
 		usedBy: ["pix-ask"],
@@ -213,7 +188,13 @@ export const CATALOG = {
 		versionArgs: ["-version"],
 		hint: { default: "install xclip" },
 	},
-	wslpath: { usedBy: ["pix-ask"], os: LINUX, versionArgs: null, hint: { default: "WSL only" } },
+	wslpath: {
+		usedBy: ["pix-ask"],
+		os: LINUX,
+		wslOnly: true,
+		versionArgs: null,
+		hint: { default: "WSL only" },
+	},
 	open: {
 		usedBy: ["pix-mcp"],
 		os: ["darwin"],
@@ -229,7 +210,7 @@ export const CATALOG = {
 		hint: { default: "built into Windows" },
 	},
 	npm: {
-		usedBy: ["pix-mcp", "pix-update"],
+		usedBy: ["pix-mcp"],
 		os: ALL,
 		hint: { win32: "winget install OpenJS.NodeJS.LTS", default: "install Node.js" },
 	},
@@ -243,39 +224,10 @@ export const CATALOG = {
 		os: ALL,
 		hint: { default: "npm install -g @earendil-works/pi-coding-agent" },
 	},
-	bun: {
-		usedBy: ["pix-update"],
-		os: ALL,
-		optional: true,
-		hint: { win32: "winget install Oven-sh.Bun", default: "see bun.sh" },
-	},
-	vp: {
-		usedBy: ["pix-update"],
-		os: ALL,
-		optional: true,
-		hint: { default: "vite-plus installs only" },
-	},
-	brew: {
-		usedBy: ["pix-update"],
-		os: ["darwin", "linux"],
-		optional: true,
-		hint: { default: "Homebrew installs only" },
-	},
-	nice: {
-		usedBy: ["pix-update"],
-		os: UNIX,
-		versionArgs: null,
-		hint: { default: "part of coreutils" },
-	},
-	pwsh: {
-		usedBy: ["pix-powershell"],
-		os: ["win32"],
-		versionArgs: ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"],
-		hint: { default: "winget install Microsoft.PowerShell" },
-	},
 	powershell: {
 		usedBy: ["pix-powershell", "pix-ask", "pix-voice"],
 		os: ["win32", "linux"],
+		wslOnly: true,
 		// WSL reaches Windows PowerShell through interop as powershell.exe.
 		names: ["powershell", "powershell.exe"],
 		versionArgs: null,
@@ -284,6 +236,7 @@ export const CATALOG = {
 	wslview: {
 		usedBy: ["pix-mcp"],
 		os: LINUX,
+		wslOnly: true,
 		optional: true,
 		versionArgs: null,
 		hint: { default: "WSL only: install wslu" },
@@ -297,7 +250,8 @@ export const CATALOG = {
 			h.os === "win32"
 				? [envVar(env, "ProgramFiles"), envVar(env, "ProgramFiles(x86)")]
 						.filter((d): d is string => !!d)
-						.map((d) => `${d}\\Git\\bin\\bash.exe`)
+						// Native join: backslashes on real Windows, and the fake-win32 test runs anywhere.
+						.map((d) => join(d, "Git", "bin", "bash.exe"))
 				: [],
 	},
 } satisfies Record<string, BinarySpec>;

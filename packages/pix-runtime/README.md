@@ -83,7 +83,7 @@ import { agentDir, binDir, cacheDir, homeDir } from "@xynogen/pix-runtime/paths"
 import { currentPlatform, hostPlatform } from "@xynogen/pix-runtime/platform";
 
 agentDir();   // PI_CODING_AGENT_DIR (~-expanded) or ~/.pi/agent, same as Pi's getAgentDir
-binDir();     // <agentDir>/bin, the folder where Pi downloads fd/rg
+binDir();     // <agentDir>/bin, the folder where Pi downloads fd/rg and pix downloads its tools
 cacheDir();   // $XDG_CACHE_HOME/pi or ~/.cache/pi (never relies on HOME alone)
 currentPlatform(); // { os, arch, libc?, wsl, termux, exe }
 ```
@@ -116,10 +116,10 @@ never silently falls back to another copy.
 | `rtk` (Windows, Linux, macOS) | `rtk-ai/rtk` latest release | `checksums.txt` |
 | `hunk` (Windows, Linux, macOS) | `modem-dev/hunk` latest release | `SHA256SUMS` |
 | `aria2c` (Windows only) | official `aria2/aria2` release | none published |
-| `ffmpeg` (Linux only, ~120 MB) | `BtbN/FFmpeg-Builds` lgpl (PulseAudio) | `checksums.sha256` |
+| `ffmpeg` (Windows, Linux, ~120 MB) | `BtbN/FFmpeg-Builds` lgpl | `checksums.sha256` |
 
-Everything else, including `rg`/`fd`, is only checked and never downloaded.
-Pi itself downloads `rg`/`fd`.
+Everything else, including `rg`, is only checked and never downloaded.
+Pi itself downloads `rg` and `fd`. pix does not run `fd`, so the catalog does not list it.
 
 The downloader:
 
@@ -182,15 +182,18 @@ by bare name.
 
 ### Audio — `./audio`
 
-Recording and playback need a different program on each OS. Linux uses
-PulseAudio/PipeWire. Windows uses DirectShow through ffmpeg:
+One job per function. Callers never see a program name or an OS branch.
+ffmpeg does every job it can on Linux (PulseAudio/PipeWire), macOS
+(AVFoundation/AudioToolbox) and Windows (DirectShow). ffmpeg has no audio
+output on Windows, so playback there uses the built-in PowerShell MediaPlayer.
 
 ```ts
-import { listMicrophones, microphoneInput, playAudio } from "@xynogen/pix-runtime/audio";
+import { listMicrophones, playAudio, startRecording } from "@xynogen/pix-runtime/audio";
 
-const mics = await listMicrophones();   // pactl (Linux) / ffmpeg dshow (Windows). First entry is "default"
-const input = microphoneInput("default"); // ["-f","pulse","-i",…] / ["-f","dshow","-i","audio=…"]
-await playAudio(file, { signal });       // pw-play/paplay/ffplay/mpv, Windows: ffplay/mpv/PowerShell MediaPlayer
+const mics = await listMicrophones();    // first entry is "default". No ffmpeg: only "default"
+const rec = startRecording("default", { onLevel, onExit, onStatus }); // mono 16 kHz wav
+await rec.stop();                         // rec.path is the wav. { meterOnly: true } writes nothing
+await playAudio(file, { signal });        // resolves when the sound ends
 ```
 
 ### Safe output paths — `./safe-path`

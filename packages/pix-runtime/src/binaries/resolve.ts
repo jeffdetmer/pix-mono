@@ -90,6 +90,11 @@ export function lookupTool(name: string, opts: LookupOptions = {}): ToolLookup {
 		downloadable: spec ? downloadAsset(spec, host) !== undefined : false,
 		optional: spec?.optional === true,
 	};
+	// A tool for another OS stays "unsupported" even when a same-named file exists
+	// here (Ubuntu ships /usr/bin/open). pix never runs it on this host.
+	const needed =
+		!spec || (spec.os.includes(host.os) && !(spec.wslOnly && host.os === "linux" && !host.wsl));
+	if (!needed) return { ...base, state: "unsupported" };
 	const choice = store.choices[name] ?? undefined;
 	const pinned = userChoice(store, name, env);
 	if (pinned) {
@@ -111,8 +116,7 @@ export function lookupTool(name: string, opts: LookupOptions = {}): ToolLookup {
 		const onPath = findExecutableSync(n, { env });
 		if (onPath) return { ...base, state: "ok", path: onPath, source: "path" };
 	}
-	const needed = !spec || spec.os.includes(host.os);
-	return { ...base, state: needed ? "missing" : "unsupported" };
+	return { ...base, state: "missing" };
 }
 
 /** Resolved path, or undefined when missing/broken. Sync, no network. */

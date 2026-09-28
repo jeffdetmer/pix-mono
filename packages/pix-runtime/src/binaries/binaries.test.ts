@@ -169,10 +169,12 @@ describe("resolve order", () => {
 		expect(hit.path?.replaceAll("\\", "/")).toMatch(/Program Files\/Git\/bin\/bash\.exe$/);
 	});
 
-	test("alternate names (fdfind) resolve", () => {
+	test("alternate names (powershell.exe under WSL) resolve", () => {
+		if (isWin) return; // Windows finds powershell.exe by the first name through PATHEXT.
 		const s = sandbox();
-		s.put(s.pathDir, "fdfind");
-		expect(resolveTool("fd", { env: s.env, host })?.path).toContain("fdfind");
+		s.put(s.pathDir, "powershell.exe");
+		const wsl: HostPlatform = { ...host, os: "linux", exe: "", wsl: true };
+		expect(resolveTool("powershell", { env: s.env, host: wsl })?.path).toContain("powershell.exe");
 	});
 
 	test("listTools covers catalog + user keys with states", () => {
@@ -185,6 +187,71 @@ describe("resolve order", () => {
 			host.os === "linux" || host.os === "win32" ? "missing" : "unsupported",
 		);
 		expect(rows.find((r) => r.name === "rtk")?.downloadable).toBe(true);
+	});
+
+	test("binaries tab: the cursor reaches other-platform rows, which stay read-only", async () => {
+		const { createBinariesTab } = await import("../binaries-tab.ts");
+		const s = sandbox();
+		const tab = createBinariesTab({
+			env: s.env,
+			theme: { fg: (_c, t) => t, bold: (t) => t },
+			requestRender: () => {},
+		});
+		const body = tab.view(200).body;
+		expect(body.some((l) => l.trim() === "Other platforms")).toBe(true);
+		tab.handleInput("", { up: true, down: false, enter: false }); // wraps to the last row
+		const view = tab.view(200);
+		expect(view.selectedBodyLine).toBe(body.length - 1);
+		expect(view.header.join("\n")).toMatch(/not used on this OS/);
+		// d (automatic) on a read-only row writes nothing.
+		tab.handleInput("d", { up: false, down: false, enter: false });
+		expect(existsSync(binaryFilePath(s.env))).toBe(false);
+	});
+
+	test("a tool for another OS stays unsupported even when the file exists here", () => {
+		const s = sandbox();
+		s.put(s.pathDir, "open");
+		const linux: HostPlatform = { ...host, os: "linux", exe: "", wsl: false };
+		expect(lookupTool("open", { env: s.env, host: linux }).state).toBe("unsupported");
+	});
+
+	test("binaries tab: / filters by name or user, ↑↓ move, esc clears", async () => {
+		const { createBinariesTab } = await import("../binaries-tab.ts");
+		const s = sandbox();
+		const tab = createBinariesTab({
+			env: s.env,
+			theme: { fg: (_c, t) => t, bold: (t) => t },
+			requestRender: () => {},
+		});
+		const none = { up: false, down: false, enter: false };
+		const rowNames = () =>
+			tab
+				.view(200)
+				.body.map((l) => l.trim().replace(/^→\s*/, "").split(/\s+/)[1])
+				.filter((n): n is string => Boolean(n) && n !== "platforms");
+		const all = rowNames().length;
+		tab.handleInput("/", none);
+		expect(tab.editing).toBe(true);
+		for (const ch of "ssh") tab.handleInput(ch, none);
+		expect(rowNames()).toEqual(expect.arrayContaining(["ssh", "scp", "sshpass"]));
+		expect(rowNames().length).toBeLessThan(all);
+		expect(tab.view(200).header.join("\n")).toMatch(/filter: ssh/);
+		tab.handleInput("", { ...none, down: true });
+		expect(tab.view(200).body[1]).toMatch(/^→ /);
+		tab.handleInput("\r", none); // enter keeps the filter and closes the input
+		expect(tab.editing).toBe(false);
+		expect(tab.view(200).header.join("\n")).toMatch(/filter: ssh · \d+ of \d+/);
+		expect(tab.clearFilter()).toBe(true);
+		expect(rowNames().length).toBe(all);
+	});
+
+	test("WSL-only tools are needed on WSL, not on plain Linux", () => {
+		const s = sandbox();
+		const linux: HostPlatform = { ...host, os: "linux", exe: "", wsl: false };
+		for (const name of ["wslpath", "wslview", "powershell"]) {
+			expect(lookupTool(name, { env: s.env, host: linux }).state).toBe("unsupported");
+			expect(lookupTool(name, { env: s.env, host: { ...linux, wsl: true } }).state).toBe("missing");
+		}
 	});
 });
 
