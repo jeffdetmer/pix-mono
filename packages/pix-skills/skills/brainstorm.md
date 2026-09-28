@@ -47,7 +47,7 @@ Applies to EVERY request, regardless of perceived simplicity.
 
 ### Step 6: Transition to Implementation
 
-- Invoke `/plan` workflow to create detailed implementation plan.
+- Run `/plan` and pick "+ New plan" to write the detailed implementation plan.
 - Do NOT start coding directly. `/plan` is next step.
 
 ## Key Principles
