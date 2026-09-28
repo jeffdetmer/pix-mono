@@ -61,7 +61,7 @@ once. Rows with a list open it in the modal: type to filter, then press enter.
 | language | A code such as `en`, `id`, or `pt-br`, or `auto` |
 | cleanup model | `off`, `current`, or `provider/model`. See [Cleanup](#cleanup-optional). |
 | dictation key | Any Pi key id. Needs a Pi restart. |
-| play after generation | Play `speak` output with `pw-play`, `paplay`, `ffplay`, or `mpv`. Windows falls back to built-in PowerShell `MediaPlayer` |
+| play after generation | Play `speak` output. ffmpeg plays it on Linux and macOS. Windows uses the built-in PowerShell `MediaPlayer` |
 
 Settings stay in `~/.pi/agent/voice.json`:
 
@@ -101,10 +101,10 @@ A widget above the editor shows the microphone and its level while it records.
 The recording is deleted after transcription. A set `language` is often faster
 and more accurate than `auto` for short speech.
 
-Requirements (Linux): `ffmpeg` records a PulseAudio or PipeWire source, and
-`pactl` lists the inputs by name. Without `pactl`, only `System default` shows.
-If `ffmpeg` is missing, the first recording attempt downloads the BtbN LGPL
-build (~120 MB, checksum-verified) into `~/.pi/agent/bin`, with a visible
+Requirements: `ffmpeg` lists and records microphones on Linux, macOS and
+Windows. Without `ffmpeg`, only `System default` shows.
+On Linux and Windows, a missing `ffmpeg` downloads the BtbN LGPL
+build (~120 MB, checksum-verified) on the first recording, into `~/.pi/agent/bin`, with a visible
 status. Try again once it finishes. Tools are found through
 `~/.pi/agent/binary.json` → `~/.pi/agent/bin` → `PATH`.
 

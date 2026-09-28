@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
+import { formatToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { humanSize } from "@xynogen/pix-pretty/utils";
 import { playAudio } from "@xynogen/pix-runtime/audio";
 import { validateOutputPath } from "@xynogen/pix-runtime/safe-path";
@@ -105,7 +106,12 @@ export default function registerSpeak(pi: ExtensionAPI): void {
 						content: [{ type: "text", text: `${icon("audio.play")} ${basename(saved)} · ${size}` }],
 						details,
 					});
-					await player.play(saved, { signal });
+					// First run may download ffmpeg (~120 MB). Show it in the tool row.
+					await player.play(saved, {
+						signal,
+						onStatus: (s) =>
+							onUpdate?.({ content: [{ type: "text", text: formatToolStatus(s) }], details }),
+					});
 				}
 				return {
 					content: [

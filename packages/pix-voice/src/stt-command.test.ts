@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { setKittyProtocolActive } from "@earendil-works/pi-tui";
-import { ffmpegRecordArgs, parseRmsDb } from "./recorder.js";
 import { dictationInsert, isCancelKey, keyEvent, levelBar } from "./stt-command.js";
 
 describe("dictation cancel key", () => {
@@ -49,32 +48,5 @@ describe("dictation", () => {
 		expect(levelBar(undefined, 4)).toBe("░░░░");
 		expect(levelBar(-30, 4)).toBe("██░░");
 		expect(levelBar(5, 4)).toBe("████");
-	});
-});
-
-describe("microphone recorder", () => {
-	test("builds a mono 16 kHz wav recording command", () => {
-		expect(ffmpegRecordArgs(["-f", "pulse", "-i", "default"], "/tmp/pix-stt.wav")).toEqual([
-			"-hide_banner",
-			"-loglevel",
-			"info",
-			"-f",
-			"pulse",
-			"-i",
-			"default",
-			"-ac",
-			"1",
-			"-ar",
-			"16000",
-			"-af",
-			"astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level",
-			"-y",
-			"/tmp/pix-stt.wav",
-		]);
-	});
-
-	test("reads the latest RMS level", () => {
-		expect(parseRmsDb("lavfi.astats.Overall.RMS_level=-31.7\n")).toBe(-31.7);
-		expect(parseRmsDb("lavfi.astats.Overall.RMS_level=-inf\n")).toBeUndefined();
 	});
 });

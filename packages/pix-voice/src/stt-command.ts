@@ -17,10 +17,9 @@ import {
 } from "@earendil-works/pi-tui";
 import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
-import { listMicrophones } from "@xynogen/pix-runtime/audio";
+import { listMicrophones, type Recording, startRecording } from "@xynogen/pix-runtime/audio";
 import { cleanTranscript, cleanupModel, hasSlip } from "./cleanup.js";
 import { voiceConfig } from "./config.js";
-import { type Recording, startRecording } from "./recorder.js";
 import { transcribeAudioFile } from "./transcribe.js";
 
 const WIDGET = "voice-stt";
@@ -138,13 +137,12 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 	if (!ctx.hasUI || phase?.kind === "transcribing") return;
 	if (!phase) {
 		try {
-			const recording = startRecording(
-				voiceConfig.sttDevice,
-				(db) => {
+			const recording = startRecording(voiceConfig.sttDevice, {
+				onLevel: (db) => {
 					if (phase?.kind === "recording") phase.level = db;
 					redraw?.();
 				},
-				(error) => {
+				onExit: (error) => {
 					// ffmpeg died on its own. Clear the widget, so it does not show "recording".
 					if (phase?.kind !== "recording" || phase.recording !== recording) return;
 					clearTimeout(phase.limit);
@@ -159,8 +157,8 @@ export async function toggleDictation(ctx: ExtensionContext): Promise<void> {
 						// The session ended. There is no UI to update.
 					}
 				},
-				reportToolStatus(ctx.ui),
-			);
+				onStatus: reportToolStatus(ctx.ui),
+			});
 			const limit = setTimeout(() => {
 				if (phase?.kind !== "recording" || phase.recording !== recording) return;
 				heldSince = undefined;
