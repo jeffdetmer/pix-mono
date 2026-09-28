@@ -99,6 +99,7 @@ const CATALOG = {
 	// ── paste chips (pix-display) ─────────────────────────────────────────
 	"paste.image": { nerd: "\u{F02E9}", unicode: `\u25A3${VS}`, ascii: "img" },
 	"paste.text": { nerd: "\u{F027F}", unicode: `\u25A4${VS}`, ascii: "txt" },
+	"paste.prompt": { nerd: "\u{F0D0}", unicode: `\u2726${VS}`, ascii: "pr" },
 
 	// ── model picker (pix-models) ─────────────────────────────────────────
 	"picker.model": { nerd: "\u{F0229}", unicode: `\u25C8${VS}`, ascii: "M" },
