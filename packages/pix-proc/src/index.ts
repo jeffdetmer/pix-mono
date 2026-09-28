@@ -15,11 +15,13 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
+import { modalOverlayOptions } from "@xynogen/pix-pretty/modal-frame";
 import { COLLAPSED_TOOL_GLYPH, frameToolResult, rule } from "@xynogen/pix-pretty/utils";
 import { collapseDelayMs } from "@xynogen/pix-runtime/collapse";
 import { Type } from "typebox";
 import { MAX_LOG_LINES, statusLine, statusWord } from "./format.ts";
 import { ProcManager } from "./manager.ts";
+import { MODAL_LOG_LINES, ProcModal, type ProcModalResult } from "./modal.ts";
 
 const WIDGET_KEY = "pix-proc:procs";
 const POLL_MS = 1000;
@@ -294,9 +296,27 @@ export default function registerRunner(pi: ExtensionAPI): void {
 
 	// ── /proc user command — inspect + stop without the model ────────────────
 	pi.registerCommand("proc", {
-		description: "List, read logs, or stop long-lived processes (pix-proc)",
+		description: "Manage long-lived processes: list, view logs, stop, remove (pix-proc)",
 		handler: async (args, ctx) => {
 			const [sub, handle] = args.trim().split(/\s+/);
+			if (!sub && typeof ctx.ui.custom === "function") {
+				const result = await ctx.ui.custom<ProcModalResult | undefined>(
+					(tui, theme, kb, done) =>
+						new ProcModal(
+							mgr.list(),
+							async (h) => (await mgr.logsTail(h, MODAL_LOG_LINES))?.lines ?? [],
+							tui,
+							theme,
+							kb,
+							done,
+						),
+					{ overlay: true, overlayOptions: modalOverlayOptions() },
+				);
+				if (!result) return;
+				const r = result.kind === "stop" ? await mgr.stop(result.handle) : mgr.rm(result.handle);
+				ctx.ui.notify(r.note, r.ok ? "info" : "warning");
+				return;
+			}
 			if (sub === "stop" && handle) {
 				const r = await mgr.stop(handle);
 				ctx.ui.notify(r.note, r.ok ? "info" : "warning");
