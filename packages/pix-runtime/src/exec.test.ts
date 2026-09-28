@@ -107,6 +107,19 @@ describe("runTool / runToolSync", () => {
 		expect(sync.stdout.split(/\r?\n/).filter(Boolean)).toEqual(args);
 	});
 
+	test("a child that never reads stdin does not crash the host with EPIPE", async () => {
+		const s = sandbox();
+		const name = "pixnoread";
+		if (isWin) writeFileSync(join(s.pathDir, `${name}.cmd`), "@exit /b 0\r\n");
+		else {
+			writeFileSync(join(s.pathDir, name), "#!/bin/sh\nexit 0\n");
+			chmodSync(join(s.pathDir, name), 0o755);
+		}
+		// 8 MiB is far past any pipe buffer, so the write outlives the child.
+		const r = await runTool(name, [], { env: s.env, input: Buffer.alloc(8 << 20) });
+		expect(r.code).toBe(0);
+	});
+
 	test("a missing tool is a BinaryMissingError with the catalog hint", async () => {
 		const s = sandbox();
 		await expect(runTool("sshpass-nope", [], { env: s.env })).rejects.toBeInstanceOf(

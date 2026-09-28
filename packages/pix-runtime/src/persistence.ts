@@ -38,12 +38,24 @@ export class ConfigLockError extends ConfigWriteError {
 	}
 }
 
+/** The config file is not valid JSON or not a JSON object. Never overwrite it. */
+export class ConfigParseError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "ConfigParseError";
+	}
+}
+
 /** Filesystem adapter — tests inject an in-memory or temp-dir implementation. */
 export interface StorageAdapter {
 	readonly path: string;
 	readRaw(): string | undefined;
-	/** Atomically replace the config file contents. */
-	writeAtomic(contents: string): void;
+	/**
+	 * Read-modify-write under the cross-process lock: `fn` gets the current file
+	 * text and returns the new contents (atomically written) or undefined (no
+	 * write). Another process cannot write between the read and the write.
+	 */
+	transact(fn: (raw: string | undefined) => string | undefined): void;
 	ensureDir(): void;
 }
 
@@ -107,9 +119,19 @@ export class FileStorage implements StorageAdapter {
 		}
 	}
 
-	writeAtomic(contents: string): void {
+	transact(fn: (raw: string | undefined) => string | undefined): void {
 		this.ensureDir();
 		this.acquireLock();
+		try {
+			const contents = fn(this.readRaw());
+			if (contents !== undefined) this.writeAtomic(contents);
+		} finally {
+			this.releaseLock();
+		}
+	}
+
+	/** Temp file + rename. The caller holds the lock. */
+	private writeAtomic(contents: string): void {
 		const tmp = `${this.path}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`;
 		try {
 			writeFileSync(tmp, contents, { mode: 0o600 });
@@ -121,8 +143,6 @@ export class FileStorage implements StorageAdapter {
 				/* ignore */
 			}
 			throw new ConfigWriteError(`write failed: ${this.path}`, err);
-		} finally {
-			this.releaseLock();
 		}
 	}
 }
@@ -149,16 +169,22 @@ export class WriteQueue {
 
 // ── Raw document read/parse ──────────────────────────────────────────────────
 
+/**
+ * Parse the config file. Missing or empty means `{}`. Invalid JSON or a
+ * non-object throws {@link ConfigParseError}: a hand-edit typo must never be
+ * read as "all defaults" and then written back over the user's file.
+ */
 export function parseRawDocument(text: string | undefined): RawDocument {
-	if (!text) return {};
+	if (!text?.trim()) return {};
+	let parsed: unknown;
 	try {
-		const parsed = JSON.parse(text) as unknown;
-		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-			? (parsed as RawDocument)
-			: {};
-	} catch {
-		return {};
+		parsed = JSON.parse(text);
+	} catch (err) {
+		throw new ConfigParseError(`invalid JSON: ${(err as Error).message}`);
 	}
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+		throw new ConfigParseError("top level is not a JSON object");
+	return parsed as RawDocument;
 }
 
 export function serializeRawDocument(doc: RawDocument): string {

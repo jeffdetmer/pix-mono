@@ -19,7 +19,7 @@ import {
 } from "./events.ts";
 import { importOptimizerSidecar, migrate } from "./migrations.ts";
 import {
-	ConfigWriteError,
+	ConfigParseError,
 	FileStorage,
 	parseRawDocument,
 	type StorageAdapter,
@@ -139,14 +139,43 @@ class RuntimeImpl implements PixRuntime {
 		try {
 			doc = parseRawDocument(this.storage.readRaw());
 		} catch (err) {
-			this.sink.push({
-				code: "READ_FAILED",
-				severity: "warning",
-				message: "config read failed; using defaults",
-				cause: err,
-			});
+			if (err instanceof ConfigParseError) this.parseFailed(err);
+			else
+				this.sink.push({
+					code: "READ_FAILED",
+					severity: "warning",
+					message: "config read failed; using defaults",
+					cause: err,
+				});
 		}
 		return this.publish(this.resolve(doc));
+	}
+
+	/** A malformed pix.json stays untouched: defaults apply, writes are refused. */
+	private parseFailed(err: ConfigParseError, path?: string): void {
+		this.sink.push({
+			code: "PARSE_ERROR",
+			severity: "error",
+			path,
+			message: `${this.storage.path}: ${err.message}. File left unchanged; fix it to save settings.`,
+			cause: err,
+		});
+	}
+
+	/** Migration + sidecar import for one raw file read. Pure except `ctx`. */
+	private planInit(raw: string | undefined, ctx: ParseContext) {
+		const doc = parseRawDocument(raw);
+		const migrated = migrate(doc, ctx);
+		const readOnly = migrated.document.$version !== CONFIG_FORMAT_VERSION;
+		let needsWrite = migrated.changed;
+		let archive: (() => void) | undefined;
+		if (!readOnly) {
+			const sidecar = importOptimizerSidecar(migrated.document, this.agentDir, ctx);
+			if (sidecar.changed) needsWrite = true;
+			archive = sidecar.archive;
+		}
+		// Do not normalize a future-version file.
+		return { working: readOnly ? doc : migrated.document, readOnly, needsWrite, archive };
 	}
 
 	snapshot(): ConfigSnapshot {
@@ -182,36 +211,38 @@ class RuntimeImpl implements PixRuntime {
 			const hadLazy = this.current !== null;
 			const previous = this.current;
 			this.storage.ensureDir();
-			const doc = parseRawDocument(this.storage.readRaw());
-			const ctx = this.parseContext();
-
-			const migrated = migrate(doc, ctx);
-			this.readOnly = migrated.document.$version !== CONFIG_FORMAT_VERSION;
-
-			let working = migrated.document;
-			let needsWrite = migrated.changed;
-			let archive: (() => void) | undefined;
-
-			if (!this.readOnly) {
-				const sidecar = importOptimizerSidecar(working, this.agentDir, ctx);
-				if (sidecar.changed) needsWrite = true;
-				archive = sidecar.archive;
-			}
-
-			if (needsWrite && !this.readOnly) {
-				try {
-					this.persist(working);
-					archive?.();
-				} catch (err) {
-					this.sink.push({
-						code: "WRITE_FAILED",
-						severity: "error",
-						message: "initial migration write failed",
-						cause: err,
-					});
+			let working: RawDocument = {};
+			let needsWrite = false;
+			try {
+				// Unlocked probe: most sessions need no write, so they never take the lock.
+				let plan = this.planInit(this.storage.readRaw(), this.parseContext());
+				this.readOnly = plan.readOnly;
+				working = plan.working;
+				if (plan.needsWrite && !plan.readOnly) {
+					try {
+						// Re-plan under the lock so a concurrent writer's change survives.
+						this.storage.transact((raw) => {
+							plan = this.planInit(raw, { diagnostic: () => {} });
+							working = plan.working;
+							needsWrite = plan.needsWrite && !plan.readOnly;
+							return needsWrite ? serializeRawDocument(plan.working) : undefined;
+						});
+						if (needsWrite) plan.archive?.();
+					} catch (err) {
+						needsWrite = false;
+						if (err instanceof ConfigParseError) throw err;
+						this.sink.push({
+							code: "WRITE_FAILED",
+							severity: "error",
+							message: "initial migration write failed",
+							cause: err,
+						});
+					}
 				}
-			} else if (this.readOnly) {
-				working = doc; // do not normalize a future-version file
+			} catch (err) {
+				if (!(err instanceof ConfigParseError)) throw err;
+				this.parseFailed(err);
+				working = {};
 			}
 
 			const values = this.resolve(working);
@@ -265,10 +296,6 @@ class RuntimeImpl implements PixRuntime {
 		}
 		const copy = { ...value };
 		return stripDefaults(copy, defaults) > 0 ? copy : undefined;
-	}
-
-	private persist(doc: RawDocument): void {
-		this.storage.writeAtomic(serializeRawDocument(doc));
 	}
 
 	private changedPaths(prev: ConfigSnapshot, next: ConfigSnapshot): string[] {
@@ -339,49 +366,56 @@ class RuntimeImpl implements PixRuntime {
 		}
 
 		const previous = this.snapshot();
-		const base = parseRawDocument(this.storage.readRaw());
 		const ctx = this.parseContext();
+		let values: Map<string, unknown> | undefined;
 
-		// Re-resolve all sections from the latest on-disk doc so unknown fields
-		// and sibling sections survive.
-		const values = new Map<string, unknown>();
-		for (const s of this.registry.all()) values.set(s.key, s.parse(base[s.key], ctx));
-
-		// Guard against a version-skewed second runtime copy whose registry
-		// lacks this section (e.g. an old npm copy handling a new handle). The
-		// functional updater would otherwise crash the whole process on
-		// `undefined`. Fall back to the handle's own parse of the raw doc.
-		const currentValue = (
-			values.has(section.key)
-				? values.get(section.key)
-				: section.__section.parse(base[section.key], ctx)
-		) as Readonly<T>;
-		const mergedValue =
-			typeof updater === "function"
-				? (updater as (c: Readonly<T>) => T)(currentValue)
-				: deepMerge(currentValue as T, updater);
-
-		// Re-validate through the section's own parse so a bad patch (NaN,
-		// Infinity, wrong type) can never enter the live snapshot.
-		const nextValue = section.__section.parse(mergedValue, ctx) as T;
-
-		if (JSON.stringify(currentValue) === JSON.stringify(nextValue)) return undefined;
-		values.set(section.key, nextValue);
-
-		const doc = this.buildRawFromValues(values, base);
 		try {
-			this.persist(doc);
-		} catch (err) {
-			this.sink.push({
-				code: "WRITE_FAILED",
-				severity: "error",
-				path: section.key,
-				message: "config write failed; snapshot unchanged",
-				cause: err,
+			// Read, patch, and write under one lock hold: a second Pi process cannot
+			// write between our read and our write, so its change is not lost.
+			this.storage.transact((raw) => {
+				const base = parseRawDocument(raw);
+
+				// Re-resolve all sections from the latest on-disk doc so unknown fields
+				// and sibling sections survive.
+				const next = new Map<string, unknown>();
+				for (const s of this.registry.all()) next.set(s.key, s.parse(base[s.key], ctx));
+
+				// Guard against a version-skewed second runtime copy whose registry
+				// lacks this section (e.g. an old npm copy handling a new handle). The
+				// functional updater would otherwise crash the whole process on
+				// `undefined`. Fall back to the handle's own parse of the raw doc.
+				const currentValue = (
+					next.has(section.key)
+						? next.get(section.key)
+						: section.__section.parse(base[section.key], ctx)
+				) as Readonly<T>;
+				const mergedValue =
+					typeof updater === "function"
+						? (updater as (c: Readonly<T>) => T)(currentValue)
+						: deepMerge(currentValue as T, updater);
+
+				// Re-validate through the section's own parse so a bad patch (NaN,
+				// Infinity, wrong type) can never enter the live snapshot.
+				const nextValue = section.__section.parse(mergedValue, ctx) as T;
+
+				if (JSON.stringify(currentValue) === JSON.stringify(nextValue)) return undefined;
+				next.set(section.key, nextValue);
+				values = next;
+				return serializeRawDocument(this.buildRawFromValues(next, base));
 			});
-			if (err instanceof ConfigWriteError) return undefined;
+		} catch (err) {
+			if (err instanceof ConfigParseError) this.parseFailed(err, section.key);
+			else
+				this.sink.push({
+					code: "WRITE_FAILED",
+					severity: "error",
+					path: section.key,
+					message: "config write failed; snapshot unchanged",
+					cause: err,
+				});
 			return undefined;
 		}
+		if (!values) return undefined;
 
 		const snapshot = this.publish(values);
 		const change: ConfigChange = {
@@ -401,7 +435,15 @@ class RuntimeImpl implements PixRuntime {
 	reload(options: ReloadOptions = {}): Promise<ConfigChange | undefined> {
 		return this.queue.run(async () => {
 			const previous = this.snapshot();
-			const doc = parseRawDocument(this.storage.readRaw());
+			let doc: RawDocument;
+			try {
+				doc = parseRawDocument(this.storage.readRaw());
+			} catch (err) {
+				// Keep the last good snapshot. Do not reset live settings to defaults.
+				if (!(err instanceof ConfigParseError)) throw err;
+				this.parseFailed(err);
+				return undefined;
+			}
 			const values = this.resolve(doc);
 			const snapshot = this.publish(values);
 			const changed = this.changedPaths(previous, snapshot);

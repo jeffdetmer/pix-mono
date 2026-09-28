@@ -191,7 +191,7 @@ describe("persistence", () => {
 			path: "/virtual/pix.json",
 			readRaw: () => undefined,
 			ensureDir: () => {},
-			writeAtomic: () => {
+			transact: () => {
 				throw new Error("disk full");
 			},
 		};
@@ -200,6 +200,42 @@ describe("persistence", () => {
 		expect(change).toBeUndefined();
 		expect(runtime.get(prettySection).icons).toBe("nerd");
 		expect(runtime.diagnostics().some((d) => d.code === "WRITE_FAILED")).toBe(true);
+	});
+
+	it("never overwrites a malformed pix.json and reports PARSE_ERROR", async () => {
+		const { runtime, agentDir } = fresh();
+		const file = join(agentDir, "pix.json");
+		const broken = '{ "pretty": { "icons": "ascii" }, }\n';
+		writeFileSync(file, broken);
+		await runtime.init();
+		const change = await runtime.update(collapseSection, { delaySec: 30 });
+		await runtime.reload();
+		expect(change).toBeUndefined();
+		expect(readFileSync(file, "utf-8")).toBe(broken);
+		expect(runtime.get(collapseSection).delaySec).toBe(10);
+		expect(runtime.diagnostics()).toContainEqual(
+			expect.objectContaining({ code: "PARSE_ERROR", severity: "error" }),
+		);
+	});
+
+	it("patches the file text read under the lock, not an earlier read", async () => {
+		// readRaw() is the stale unlocked view. transact() hands in what another
+		// process wrote meanwhile. That change must survive our write.
+		let written = "";
+		const storage: StorageAdapter = {
+			path: "/virtual/pix.json",
+			readRaw: () => undefined,
+			ensureDir: () => {},
+			transact: (fn) => {
+				written = fn(JSON.stringify({ $version: 1, collapse: { delaySec: 42 } })) ?? "";
+			},
+		};
+		const runtime = createRuntime({ agentDir: "/virtual", storage });
+		await runtime.update(prettySection, { icons: "ascii" });
+		expect(JSON.parse(written)).toMatchObject({
+			collapse: { delaySec: 42 },
+			pretty: { icons: "ascii" },
+		});
 	});
 
 	it("serializes concurrent updates without lost fields", async () => {

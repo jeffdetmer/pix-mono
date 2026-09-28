@@ -117,7 +117,9 @@ export async function installFromRelease(
 		mkdirSync(work, { recursive: true });
 		const archive = join(work, asset);
 		const sha256 = await download(url, archive, doFetch, opts.signal);
-		let verified = false;
+		// A recipe that declares a manifest must verify. A missing manifest fails the
+		// install, so a renamed or removed file cannot turn verification off quietly.
+		const verified = recipe.checksums !== undefined;
 		if (recipe.checksums) {
 			const expected = await expectedChecksum(
 				`${base}/${recipe.checksums}`,
@@ -125,11 +127,8 @@ export async function installFromRelease(
 				doFetch,
 				opts.signal,
 			);
-			if (expected !== undefined) {
-				if (expected !== sha256)
-					throw new Error(`checksum mismatch for ${asset} (expected ${expected}, got ${sha256})`);
-				verified = true;
-			}
+			if (expected !== sha256)
+				throw new Error(`checksum mismatch for ${asset} (expected ${expected}, got ${sha256})`);
 		}
 		const out = join(work, "x");
 		mkdirSync(out);
@@ -208,26 +207,26 @@ async function download(
 	return hash.digest("hex");
 }
 
-/** Expected hash for `asset` from a `<sha256>  <name>` manifest; undefined if the release has none. */
+/** Expected hash for `asset` from a `<sha256>  <name>` manifest. Throws when the manifest or entry is missing. */
 async function expectedChecksum(
 	url: string,
 	asset: string,
 	doFetch: typeof fetch,
 	signal?: AbortSignal,
-): Promise<string | undefined> {
+): Promise<string> {
 	const res = await doFetch(url, {
 		headers: { "User-Agent": USER_AGENT },
 		signal: withTimeout(LOOKUP_TIMEOUT_MS, signal),
 	});
 	if (res.status === 404) {
 		await res.body?.cancel().catch(() => {});
-		return undefined;
+		throw new Error(`checksum manifest missing (HTTP 404): ${url}`);
 	}
 	if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
 	const text = await res.text();
 	for (const line of text.split(/\r?\n/)) {
 		const m = line.trim().match(/^([0-9a-f]{64})\s+\*?(.+)$/i);
-		if (m && m[2]?.trim() === asset) return m[1]?.toLowerCase();
+		if (m?.[1] && m[2]?.trim() === asset) return m[1].toLowerCase();
 	}
 	throw new Error(`${asset} is not listed in the release checksums`);
 }

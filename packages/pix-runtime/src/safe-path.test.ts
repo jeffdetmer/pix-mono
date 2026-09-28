@@ -48,6 +48,19 @@ describe("sensitive prefixes per OS", () => {
 		});
 	});
 
+	it.each([
+		"\\\\?\\C:\\Windows\\x.txt",
+		"\\\\.\\C:\\Users\\u\\.ssh\\config",
+		"//?/C:/Windows/x.txt",
+		"\\??\\C:\\Windows\\x.txt",
+	])("rejects Windows namespace path %s", async (bad) => {
+		const result = await validateOutputPath(bad, { host: win, env: winEnv });
+		expect(result).toMatchObject({
+			ok: false,
+			reason: expect.stringMatching(/^refusing a Windows device or namespace path: /),
+		});
+	});
+
 	it("matches whole path segments, not a string prefix", () => {
 		// "/etcetera" is not under "/etc".
 		const prefixes = sensitivePrefixes({ host: linux, env: linuxEnv });

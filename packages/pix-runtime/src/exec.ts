@@ -237,6 +237,10 @@ function collect(
 				tool,
 			});
 		});
+		// A child may exit without reading stdin (EPIPE). With no listener that is an
+		// uncaught stream error that kills the host. The exit code still reports the
+		// outcome. Other stdin errors come back through child "error" or "close".
+		child.stdin?.on("error", () => {});
 		if (opts.input !== undefined) child.stdin?.end(opts.input);
 		else child.stdin?.end();
 	});

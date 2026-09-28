@@ -51,6 +51,11 @@ export async function validateOutputPath(
 	const host = opts.host ?? currentPlatform();
 	const p = host.os === "win32" ? win32 : posix;
 	if (absPath.includes("\0")) return { ok: false, reason: "path contains a null byte" };
+	// `\\?\C:\Windows\x` and `\\.\C:\...` reach the same files as `C:\Windows\x`, but
+	// win32.relative() sees another root, so isUnder() would miss them. Normal
+	// output paths never need a device or namespace prefix.
+	if (host.os === "win32" && /^[\\/]{2}[?.][\\/]|^\\\?\?\\/.test(absPath))
+		return { ok: false, reason: `refusing a Windows device or namespace path: ${absPath}` };
 
 	for (const prefix of sensitivePrefixes({ ...opts, host })) {
 		if (isUnder(absPath, prefix, host))

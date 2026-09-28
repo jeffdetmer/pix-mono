@@ -333,12 +333,30 @@ describe("installFromRelease", () => {
 		expect(readdirSync(s.bin)).toEqual([]);
 	});
 
-	test("a release without a manifest installs unverified", async () => {
+	test("a declared manifest that is missing fails and installs nothing", async () => {
 		const s = sandbox();
 		const { bytes } = makeArchive(s.root, exe);
 		const gh = fakeGithub("faketool.tar.gz", bytes, "404");
 		const statuses: ToolStatus[] = [];
-		await installFromRelease("faketool", recipeSpec("faketool.tar.gz", "SUMS"), host, {
+		const run = installFromRelease("faketool", recipeSpec("faketool.tar.gz", "SUMS"), host, {
+			env: s.env,
+			fetch: gh.fn,
+			onStatus: (st) => statuses.push(st),
+		});
+		await expect(run).rejects.toBeInstanceOf(BinaryMissingError);
+		expect(existsSync(join(s.bin, exe))).toBe(false);
+		expect(statuses.at(-1)).toMatchObject({
+			kind: "failed",
+			error: expect.stringMatching(/^checksum manifest missing/),
+		});
+	});
+
+	test("a recipe without a manifest installs unverified", async () => {
+		const s = sandbox();
+		const { bytes } = makeArchive(s.root, exe);
+		const gh = fakeGithub("faketool.tar.gz", bytes, null);
+		const statuses: ToolStatus[] = [];
+		await installFromRelease("faketool", recipeSpec("faketool.tar.gz"), host, {
 			env: s.env,
 			fetch: gh.fn,
 			onStatus: (st) => statuses.push(st),
