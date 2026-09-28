@@ -16,7 +16,7 @@
 
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install.ps1
-  # or: bun run distro:install:win
+  # or: bun run distro:install
 
 .NOTES
   Keep the package lists in sync with scripts/install.sh.

@@ -13,7 +13,7 @@
 
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall.ps1
-  # or: bun run distro:uninstall:win
+  # or: bun run distro:uninstall
 
 .NOTES
   Keep the package list in sync with scripts/uninstall.sh. pix-update is

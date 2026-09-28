@@ -14,6 +14,8 @@
 			"scripts/deps.test.ts",
 			"scripts/publish-all.ts",
 			"scripts/static-analysis*.ts",
+			"scripts/package-smoke.ts",
+			"scripts/distro.ts",
 			"*.json"
 		]
 	},
