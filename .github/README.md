@@ -16,7 +16,7 @@ Or use the [one-shot installer](#install). It installs Pi, a theme, and the dist
 >
 > **⚠ Breaking changes** — upgrade through [uninstall + reinstall](#upgrade--clean-reinstall), not an incremental update.
 >
-> **🐧 Linux/macOS** tested. Windows not tested.
+> **🐧 Linux/macOS** tested. Windows has its own installer and per-OS code paths, but CI runs on Linux only.
 
 ## Packages
 
@@ -42,7 +42,7 @@ Widgets, slash commands, and display changes for the TUI.
 | [`@xynogen/pix-footer`](https://www.npmjs.com/package/@xynogen/pix-footer) | Status bar — mode, git branch, model, tokens, cost, live TPS |
 | [`@xynogen/pix-models`](https://www.npmjs.com/package/@xynogen/pix-models) | `/models` — enhanced model picker with coding score/rank, context window, cost |
 | [`@xynogen/pix-update`](https://www.npmjs.com/package/@xynogen/pix-update) | `/update` — self-update Pi + all extensions, detects install method |
-| [`@xynogen/pix-commands`](https://www.npmjs.com/package/@xynogen/pix-commands) | `/clear` slash command (flushes `~/.cache/pi`) |
+| [`@xynogen/pix-commands`](https://www.npmjs.com/package/@xynogen/pix-commands) | `/clear` (flushes `~/.cache/pi`), `/btw` isolated side question, `/afk` and `/yolo` unattended-run modes |
 | [`@xynogen/pix-nudge`](https://www.npmjs.com/package/@xynogen/pix-nudge) | Tools nudge + capability nudge hooks to steer model toward correct tools |
 | [`@xynogen/pix-diagnostics`](https://www.npmjs.com/package/@xynogen/pix-diagnostics) | Lazy LSP diagnostics, navigation, and a compact session widget — replaces the pi-lens LSP core |
 | [`@xynogen/pix-display`](https://www.npmjs.com/package/@xynogen/pix-display) | Paste chip rendering (`[paste image #1]`) + leaked `<think>` tag → native thinking blocks |
@@ -95,6 +95,7 @@ Not bundled by `pix-core`. Install each one only if you want it. Each one stays 
 | [`@xynogen/pix-hunk`](https://www.npmjs.com/package/@xynogen/pix-hunk) | `hunk` tool — live Hunk diff-review bridge; needs the external Hunk CLI and an active review session |
 | [`@xynogen/pix-aria2`](https://www.npmjs.com/package/@xynogen/pix-aria2) | `download` tool — fast, resumable downloads via an auto-managed aria2 RPC daemon; needs the external `aria2c` binary |
 | [`@xynogen/pix-proc`](https://www.npmjs.com/package/@xynogen/pix-proc) | `proc` tool — run and manage long-lived processes (`npm run dev`, `vite`, `python`) that outlive a turn; spawns background processes |
+| [`@xynogen/pix-search`](https://www.npmjs.com/package/@xynogen/pix-search) | `@` file picker with fuzzy + git-recency ranking and a live preview; overrides Pi's built-in `@` autocomplete |
 
 ### Roadmap — third-party extensions
 
@@ -110,7 +111,7 @@ Installed with any feature package. Install one directly only when you build you
 
 | Package | Depends on | Description |
 | --- | --- | --- |
-| [`@xynogen/pix-runtime`](https://www.npmjs.com/package/@xynogen/pix-runtime) | — (zero deps) | Base runtime used by every feature package — `pix.json` config, `once()` guard, collapse policy |
+| [`@xynogen/pix-runtime`](https://www.npmjs.com/package/@xynogen/pix-runtime) | — (zero deps) | Base runtime used by every feature package — `pix.json` config, `once()` guard, collapse policy, binary catalog (`binary.json` overrides, resolve, verified download), and per-OS exec/open/clipboard/git jobs |
 | [`@xynogen/pix-pretty`](https://www.npmjs.com/package/@xynogen/pix-pretty) | `pix-runtime` + `chalk`, `cli-highlight`, `@ff-labs/fff-node`, `diff` | Rendering lib — syntax highlighting, icons, tree views, diff, FFF, gate-overlay |
 | [`@xynogen/pix-data`](https://www.npmjs.com/package/@xynogen/pix-data) | `pix-runtime` | Model data layer (modelgrep catalog + coding score), cached at `~/.cache/pi` |
 
@@ -180,8 +181,10 @@ curl -fsSL https://raw.githubusercontent.com/xynogen/pix-mono/main/scripts/insta
 
 ```bash
 bun install        # install all workspace deps
-bun test           # run all tests
+bun run check      # biome lint + format
 bun run typecheck  # tsc across all packages
+bun run test       # run all tests (isolated)
+bun run dev:link   # symlink packages into Pi (restart Pi after)
 ```
 
 ## Publishing
