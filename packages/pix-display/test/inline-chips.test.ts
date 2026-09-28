@@ -225,3 +225,14 @@ test.each(["tui", "rpc"] as const)("lifecycle in %s mode chains a previous facto
 	handlers.get("session_shutdown")!({}, ctx);
 	expect(sets).toBe(mode === "tui" ? 3 : 0);
 });
+
+test("installChips renders <prompt> as a prompt chip and sends the tag verbatim", () => {
+	const e = editor();
+	const tag = '<prompt name="plan">guide\nline 2</prompt>';
+	e.handleInput(`\x1b[200~${tag}\x1b[201~`);
+	expect(e.getExpandedText()).toBe(`${tag} `);
+	expect(strip(e.render(100).join("\n"))).toContain(`${icon("paste.prompt")} plan prompt`);
+	expect(renderHistoryChips(`${tag} add login`)).toBe(
+		`\`${icon("paste.prompt")} plan prompt\` add login`,
+	);
+});

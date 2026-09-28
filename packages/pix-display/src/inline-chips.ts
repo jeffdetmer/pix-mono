@@ -4,6 +4,7 @@
  *   long pasted text        →  buffer: [paste #1 +42 lines]     display: 󰉿 text 42 lines
  *   /tmp/shot.png           →  buffer: [paste #2 13 chars]      display: 󰋩 image #2
  *   <path>src/a.ts</path>   →  buffer: [paste #3 8 chars]       display: 󰉿 @a.ts
+ *   <prompt name="plan">…   →  buffer: [paste #4 900 chars]     display:  plan prompt
  *
  * `<path>…</path>` from pix-search and Pi's `<paste>…</paste>` payloads are
  * promoted to atomic paste markers (one backspace deletes the whole chip) and
@@ -13,13 +14,15 @@ import { basename } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { BOLD, FG_BLUE, FG_DIM, FG_GREEN, RST } from "@xynogen/pix-pretty/ansi";
+import { BOLD, FG_BLUE, FG_DIM, FG_GREEN, FG_YELLOW, RST } from "@xynogen/pix-pretty/ansi";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { dirIcon, fileIcon } from "@xynogen/pix-pretty/icons";
 
 // ponytail: Pi only exposes atomic paste tokens today. Keep its private registry
 // adapter here; replace this adapter when Pi provides a public inline-token API.
-type Chip = { kind: "image" | "path"; path: string };
+type Chip =
+	| { kind: "image" | "path"; path: string }
+	| { kind: "prompt"; name: string; body: string };
 type Registry = Map<number, string | Chip>;
 type PiEditor = {
 	pastes: Registry;
@@ -33,6 +36,9 @@ const SGR = "(?:\\x1b\\[[0-9;]*m|\\x1b_pi:c\\x07)*";
 const PASTE_SPAN = new RegExp(`${SGR}\\[${SGR}paste #(?:[^\\]]|${SGR})*\\]`, "g");
 const PATH_TAG = /<path>([^<]+)<\/path>/g;
 const PASTE_TAG = /<paste>([\s\S]*?)<\/paste>/g;
+// Injected prompt from another extension (e.g. /plan). Kept as a tag for the model.
+const PROMPT_TAG = /<prompt name="([\w-]+)">([\s\S]*?)<\/prompt>/g;
+const PROMPT_ONLY = /^<prompt name="[\w-]+">[\s\S]*<\/prompt>\s*$/;
 const CODES = /\x1b\[[0-9;]*m|\x1b_pi:c\x07/g;
 const IMAGE_PATH =
 	/(^|[^\w/@])((?:~|[a-zA-Z]:[/\\]|\/|\\\\)[^\s,;'"(){}[\]]+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif))(?=$|[\s,;'"(){}[\]])/gi;
@@ -43,6 +49,7 @@ export function expandChips(text: string, registry: Registry): string {
 		const value = registry.get(Number(id));
 		if (value === undefined) return marker;
 		if (typeof value === "string") return `<paste>${value}</paste>`;
+		if (value.kind === "prompt") return `<prompt name="${value.name}">${value.body}</prompt>`;
 		return value.kind === "path" ? `<path>${value.path}</path>` : `<paste>${value.path}</paste>`;
 	});
 }
@@ -69,6 +76,9 @@ function chipLabel(
 			meta: lines > 10 ? `${lines} lines` : `${count} chars`,
 			color: FG_GREEN,
 		};
+	}
+	if (value.kind === "prompt") {
+		return { head: `${icon("paste.prompt")} ${value.name}`, meta: "prompt", color: FG_YELLOW };
 	}
 	if (value.kind === "path") {
 		const dir = value.path.endsWith("/");
@@ -100,7 +110,7 @@ export function renderChips(line: string, registry: Registry): string {
 	});
 }
 
-const HISTORY_TAG = /<(paste|path)>([\s\S]*?)<\/\1>/g;
+const HISTORY_TAG = /<(paste|path)>([\s\S]*?)<\/\1>|<prompt name="([\w-]+)">([\s\S]*?)<\/prompt>/g;
 const IMAGE_FILE =
 	/^(?:~|[a-zA-Z]:[/\\]|\/|\\\\)[^\r\n]+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
 const PREVIEW_CHARS = 40;
@@ -120,15 +130,23 @@ function snippet(text: string): string {
  * whole payload.
  */
 export function renderHistoryChips(markdown: string): string {
-	return markdown.replace(HISTORY_TAG, (_match, tag: string, body: string) => {
-		let value: string | Chip = body;
-		if (tag === "path") value = { kind: "path", path: body };
-		else if (IMAGE_FILE.test(body)) value = { kind: "image", path: body };
-		const { head, meta } = chipLabel(value);
-		// Text pastes keep a short glimpse so history stays scannable.
-		const preview = typeof value === "string" ? snippet(value) : "";
-		return `\`${head}${meta ? ` ${meta}` : ""}${preview ? ` · ${preview}` : ""}\``;
-	});
+	return markdown.replace(
+		HISTORY_TAG,
+		(_match, tag?: string, text?: string, name?: string, prompt?: string) => {
+			if (name !== undefined) {
+				const { head, meta } = chipLabel({ kind: "prompt", name, body: prompt ?? "" });
+				return `\`${head} ${meta}\``;
+			}
+			const body = text ?? "";
+			let value: string | Chip = body;
+			if (tag === "path") value = { kind: "path", path: body };
+			else if (IMAGE_FILE.test(body)) value = { kind: "image", path: body };
+			const { head, meta } = chipLabel(value);
+			// Text pastes keep a short glimpse so history stays scannable.
+			const preview = typeof value === "string" ? snippet(value) : "";
+			return `\`${head}${meta ? ` ${meta}` : ""}${preview ? ` · ${preview}` : ""}\``;
+		},
+	);
 }
 
 /** Patch one editor instance; order-independent with other instance patchers (pix-search). */
@@ -138,8 +156,8 @@ export function installChips(editor: CustomEditor): void {
 	pi.expandPasteMarkers = (text) => expandChips(text, pi.pastes);
 	const handlePaste = pi.handlePaste.bind(editor);
 	pi.handlePaste = (text) => {
-		if (IMAGE_FILE.test(text)) {
-			editor.insertTextAtCursor(`<paste>${text}</paste>`);
+		if (IMAGE_FILE.test(text) || PROMPT_ONLY.test(text)) {
+			editor.insertTextAtCursor(IMAGE_FILE.test(text) ? `<paste>${text}</paste>` : text.trim());
 			return;
 		}
 		const before = pi.pasteCounter;
@@ -163,6 +181,9 @@ export function installChips(editor: CustomEditor): void {
 			return;
 		}
 		const replaced = text
+			.replace(PROMPT_TAG, (_match, name: string, body: string) =>
+				chip({ kind: "prompt", name, body }, body.length),
+			)
 			.replace(PATH_TAG, (_match, path: string) => chip({ kind: "path", path }, path.length))
 			.replace(PASTE_TAG, (_match, body: string) =>
 				chip(IMAGE_FILE.test(body) ? { kind: "image", path: body } : body, body.length),
