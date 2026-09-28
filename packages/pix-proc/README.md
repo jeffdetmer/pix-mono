@@ -72,8 +72,6 @@ cap. The process keeps running. `logs`, `list`, and the widget report `capped`.
   - `enter` opens a process: its details, the last 200 log lines (`PgUp`/`PgDn` to scroll), and a Stop or Remove action.
   - `s` stops the selected running process. `r` removes the selected finished process and its log.
   - `esc` goes back, then closes. Each stop or remove shows a notification with the result.
-- `/proc logs <handle>` — read the log in a notification.
-- `/proc stop <handle>` — stop a process.
 
 Without a TUI (headless or RPC), `/proc` prints the process list as a notification.
 

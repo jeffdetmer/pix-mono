@@ -297,9 +297,8 @@ export default function registerRunner(pi: ExtensionAPI): void {
 	// ── /proc user command — inspect + stop without the model ────────────────
 	pi.registerCommand("proc", {
 		description: "Manage long-lived processes: list, view logs, stop, remove (pix-proc)",
-		handler: async (args, ctx) => {
-			const [sub, handle] = args.trim().split(/\s+/);
-			if (!sub && typeof ctx.ui.custom === "function") {
+		handler: async (_args, ctx) => {
+			if (typeof ctx.ui.custom === "function") {
 				const result = await ctx.ui.custom<ProcModalResult | undefined>(
 					(tui, theme, kb, done) =>
 						new ProcModal(
@@ -317,26 +316,12 @@ export default function registerRunner(pi: ExtensionAPI): void {
 				ctx.ui.notify(r.note, r.ok ? "info" : "warning");
 				return;
 			}
-			if (sub === "stop" && handle) {
-				const r = await mgr.stop(handle);
-				ctx.ui.notify(r.note, r.ok ? "info" : "warning");
-				return;
-			}
-			if (sub === "logs" && handle) {
-				const t = await mgr.logsTail(handle, MAX_LOG_LINES);
-				if (!t) {
-					ctx.ui.notify(`unknown handle ${handle}`, "warning");
-					return;
-				}
-				const cap = t.capped ? "  [capped]" : "";
-				ctx.ui.notify(`${handle}${cap}\n${t.lines.join("\n") || "(no output)"}`, "info");
-				return;
-			}
+			// No TUI (headless/RPC): a plain list is the only view.
 			const all = mgr.list();
-			const body = all.length
-				? all.map((m) => statusLine(m, Date.now())).join("\n")
-				: "no processes";
-			ctx.ui.notify(`${body}\n\n/proc logs <handle> · /proc stop <handle>`, "info");
+			ctx.ui.notify(
+				all.length ? all.map((m) => statusLine(m, Date.now())).join("\n") : "no processes",
+				"info",
+			);
 		},
 	});
 }
