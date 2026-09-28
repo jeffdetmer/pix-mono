@@ -87,6 +87,36 @@ describe("ProcModal", () => {
 		expect(result()).toEqual({ kind: "rm", handle: "proc-old" });
 	});
 
+	it("refresh shows a new status and keeps the selected row", () => {
+		const { m, text, result } = open();
+		m.handleInput(DOWN);
+		m.refresh([{ ...dev, status: "exited", exitCode: 0 }, old]);
+		expect(text()).toMatch(/0 running[\s\S]*proc-dev[\s\S]*exited\(0\)/);
+		m.handleInput("r");
+		expect(result()).toEqual({ kind: "rm", handle: "proc-old" });
+	});
+
+	it("refresh in the process view reloads the log and swaps Stop for Remove on exit", async () => {
+		const logs: Record<string, string[]> = { "proc-dev": ["booting"] };
+		const { m, text, result } = open([dev], logs);
+		m.handleInput(ENTER);
+		await m.loading;
+		logs["proc-dev"] = ["booting", "ready on :5173"];
+		m.refresh([{ ...dev, status: "exited", exitCode: 0 }]);
+		await m.loading;
+		expect(text()).toMatch(/exited\(0\)[\s\S]*ready on :5173[\s\S]*Remove/);
+		m.handleInput(ENTER);
+		expect(result()).toEqual({ kind: "rm", handle: "proc-dev" });
+	});
+
+	it("refresh goes back to the list when the open process is gone", async () => {
+		const { m, text } = open([dev, old]);
+		m.handleInput(ENTER);
+		await m.loading;
+		m.refresh([old]);
+		expect(text()).toMatch(/Processes[\s\S]*proc-old/);
+	});
+
 	it("esc in the process view goes back to the list, esc in the list closes", async () => {
 		const { m, text, result } = open([dev]);
 		m.handleInput(ENTER);

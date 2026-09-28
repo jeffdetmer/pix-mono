@@ -299,18 +299,26 @@ export default function registerRunner(pi: ExtensionAPI): void {
 		description: "Manage long-lived processes: list, view logs, stop, remove (pix-proc)",
 		handler: async (_args, ctx) => {
 			if (typeof ctx.ui.custom === "function") {
-				const result = await ctx.ui.custom<ProcModalResult | undefined>(
-					(tui, theme, kb, done) =>
-						new ProcModal(
-							mgr.list(),
-							async (h) => (await mgr.logsTail(h, MODAL_LOG_LINES))?.lines ?? [],
-							tui,
-							theme,
-							kb,
-							done,
-						),
-					{ overlay: true, overlayOptions: modalOverlayOptions() },
-				);
+				// Copies, so the modal can see a status change between refreshes.
+				const snapshot = () => mgr.list().map((m) => ({ ...m }));
+				let refresh: ReturnType<typeof setInterval> | undefined;
+				const result = await ctx.ui
+					.custom<ProcModalResult | undefined>(
+						(tui, theme, kb, done) => {
+							const modal = new ProcModal(
+								snapshot(),
+								async (h) => (await mgr.logsTail(h, MODAL_LOG_LINES))?.lines ?? [],
+								tui,
+								theme,
+								kb,
+								done,
+							);
+							refresh = setInterval(() => modal.refresh(snapshot()), POLL_MS);
+							return modal;
+						},
+						{ overlay: true, overlayOptions: modalOverlayOptions() },
+					)
+					.finally(() => clearInterval(refresh));
 				if (!result) return;
 				const r = result.kind === "stop" ? await mgr.stop(result.handle) : mgr.rm(result.handle);
 				ctx.ui.notify(r.note, r.ok ? "info" : "warning");

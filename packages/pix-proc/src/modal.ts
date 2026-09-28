@@ -36,21 +36,25 @@ export class ProcModal {
 	private proc: ProcMeta | undefined;
 	private log: string[] = [];
 	private readonly pager = new ModalPager();
-	private readonly list: SelectList;
+	private list: SelectList;
 	private actions: SelectList | undefined;
 	/** Resolves when the log tail for the open process is loaded. Tests await it. */
 	loading: Promise<void> = Promise.resolve();
 
 	constructor(
-		private readonly procs: ProcMeta[],
+		private procs: ProcMeta[],
 		private readonly readLog: (handle: string) => Promise<string[]>,
 		private readonly tui: TUI,
 		private readonly theme: Theme,
 		private readonly kb: KeybindingsManager,
 		private readonly done: (result: ProcModalResult | undefined) => void,
 	) {
+		this.list = this.buildList();
+	}
+
+	private buildList(): SelectList {
 		const now = Date.now();
-		const items: SelectItem[] = procs.map((p) => ({
+		const items: SelectItem[] = this.procs.map((p) => ({
 			value: p.handle,
 			label: p.handle,
 			description: [
@@ -60,12 +64,33 @@ export class ProcModal {
 				...(p.capped ? ["capped"] : []),
 			].join(" · "),
 		}));
-		this.list = new SelectList(items, LIST_ROWS, selectListTheme(theme));
-		this.list.onSelect = (item) => {
-			const proc = procs.find((p) => p.handle === item.value);
+		const list = new SelectList(items, LIST_ROWS, selectListTheme(this.theme));
+		list.onSelect = (item) => {
+			const proc = this.procs.find((p) => p.handle === item.value);
 			if (proc) this.openProc(proc);
 		};
-		this.list.onCancel = () => done(undefined);
+		list.onCancel = () => this.done(undefined);
+		return list;
+	}
+
+	/**
+	 * Re-read process state (and the open log). index.ts calls this on a timer
+	 * while the modal is open. Keeps the selected row and the scroll position.
+	 */
+	refresh(procs: ProcMeta[]): void {
+		const selected = this.list.getSelectedItem()?.value;
+		this.procs = procs;
+		this.list = this.buildList();
+		const index = procs.findIndex((p) => p.handle === selected);
+		if (index >= 0) this.list.setSelectedIndex(index);
+		const open = this.proc && procs.find((p) => p.handle === this.proc?.handle);
+		if (this.view === "proc" && !open) this.go("list");
+		else if (this.view === "proc" && open) {
+			if (open.status !== this.proc?.status) this.actions = this.buildActions(open);
+			this.proc = open;
+			this.loadLog(open.handle);
+		}
+		this.tui.requestRender();
 	}
 
 	private selected(): ProcMeta | undefined {
@@ -83,24 +108,37 @@ export class ProcModal {
 		this.done({ kind: proc.status === "running" ? "stop" : "rm", handle: proc.handle });
 	}
 
-	private openProc(proc: ProcMeta): void {
-		this.proc = proc;
-		this.log = ["(loading…)"];
+	private buildActions(proc: ProcMeta): SelectList {
 		const primary = proc.status === "running" ? "Stop" : "Remove";
-		this.actions = new SelectList(
+		const actions = new SelectList(
 			[primary, "Back"].map((v) => ({ value: v, label: v })),
 			2,
 			selectListTheme(this.theme),
 		);
-		this.actions.onSelect = (item) => (item.value === "Back" ? this.go("list") : this.act(proc));
-		this.actions.onCancel = () => this.go("list");
+		actions.onSelect = (item) => (item.value === "Back" ? this.go("list") : this.act(proc));
+		actions.onCancel = () => this.go("list");
+		return actions;
+	}
+
+	private openProc(proc: ProcMeta): void {
+		this.proc = proc;
+		this.log = ["(loading…)"];
+		this.actions = this.buildActions(proc);
 		this.go("proc");
-		this.loading = this.readLog(proc.handle).then(
+		this.loadLog(proc.handle);
+	}
+
+	private loadLog(handle: string): void {
+		// A slow read for an earlier process must not overwrite the open one.
+		const current = () => this.view === "proc" && this.proc?.handle === handle;
+		this.loading = this.readLog(handle).then(
 			(lines) => {
+				if (!current()) return;
 				this.log = lines.length ? lines : ["(no output)"];
 				this.tui.requestRender();
 			},
 			(err) => {
+				if (!current()) return;
 				this.log = [`log read failed: ${err instanceof Error ? err.message : String(err)}`];
 				this.tui.requestRender();
 			},
