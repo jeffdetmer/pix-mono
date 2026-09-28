@@ -1,6 +1,7 @@
 /**
- * pix-core plan mode — `/plan` opens a modal to toggle plan mode and manage
- * saved plans in `<cwd>/.pi/plans/*.md`.
+ * pix-core plan mode — `/plan` opens a modal to manage saved plans in
+ * `<cwd>/.pi/plans/*.md`. Plan mode turns on when the user starts a new plan or
+ * edits one from the modal; ctrl+alt+p toggles it by hand.
  *
  * While plan mode is on:
  *   - active tools shrink to `read` + `write` + `bash` (previous set restored on exit);
@@ -12,10 +13,11 @@
  * message — no hidden automation.
  */
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
+import { Key } from "@earendil-works/pi-tui";
 import { modalOverlayOptions } from "@xynogen/pix-pretty/modal-frame";
 import { PlanModal, type PlanModalResult } from "./plan-modal.ts";
 
@@ -106,9 +108,17 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 			if (toolsBefore) pi.setActiveTools(toolsBefore);
 			toolsBefore = undefined;
 		}
+		const changed = enabled !== on;
 		enabled = on;
 		ctx.ui.setStatus("plan", on ? ctx.ui.theme.fg("warning", "plan") : undefined);
 		pi.appendEntry(STATE_ENTRY, { enabled, toolsBefore });
+		if (changed) {
+			ctx.ui.notify(
+				on
+					? "Plan mode on: read + bash + write (.pi/plans only)."
+					: "Plan mode off: tools restored.",
+			);
+		}
 	}
 
 	async function openModal(ctx: ExtensionContext): Promise<void> {
@@ -116,12 +126,17 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 		const result = await ctx.ui.custom<PlanModalResult | undefined>(
 			(tui, theme, kb, done) => {
 				requestRender = () => tui.requestRender();
-				return new PlanModal(listPlans(ctx.cwd), PLAN_DIR, tui, theme, kb, done);
+				return new PlanModal(listPlans(ctx.cwd), PLAN_DIR, enabled, tui, theme, kb, done);
 			},
 			{ overlay: true, overlayOptions: modalOverlayOptions() },
 		);
 		if (!result) return;
+		if (result.kind === "toggle") {
+			apply(ctx, !enabled);
+			return openModal(ctx);
+		}
 		if (result.kind === "new") {
+			apply(ctx, true);
 			// pix-display turns <prompt name="plan"> into a "plan prompt" chip and sends
 			// the tag verbatim, so the model sees the guide and the user sees a chip.
 			// pix-display adds the trailing space after the chip.
@@ -133,10 +148,14 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 			return;
 		}
 		const path = join(PLAN_DIR, result.plan.file);
-		if (result.kind === "save") {
-			writeFileSync(resolve(ctx.cwd, path), result.text);
-			ctx.ui.notify(`Saved ${path}`, "info");
-			return openModal(ctx);
+		if (result.kind === "edit") {
+			// The model edits the file; the user only states the change after the path.
+			apply(ctx, true);
+			ctx.ui.setEditorText(
+				`Edit the plan in \`${path}\`. Keep its title/description header. Change: `,
+			);
+			requestRender();
+			return;
 		}
 		if (result.kind === "delete") {
 			rmSync(resolve(ctx.cwd, path));
@@ -148,17 +167,13 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 	}
 
 	pi.registerCommand("plan", {
-		description: "Toggle plan mode; on enter, pick a saved plan (.pi/plans)",
-		handler: async (_args, ctx) => {
-			apply(ctx, !enabled);
-			ctx.ui.notify(
-				enabled
-					? "Plan mode on: read + bash + write (.pi/plans only)."
-					: "Plan mode off: tools restored.",
-			);
-			// Esc closes the list and keeps plan mode on, so the user can still prompt freely.
-			if (enabled) await openModal(ctx);
-		},
+		description: "Manage saved plans (.pi/plans): new, execute, edit, delete, toggle plan mode",
+		handler: async (_args, ctx) => openModal(ctx),
+	});
+
+	pi.registerShortcut(Key.ctrlAlt("p"), {
+		description: "Toggle plan mode",
+		handler: (ctx) => apply(ctx, !enabled),
 	});
 
 	pi.on("tool_call", async (event, ctx) => {
@@ -166,7 +181,7 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 		if (!PLAN_TOOLS.includes(event.toolName)) {
 			return {
 				block: true,
-				reason: `Plan mode: only read, bash, and write are allowed. Exit with /plan.`,
+				reason: "Plan mode: only read, bash, and write are allowed. Toggle off with ctrl+alt+p.",
 			};
 		}
 		if (isToolCallEventType("write", event) && !isPlanPath(ctx.cwd, event.input.path)) {

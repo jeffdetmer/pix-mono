@@ -1,8 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, type TUI, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
-import { PlanModal, type PlanModalResult, planToText } from "./plan-modal.ts";
-import { parsePlan } from "./plan-mode.ts";
+import { PlanModal, type PlanModalResult } from "./plan-modal.ts";
 
 const theme = {
 	fg: (_c: string, t: string) => t,
@@ -19,6 +18,7 @@ function open() {
 	const m = new PlanModal(
 		[plan],
 		".pi/plans",
+		false,
 		tui,
 		theme,
 		new KeybindingsManager(TUI_KEYBINDINGS),
@@ -62,22 +62,17 @@ describe("PlanModal", () => {
 		expect(result()).toEqual({ kind: "delete", plan });
 	});
 
-	it("edits with e, keeps Enter as newline, saves with ctrl+s", () => {
-		const { m, type, result } = open();
+	it("hands edit to the model with e", () => {
+		const { m, result } = open();
 		m.handleInput(DOWN);
 		m.handleInput("e");
-		m.handleInput("\u001b[F"); // end: stay on first line is fine; append at end below
-		type("!");
-		m.handleInput(ENTER);
-		m.handleInput("\u0013");
-		const saved = result() as unknown as { kind: string; text: string };
-		expect(saved.kind).toBe("save");
-		expect(saved.text).toMatch(/^---\ntitle: Auth[\s\S]*\n$/);
+		expect(result()).toEqual({ kind: "edit", plan });
 	});
-});
 
-describe("planToText", () => {
-	it("round-trips through parsePlan", () => {
-		expect(parsePlan("a.md", planToText(plan))).toEqual(plan);
+	it("shows plan mode state and toggles it with t", () => {
+		const { m, text, result } = open();
+		expect(text()).toMatch(/plan mode off[\s\S]*t toggle mode/);
+		m.handleInput("t");
+		expect(result()).toEqual({ kind: "toggle" });
 	});
 });

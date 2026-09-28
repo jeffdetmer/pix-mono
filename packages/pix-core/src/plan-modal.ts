@@ -1,13 +1,12 @@
 /**
  * Plan manager overlay for `/plan` — one framed modal (pix-pretty frameModal)
- * with four views: plan list, plan detail, edit, and delete confirm (CRUD).
+ * with three views: plan list, plan detail, and delete confirm. Create and
+ * edit hand off to the model through the prompt bar.
  * The modal only returns a decision; plan-mode.ts performs it visibly.
  */
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
-	Editor,
-	Key,
 	type KeybindingsManager,
 	matchesKey,
 	type SelectItem,
@@ -27,17 +26,13 @@ import type { Plan } from "./plan-mode.ts";
 export type PlanModalResult =
 	| { kind: "execute"; plan: Plan }
 	| { kind: "delete"; plan: Plan }
-	| { kind: "save"; plan: Plan; text: string }
-	| { kind: "new" };
+	| { kind: "edit"; plan: Plan }
+	| { kind: "new" }
+	| { kind: "toggle" };
 
 const LIST_ROWS = 10;
 
-type View = "list" | "plan" | "confirm" | "edit";
-
-/** Rebuild the file text so Edit shows title, description, and plan together. */
-export function planToText(plan: Plan): string {
-	return `---\ntitle: ${plan.title}\ndescription: ${plan.description}\n---\n${plan.body}`;
-}
+type View = "list" | "plan" | "confirm";
 
 export class PlanModal {
 	private view: View = "list";
@@ -45,11 +40,11 @@ export class PlanModal {
 	private readonly pager = new ModalPager();
 	private readonly list: SelectList;
 	private actions: SelectList | undefined;
-	private readonly editor: Editor;
 
 	constructor(
 		private readonly plans: Plan[],
 		private readonly planDir: string,
+		private readonly planMode: boolean,
 		private readonly tui: TUI,
 		private readonly theme: Theme,
 		private readonly kb: KeybindingsManager,
@@ -59,7 +54,7 @@ export class PlanModal {
 			{
 				value: "new",
 				label: "+ New plan",
-				description: "Put the plan guide in the prompt bar",
+				description: "Plan mode on + plan guide in the prompt bar",
 			},
 			...plans.map((p, i) => ({ value: String(i), label: p.title, description: p.description })),
 		];
@@ -70,12 +65,6 @@ export class PlanModal {
 			else if (plan) this.openPlan(plan);
 		};
 		this.list.onCancel = () => done(undefined);
-		this.editor = new Editor(tui, {
-			borderColor: (s) => theme.fg("accent", s),
-			selectList: selectListTheme(theme),
-		});
-		// Enter inserts a newline (handled in handleInput); ctrl+s saves.
-		this.editor.disableSubmit = true;
 	}
 
 	private selectedPlan(): Plan | undefined {
@@ -83,15 +72,12 @@ export class PlanModal {
 	}
 
 	private edit(plan: Plan): void {
-		this.plan = plan;
-		this.editor.setText(planToText(plan));
-		this.go("edit");
+		this.done({ kind: "edit", plan });
 	}
 
 	private go(view: View): void {
 		this.view = view;
 		this.pager.reset();
-		this.editor.focused = view === "edit";
 	}
 
 	private actionList(
@@ -136,27 +122,16 @@ export class PlanModal {
 
 	handleInput(data: string): void {
 		if (this.view === "list") this.handleListInput(data);
-		else if (this.view === "edit") this.handleEditInput(data);
 		else if (!this.pager.handleInput(data, this.kb, true)) this.actions?.handleInput(data);
 		this.tui.requestRender();
 	}
 
 	private handleListInput(data: string): void {
 		const plan = this.selectedPlan();
-		if (plan && matchesKey(data, "d")) this.confirmDelete(plan);
+		if (matchesKey(data, "t")) this.done({ kind: "toggle" });
+		else if (plan && matchesKey(data, "d")) this.confirmDelete(plan);
 		else if (plan && matchesKey(data, "e")) this.edit(plan);
 		else this.list.handleInput(data);
-	}
-
-	private handleEditInput(data: string): void {
-		const plan = this.plan as Plan;
-		if (matchesKey(data, Key.escape)) this.openPlan(plan);
-		else if (matchesKey(data, Key.ctrl("s"))) {
-			this.done({ kind: "save", plan, text: this.editor.getExpandedText() });
-		}
-		// Editor treats a bare "\n" as newline; map Enter to it so Enter edits text.
-		else if (matchesKey(data, Key.enter)) this.editor.handleInput("\n");
-		else this.editor.handleInput(data);
 	}
 
 	render(width: number): string[] {
@@ -171,14 +146,17 @@ export class PlanModal {
 		let footer: string[];
 
 		if (this.view === "list") {
-			header = [title("Plans"), hint(`${this.plans.length} saved · ${this.planDir}`)];
+			header = [
+				title("Plans"),
+				hint(
+					`${this.plans.length} saved · ${this.planDir} · plan mode ${this.planMode ? "on" : "off"}`,
+				),
+			];
 			body = this.list.render(inner);
-			footer = [rule, hint("↑↓ choose • enter open • e edit • d delete • esc close")];
-		} else if (this.view === "edit") {
-			const plan = this.plan as Plan;
-			header = [title(`Edit ${plan.file}`), hint(`${this.planDir}/${plan.file}`)];
-			body = this.editor.render(inner);
-			footer = [rule, hint("ctrl+s save • esc cancel")];
+			footer = [
+				rule,
+				hint("↑↓ choose • enter open • e edit • d delete • t toggle mode • esc close"),
+			];
 		} else {
 			const plan = this.plan as Plan;
 			const confirm = this.view === "confirm";

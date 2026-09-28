@@ -82,7 +82,8 @@ const MEMBERS = [
 	// Custom compaction: replaces pi's built-in summary + trigger (reads
 	// compaction section; runs after runtime is live).
 	registerCompaction,
-	// /plan: plan mode (read + bash + write to .pi/plans only) and plan manager modal.
+	// /plan: plan manager modal. Plan mode (read + bash + write to .pi/plans) turns on
+	// for new/edit, and ctrl+alt+p toggles it.
 	registerPlanMode,
 ] satisfies readonly PixExtension[];
 
