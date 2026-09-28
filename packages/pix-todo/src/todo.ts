@@ -252,8 +252,8 @@ export default function registerTodo(pi: ExtensionAPI): void {
 		}
 
 		// Durable execution checklist for BUILD mode. Survives context compaction
-		// and session restore. Workflows like plan instruct the model to seed it
-		// from a plan's "Implementation Phases" so it stays anchored to plan.md.
+		// and session restore. Plans from `/plan` (.pi/plans/*.md) seed it
+		// from their tasks so execution stays anchored to the plan file.
 		pi.registerTool({
 			name: "todo",
 			label: "Todo",

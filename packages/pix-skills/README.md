@@ -156,7 +156,6 @@ as `/skill:<name>` slash commands.
 | `finish` | Structured branch completion — verify, decide, clean up |
 | `handoff` | Toggle session handoff — write or read+delete `HANDOFF.md` |
 | `human` | Audit and rewrite content to remove AI writing patterns ("AI-isms") |
-| `plan` | Write detailed, bite-sized implementation plans before coding |
 | `readme` | Create or update a deployment-focused README in a fixed style |
 | `review` | Architectural review and quality assurance |
 | `runner` | Generate or convert a task runner (just/make/mise/task/npm/sh) |
