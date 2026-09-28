@@ -1,11 +1,8 @@
-import { existsSync, realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { type ConfirmUI, confirmOverlay } from "@xynogen/pix-pretty/confirm";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { openProgress, type ProgressHandle, type ProgressUI } from "@xynogen/pix-pretty/progress";
 import { SPINNER } from "@xynogen/pix-pretty/widget-format";
-import { type LookupOptions, resolveTool } from "@xynogen/pix-runtime/binaries";
 import { runTool } from "@xynogen/pix-runtime/exec";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 // ─── Pure logic (exported for tests) ─────────────────────────────────────────
@@ -39,8 +36,6 @@ const TRANSIENT_PATTERNS = [
 	/\b504\b/,
 ];
 
-export type InstallMethod = "vp" | "bun" | "npm" | "brew" | "native";
-
 export type CommandSpec = {
 	command: string;
 	args: string[];
@@ -51,36 +46,16 @@ export function isTransient(output: string): boolean {
 	return TRANSIENT_PATTERNS.some((pattern) => pattern.test(output));
 }
 
-export function commandFor(method: InstallMethod): CommandSpec | undefined {
-	switch (method) {
-		case "vp":
-			return {
-				command: "vp",
-				args: ["add", "-g", `${PACKAGE_NAME}@latest`],
-				label: `vp add -g ${PACKAGE_NAME}@latest`,
-			};
-		case "bun":
-			return {
-				command: "bun",
-				args: ["add", "-g", `${PACKAGE_NAME}@latest`],
-				label: `bun add -g ${PACKAGE_NAME}@latest`,
-			};
-		case "npm":
-			return {
-				command: "npm",
-				args: ["install", "-g", `${PACKAGE_NAME}@latest`],
-				label: `npm install -g ${PACKAGE_NAME}@latest`,
-			};
-		case "brew":
-			return {
-				command: "/bin/sh",
-				args: ["-lc", "brew upgrade pi-coding-agent || brew upgrade pi"],
-				label: "brew upgrade pi-coding-agent || brew upgrade pi",
-			};
-		case "native":
-			return undefined;
-	}
-}
+/**
+ * Pi updates itself: it detects its own install method (bun/npm/pnpm/yarn),
+ * adds --ignore-scripts, handles package renames, and prints a manual fallback
+ * when it cannot self-update.
+ */
+export const PI_SELF_UPDATE: CommandSpec = {
+	command: "pi",
+	args: ["update", "--self"],
+	label: "pi update --self",
+};
 
 export function formatUpdateSummary(before: string, after: string, attempts: number): string {
 	const changed = before !== after && before !== "unknown" && after !== "unknown";
@@ -120,34 +95,6 @@ export async function withSpinner<T>(
 	}
 }
 
-/** Path of `command` via pix-runtime (binary.json → agent bin → PATH); works on Windows. */
-export function resolveCommand(command: string, opts?: LookupOptions): string | undefined {
-	return resolveTool(command, opts)?.path;
-}
-
-function realPath(path: string): string {
-	try {
-		return realpathSync(path);
-	} catch {
-		return path;
-	}
-}
-
-/** True when `pi` sits inside a global npm tree (…/node_modules/<pkg> within 5 parents). */
-function inGlobalNpm(piPath: string): boolean {
-	let dir = piPath;
-	for (let i = 0; i < 5; i++) {
-		dir = dirname(dir);
-		if (existsSync(join(dir, "node_modules", PACKAGE_NAME))) return true;
-	}
-	return false;
-}
-
-/** Forward-slash form so path markers match on Windows too. */
-function slashes(path: string | undefined): string | undefined {
-	return path?.replaceAll("\\", "/");
-}
-
 /** Result shape shared with Pi's pi.exec (tests inject a fake). */
 export interface ExecOutput {
 	stdout: string;
@@ -156,8 +103,8 @@ export interface ExecOutput {
 }
 
 /**
- * How update commands run. Default: pix-runtime, so pi/npm/bun/vp resolve
- * through binary.json and Windows .cmd shims (npm.cmd, pi.cmd) work.
+ * How update commands run. Default: pix-runtime, so pi resolves
+ * through binary.json and Windows .cmd shims (pi.cmd) work.
  */
 export type Exec = (
 	command: string,
@@ -178,52 +125,6 @@ export async function currentVersion(runner: ExtensionAPI | Exec = runtimeExec) 
 	return result.stdout.trim() || result.stderr.trim() || "unknown";
 }
 
-/** Detect how Pi was installed from where `pi` resolves (no shell; Windows-safe). */
-export function detectInstallMethod(opts?: LookupOptions): InstallMethod {
-	const rawPi = resolveCommand("pi", opts);
-	const [vpPath, bunPath, npmPath, brewPath] = ["vp", "bun", "npm", "brew"].map((c) =>
-		resolveCommand(c, opts),
-	);
-	const piPath = slashes(rawPi);
-	const realPiPath = rawPi ? slashes(realPath(rawPi)) : undefined;
-
-	if (piPath?.includes("/.vite-plus/") || realPiPath?.includes("/.vite-plus/")) return "vp";
-	if (piPath?.includes("/.bun/") || realPiPath?.includes("/.bun/")) return "bun";
-	if (
-		piPath?.includes("/Homebrew/") ||
-		piPath?.includes("/homebrew/") ||
-		realPiPath?.includes("/Homebrew/") ||
-		realPiPath?.includes("/homebrew/")
-	)
-		return "brew";
-
-	if (rawPi && inGlobalNpm(realPath(rawPi))) return "npm";
-
-	// Fall back to whichever package manager was found.
-	if (vpPath) return "vp";
-	if (bunPath) return "bun";
-	if (npmPath) return "npm";
-	if (brewPath) return "brew";
-	return "native";
-}
-
-/**
- * `nice -n 19` deprioritizes installs so the TUI keeps echoing keystrokes.
- * The inner command is resolved first (binary.json → bin → known dirs → PATH)
- * so nice never re-looks it up on its own PATH. Skipped on Windows (MSYS nice
- * cannot start .cmd shims) and where nice is unavailable.
- */
-export function niced(
-	command: string,
-	args: string[],
-	opts: LookupOptions & { platform?: NodeJS.Platform } = {},
-): [string, string[]] {
-	if ((opts.platform ?? process.platform) === "win32") return [command, args];
-	const nice = resolveCommand("nice", opts);
-	if (!nice) return [command, args];
-	return [nice, ["-n", "19", resolveCommand(command, opts) ?? command, ...args]];
-}
-
 /** Backoff delay between retries. Injectable so tests can skip the real wait. */
 export type Sleep = (ms: number) => Promise<void>;
 
@@ -237,8 +138,7 @@ export async function runWithRetry(
 	const exec = asExec(runner);
 	let lastOutput = "";
 	for (let attempt = 1; attempt <= 3; attempt++) {
-		const [command, args] = niced(spec.command, spec.args);
-		const result = await exec(command, args, { timeout: ioTimeoutMs() });
+		const result = await exec(spec.command, spec.args, { timeout: ioTimeoutMs() });
 		lastOutput = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
 		if ((result.code ?? 0) === 0) return { ok: true, output: lastOutput, attempts: attempt };
 		if (attempt === 3 || !isTransient(lastOutput))
@@ -251,23 +151,10 @@ export async function runWithRetry(
 async function updatePi(ctx: ExtensionCommandContext, progress?: ProgressHandle): Promise<boolean> {
 	await (ctx as ExtensionCommandContext & { waitForIdle?: () => Promise<void> }).waitForIdle?.();
 
-	// Grab current version + detect install method concurrently.
-	const [before, method] = await Promise.all([
-		currentVersion().catch(() => "unknown"),
-		detectInstallMethod(),
-	]);
-	const spec = commandFor(method);
+	const before = await currentVersion().catch(() => "unknown");
 
-	if (!spec) {
-		ctx.ui.notify(
-			`Pi ${before}; install method appears native. Please update the native binary manually.`,
-			"warning",
-		);
-		return false;
-	}
-
-	progress?.setLabel(`Updating Pi via ${method}…`);
-	const result = await runWithRetry(runtimeExec, spec).catch((err: unknown) => ({
+	progress?.setLabel(`Updating Pi (${PI_SELF_UPDATE.label})…`);
+	const result = await runWithRetry(runtimeExec, PI_SELF_UPDATE).catch((err: unknown) => ({
 		ok: false,
 		output: err instanceof Error ? err.message : String(err),
 		attempts: 1,
@@ -288,14 +175,13 @@ async function updatePi(ctx: ExtensionCommandContext, progress?: ProgressHandle)
 
 async function updatePackages(ctx: ExtensionCommandContext, progress?: ProgressHandle) {
 	progress?.setLabel("Updating pi packages…");
-	const [command, args] = niced("pi", ["update", "--extensions"]);
-	const result = await runtimeExec(command, args, { timeout: ioTimeoutMs() }).catch(
-		(err: unknown) => ({
-			stdout: "",
-			stderr: err instanceof Error ? err.message : String(err),
-			code: 1,
-		}),
-	);
+	const result = await runtimeExec("pi", ["update", "--extensions"], {
+		timeout: ioTimeoutMs(),
+	}).catch((err: unknown) => ({
+		stdout: "",
+		stderr: err instanceof Error ? err.message : String(err),
+		code: 1,
+	}));
 	const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
 	if ((result.code ?? 0) !== 0) {
 		ctx.ui.notify(`Pi package update failed. ${output || "No output."}`, "error");
@@ -320,7 +206,7 @@ async function updateAll(ctx: ExtensionCommandContext) {
 	}
 	// A focused progress overlay owns input for the whole update, so keystrokes
 	// are swallowed instead of echoing out of order while the heavy install
-	// subprocesses compete with the TUI. Steps run serially + `nice`-d.
+	// subprocesses compete with the TUI. Steps run serially.
 	// SAFETY: ctx.ui structurally provides the ProgressUI surface; the host UI
 	// type is wider, so we narrow to the subset openProgress uses.
 	const progress = ctx.hasUI

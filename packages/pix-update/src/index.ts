@@ -1,8 +1,7 @@
 export {
 	type CommandSpec,
-	commandFor,
 	formatUpdateSummary,
-	type InstallMethod,
 	isTransient,
 	PACKAGE_NAME,
+	PI_SELF_UPDATE,
 } from "./update.ts";

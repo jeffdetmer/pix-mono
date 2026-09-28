@@ -1,21 +1,14 @@
 import { describe, expect, it } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { LookupOptions } from "@xynogen/pix-runtime/binaries";
 import {
-	commandFor,
 	currentVersion,
-	detectInstallMethod,
 	formatUpdateSummary,
-	type InstallMethod,
 	isTransient,
-	PACKAGE_NAME,
+	PI_SELF_UPDATE,
 	PIX_INSTALL_COMMAND,
 	PIX_INSTALL_URL,
 	PIX_UNINSTALL_URL,
-	resolveCommand,
 	runWithRetry,
 	SPINNER,
 	withSpinner,
@@ -28,31 +21,6 @@ type ExecResult = { stdout: string; stderr: string; code: number };
 /** Build a minimal ExtensionAPI stub with a controllable exec implementation. */
 function makePi(execImpl: (...args: unknown[]) => Promise<ExecResult>) {
 	return { exec: execImpl } as unknown as ExtensionAPI;
-}
-
-const isWin = process.platform === "win32";
-
-/**
- * Sandbox PATH + agent dir. `tools` maps a command to the directory (relative
- * to the sandbox) it should live in, so path markers like /.bun/ are real.
- */
-function sandbox(tools: Partial<Record<string, string>>): LookupOptions {
-	const root = mkdtempSync(join(tmpdir(), "pix-update-"));
-	const dirs = new Set<string>();
-	for (const [name, rel] of Object.entries(tools)) {
-		if (!rel) continue;
-		const dir = join(root, rel);
-		mkdirSync(dir, { recursive: true });
-		const file = join(dir, isWin ? `${name}.cmd` : name);
-		writeFileSync(file, isWin ? "@echo off\n" : "#!/bin/sh\n");
-		if (!isWin) chmodSync(file, 0o755);
-		dirs.add(dir);
-	}
-	const agent = join(root, "agent");
-	mkdirSync(agent);
-	return {
-		env: { PATH: [...dirs].join(delimiter), PATHEXT: ".CMD;.EXE", PI_CODING_AGENT_DIR: agent },
-	};
 }
 
 // ─── isTransient ─────────────────────────────────────────────────────────────
@@ -92,50 +60,15 @@ describe("isTransient", () => {
 	});
 });
 
-// ─── commandFor ──────────────────────────────────────────────────────────────
+// ─── PI_SELF_UPDATE ──────────────────────────────────────────────────────────
 
-describe("commandFor", () => {
-	it("returns a spec for every non-native method", () => {
-		const methods: InstallMethod[] = ["vp", "bun", "npm", "brew"];
-		for (const m of methods) {
-			const spec = commandFor(m);
-			expect(spec).toBeDefined();
-			expect(spec?.command).toBeTruthy();
-			expect(spec?.label).toBeTruthy();
-		}
-	});
-
-	it("vp: command=vp, includes package@latest", () => {
-		const spec = commandFor("vp");
-		if (!spec) throw new Error("commandFor returned undefined");
-		expect(spec.command).toBe("vp");
-		expect(spec.args).toContain(`${PACKAGE_NAME}@latest`);
-	});
-
-	it("bun: command=bun, includes package@latest", () => {
-		const spec = commandFor("bun");
-		if (!spec) throw new Error("commandFor returned undefined");
-		expect(spec.command).toBe("bun");
-		expect(spec.args).toContain(`${PACKAGE_NAME}@latest`);
-	});
-
-	it("npm: command=npm, -g flag, includes package@latest", () => {
-		const spec = commandFor("npm");
-		if (!spec) throw new Error("commandFor returned undefined");
-		expect(spec.command).toBe("npm");
-		expect(spec.args).toContain("-g");
-		expect(spec.args).toContain(`${PACKAGE_NAME}@latest`);
-	});
-
-	it("brew: delegates to sh -lc with brew upgrade", () => {
-		const spec = commandFor("brew");
-		if (!spec) throw new Error("commandFor returned undefined");
-		expect(spec.command).toBe("/bin/sh");
-		expect(spec.label).toContain("brew upgrade");
-	});
-
-	it("native: returns undefined (manual update required)", () => {
-		expect(commandFor("native")).toBeUndefined();
+describe("PI_SELF_UPDATE", () => {
+	it("delegates to Pi's own self-updater", () => {
+		expect(PI_SELF_UPDATE).toEqual({
+			command: "pi",
+			args: ["update", "--self"],
+			label: "pi update --self",
+		});
 	});
 });
 
@@ -216,19 +149,6 @@ describe("constants", () => {
 	});
 });
 
-// ─── resolveCommand ───────────────────────────────────────────────────────────
-
-describe("resolveCommand", () => {
-	it("returns the path when the command is on PATH", () => {
-		const opts = sandbox({ bun: "usr/bin" });
-		expect(resolveCommand("bun", opts)).toMatch(/usr[\\/]bin[\\/]bun(\.cmd)?$/);
-	});
-
-	it("returns undefined when the command is absent", () => {
-		expect(resolveCommand("vp", sandbox({}))).toBeUndefined();
-	});
-});
-
 // ─── currentVersion ───────────────────────────────────────────────────────────
 
 describe("currentVersion", () => {
@@ -253,41 +173,6 @@ describe("currentVersion", () => {
 	it("returns 'unknown' when both streams are empty", async () => {
 		const pi = makePi(async () => ({ stdout: "", stderr: "", code: 0 }));
 		expect(await currentVersion(pi)).toBe("unknown");
-	});
-});
-
-// ─── detectInstallMethod ─────────────────────────────────────────────────────
-
-describe("detectInstallMethod", () => {
-	it("detects vp from a pi path containing /.vite-plus/", () => {
-		expect(detectInstallMethod(sandbox({ pi: "home/.vite-plus/bin" }))).toBe("vp");
-	});
-
-	it("detects bun from a pi path containing /.bun/", () => {
-		expect(detectInstallMethod(sandbox({ pi: "home/.bun/bin" }))).toBe("bun");
-	});
-
-	it("detects brew from Homebrew / homebrew pi paths", () => {
-		expect(detectInstallMethod(sandbox({ pi: "opt/Homebrew/bin" }))).toBe("brew");
-		expect(detectInstallMethod(sandbox({ pi: "usr/local/homebrew/bin" }))).toBe("brew");
-	});
-
-	it("detects npm when pi sits in a global npm tree", () => {
-		const opts = sandbox({ pi: "npm-global/bin" });
-		const bin = (opts.env?.PATH ?? "").split(delimiter)[0] ?? "";
-		mkdirSync(join(bin, "..", "node_modules", PACKAGE_NAME), { recursive: true });
-		expect(detectInstallMethod(opts)).toBe("npm");
-	});
-
-	it("falls back to the first package manager found: vp, bun, npm, brew", () => {
-		expect(detectInstallMethod(sandbox({ pi: "local/bin", vp: "vpbin" }))).toBe("vp");
-		expect(detectInstallMethod(sandbox({ pi: "local/bin", bun: "bunbin" }))).toBe("bun");
-		expect(detectInstallMethod(sandbox({ pi: "local/bin", npm: "npmbin" }))).toBe("npm");
-		expect(detectInstallMethod(sandbox({ pi: "local/bin", brew: "brewbin" }))).toBe("brew");
-	});
-
-	it("returns native when neither pi nor a package manager is found", () => {
-		expect(detectInstallMethod(sandbox({}))).toBe("native");
 	});
 });
 
