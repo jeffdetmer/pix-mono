@@ -9,7 +9,7 @@
  * which silently turned `HOME ?? ""` paths into cwd-relative ones.
  */
 
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 /**
@@ -43,6 +43,30 @@ export function agentDir(env: NodeJS.ProcessEnv = process.env): string {
 /** Pi's managed binary dir (`<agentDir>/bin`), shared with Pi's fd/rg downloads. */
 export function binDir(env: NodeJS.ProcessEnv = process.env): string {
 	return join(agentDir(env), "bin");
+}
+
+/**
+ * Project config dir: `<cwd>/.pi` (Pi's project `settings.json`, `mcp.json`,
+ * `agents/`, `plans/`, `lsp.json`). With no `cwd` it returns the relative `.pi`,
+ * for paths that resolve against the process cwd or show in text.
+ */
+export function projectDir(cwd = "."): string {
+	return join(cwd, ".pi");
+}
+
+/**
+ * OS temp dir, shared with every other program. Never delete it whole, only
+ * your own entries in it. For the live process this is exactly `os.tmpdir()`.
+ * An injected env (tests) is read instead: TEMP/TMP on Windows, TMPDIR
+ * elsewhere, falling back to `os.tmpdir()`.
+ */
+export function tempDir(
+	env: NodeJS.ProcessEnv = process.env,
+	os: NodeJS.Platform = process.platform,
+): string {
+	if (env === process.env) return tmpdir();
+	const fromEnv = os === "win32" ? env.TEMP || env.TMP : env.TMPDIR;
+	return fromEnv || tmpdir();
 }
 
 /** Pi cache root: `$XDG_CACHE_HOME/pi` or `~/.cache/pi`. */

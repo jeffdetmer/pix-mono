@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { agentDir, binDir, cacheDir, expandHome, homeDir } from "./paths.ts";
+import { agentDir, binDir, cacheDir, expandHome, homeDir, projectDir, tempDir } from "./paths.ts";
 
 const HOME_KEY = process.platform === "win32" ? "USERPROFILE" : "HOME";
 const home = join("/", "home", "me");
@@ -26,6 +26,21 @@ describe("paths", () => {
 	test("cacheDir prefers XDG_CACHE_HOME", () => {
 		expect(cacheDir({ [HOME_KEY]: home })).toBe(join(home, ".cache", "pi"));
 		expect(cacheDir({ XDG_CACHE_HOME: join("/", "xdg") })).toBe(join("/", "xdg", "pi"));
+	});
+
+	test("projectDir is <cwd>/.pi, relative .pi without cwd", () => {
+		expect(projectDir(join("/", "repo"))).toBe(join("/", "repo", ".pi"));
+		expect(projectDir()).toBe(".pi");
+	});
+
+	test("tempDir reads the platform temp variable, else os.tmpdir()", () => {
+		const t = join("/", "t");
+		expect(tempDir({ TMPDIR: t }, "linux")).toBe(t);
+		expect(tempDir({ TMPDIR: t }, "darwin")).toBe(t);
+		expect(tempDir({ TEMP: t }, "win32")).toBe(t);
+		expect(tempDir({ TMP: t }, "win32")).toBe(t);
+		expect(tempDir({})).toBe(tmpdir());
+		expect(tempDir()).toBe(tmpdir());
 	});
 
 	test("expandHome leaves non-tilde paths alone", () => {

@@ -72,12 +72,14 @@ import { shouldCollapse, collapseDelayMs } from "@xynogen/pix-runtime/collapse";
 ## Paths and platform
 
 ```ts
-import { agentDir, binDir, cacheDir, homeDir } from "@xynogen/pix-runtime/paths";
+import { agentDir, binDir, cacheDir, homeDir, projectDir, tempDir } from "@xynogen/pix-runtime/paths";
 import { currentPlatform, hostPlatform } from "@xynogen/pix-runtime/platform";
 
 agentDir();   // PI_CODING_AGENT_DIR (~-expanded) or ~/.pi/agent, same as Pi's getAgentDir
 binDir();     // <agentDir>/bin, the folder where Pi downloads fd/rg and pix downloads its tools
 cacheDir();   // $XDG_CACHE_HOME/pi or ~/.cache/pi (never relies on HOME alone)
+projectDir(cwd); // <cwd>/.pi, Pi's project config dir. projectDir() gives the relative .pi
+tempDir();    // os.tmpdir(): TMPDIR on POSIX, TEMP/TMP on Windows. Shared, so delete only your own entries
 currentPlatform(); // { os, arch, libc?, wsl, termux, exe }
 ```
 
