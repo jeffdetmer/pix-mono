@@ -2,20 +2,20 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { writeFileAtomicSync } from "@xynogen/pix-runtime/atomic-write";
-import { godNodes, surprisingConnections } from "./analyze.js";
-import { analyzeGraph, analyzeGraphProgress } from "./analyzer.js";
-import { buildGraph } from "./build.js";
+import { godNodes, surprisingConnections } from "./analyze.ts";
+import { analyzeGraph, analyzeGraphProgress } from "./analyzer.ts";
+import { buildGraph } from "./build.ts";
 import {
 	collectFiles,
 	createGraphParseCache,
 	extract,
 	type GraphParseCache,
 	parseFilesProgress,
-} from "./extract.js";
+} from "./extract.ts";
 
-export { createGraphParseCache } from "./extract.js";
+export { createGraphParseCache } from "./extract.ts";
 
-import { renderGraphReport } from "./report.js";
+import { renderGraphReport } from "./report.ts";
 
 /** Result of a full build — the graph and where it landed on disk. */
 export interface BuildResult {

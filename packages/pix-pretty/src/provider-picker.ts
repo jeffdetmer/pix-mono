@@ -24,7 +24,7 @@ import {
 	modalOverlayOptions,
 	modalWidth,
 	terminalModalHeight,
-} from "./modal-frame.js";
+} from "./modal-frame.ts";
 import { getErrorMessage } from "./utils.ts";
 
 export interface ProviderPickerRow {

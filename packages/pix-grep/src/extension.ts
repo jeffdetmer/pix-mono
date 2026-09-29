@@ -19,7 +19,7 @@ import type { OptionalFffModule, PiPrettyApi, ToolFactory } from "@xynogen/pix-p
 import { getErrorMessage, shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 import { once } from "@xynogen/pix-runtime/once";
 import { homeDir } from "@xynogen/pix-runtime/paths";
-import { registerGrepTool } from "./grep.js";
+import { registerGrepTool } from "./grep.ts";
 
 export default function pixGrepExtension(pi: ExtensionAPI): void {
 	const prettyPi = pi as unknown as PiPrettyApi;

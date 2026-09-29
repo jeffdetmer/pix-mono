@@ -1,6 +1,6 @@
-import type { Params } from "./schema.js";
-import { SENTINEL_FREEFORM } from "./schema.js";
-import type { QuestionAnswer, QuestionnaireResult } from "./types.js";
+import type { Params } from "./schema.ts";
+import { SENTINEL_FREEFORM } from "./schema.ts";
+import type { QuestionAnswer, QuestionnaireResult } from "./types.ts";
 
 // ── RPC / non-TUI fallback ─────────────────────────────────────────────
 // Used when ctx.hasUI is false (headless / JSON / print mode).

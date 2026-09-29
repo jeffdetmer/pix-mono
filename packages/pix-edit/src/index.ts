@@ -2,4 +2,4 @@ export {
 	getEditOperations,
 	registerEditTool,
 	summarizeEditOperations,
-} from "./edit.js";
+} from "./edit.ts";

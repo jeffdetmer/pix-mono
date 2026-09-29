@@ -5,12 +5,12 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { tempDir } from "@xynogen/pix-runtime/paths";
 
-import { mimeType, parseTranscriptionResponse } from "./http.js";
+import { mimeType, parseTranscriptionResponse } from "./http.ts";
 import registerTranscribe, {
 	buildTranscriptionResult,
 	resolveOutputPath,
 	writeTranscriptionFile,
-} from "./transcribe.js";
+} from "./transcribe.ts";
 
 /** Blocked on every OS: pix-runtime/safe-path rejects ~/.ssh. */
 const SECRET = join(homedir(), ".ssh", "authorized_keys");

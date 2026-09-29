@@ -9,9 +9,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { validateOutputPath } from "@xynogen/pix-runtime/safe-path";
 import { Type } from "typebox";
-import { voiceConfig, voiceModel } from "./config.js";
-import { resolveProvider } from "./providers.js";
-import { makeRenderCall, makeRenderResult } from "./render.js";
+import { voiceConfig, voiceModel } from "./config.ts";
+import { resolveProvider } from "./providers.ts";
+import { makeRenderCall, makeRenderResult } from "./render.ts";
 
 const CHAT_TRUNCATE_LIMIT = 50_000; // only when no output_file is provided
 

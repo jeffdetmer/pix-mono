@@ -6,10 +6,10 @@ import {
 	showProviderPicker,
 	showSettingsPicker,
 } from "@xynogen/pix-pretty/provider-picker";
-import { fetchConfig, saveFetchConfig } from "./config.js";
-import { listAllFetchProviders } from "./providers.js";
-import { saveSearchConfig, searchConfig } from "./search-config.js";
-import { listAllSearchProviders } from "./search-providers.js";
+import { fetchConfig, saveFetchConfig } from "./config.ts";
+import { listAllFetchProviders } from "./providers.ts";
+import { saveSearchConfig, searchConfig } from "./search-config.ts";
+import { listAllSearchProviders } from "./search-providers.ts";
 
 type ProviderRow = { id: string; configured: boolean; env: string[] };
 type ProviderConfig = { provider: string; nineRouterModel: string };

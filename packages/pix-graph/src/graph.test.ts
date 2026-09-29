@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@xynogen/pix-runtime/paths";
-import registerGraph from "./graph.js";
+import registerGraph from "./graph.ts";
 
 type ExecuteFn = (
 	id: string,

@@ -11,10 +11,10 @@ import { playAudio } from "@xynogen/pix-runtime/audio";
 import { tempDir } from "@xynogen/pix-runtime/paths";
 import { validateOutputPath } from "@xynogen/pix-runtime/safe-path";
 import { Type } from "typebox";
-import { voiceConfig, voiceModel } from "./config.js";
-import { resolveProvider } from "./providers.js";
-import { makeRenderCall, makeRenderResult } from "./render.js";
-import { resolveOutputPath } from "./transcribe.js";
+import { voiceConfig, voiceModel } from "./config.ts";
+import { resolveProvider } from "./providers.ts";
+import { makeRenderCall, makeRenderResult } from "./render.ts";
+import { resolveOutputPath } from "./transcribe.ts";
 
 // ponytail: mp3 plays everywhere. Add a /voice format setting if a provider needs another.
 const FORMAT = "mp3";

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { collapseProgressFrames, registerShellTool, type ShellToolOptions } from "./shell-tool.js";
-import { capturePi, makeRenderCtx, makeTheme, makeToolContext } from "./test-utils.js";
-import type { ThemeLike, ToolResultLike } from "./types.js";
+import { collapseProgressFrames, registerShellTool, type ShellToolOptions } from "./shell-tool.ts";
+import { capturePi, makeRenderCtx, makeTheme, makeToolContext } from "./test-utils.ts";
+import type { ThemeLike, ToolResultLike } from "./types.ts";
 
 const okFactory = () => ({
 	execute: async () => ({ content: [{ type: "text" as const, text: "ok" }], details: undefined }),

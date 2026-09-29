@@ -1,4 +1,4 @@
-import type { GraphData, GraphNode } from "./analyzer.js";
+import type { GraphData, GraphNode } from "./analyzer.ts";
 
 /** One traversal step: a matched node plus how it was reached. */
 export interface QueryHit {

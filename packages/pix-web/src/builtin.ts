@@ -1,9 +1,9 @@
 import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
-import { fetchConfig } from "./config.js";
-import type { FetchProvider, FetchRequest, FetchResponse } from "./providers.js";
-import { registerFetchProvider } from "./providers.js";
-import { fetchPublic } from "./public-url.js";
-import { htmlToText } from "./text.js";
+import { fetchConfig } from "./config.ts";
+import type { FetchProvider, FetchRequest, FetchResponse } from "./providers.ts";
+import { registerFetchProvider } from "./providers.ts";
+import { fetchPublic } from "./public-url.ts";
+import { htmlToText } from "./text.ts";
 
 async function jsonRequest(
 	url: string,

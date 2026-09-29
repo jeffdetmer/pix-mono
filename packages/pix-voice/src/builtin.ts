@@ -23,14 +23,14 @@ import {
 	routerBaseUrl,
 	routerKey,
 	splitModel,
-} from "./http.js";
+} from "./http.ts";
 import {
 	registerProvider,
 	type SpeechRequest,
 	type SttProvider,
 	type TranscribeRequest,
 	type TtsProvider,
-} from "./providers.js";
+} from "./providers.ts";
 
 const has =
 	(...names: string[]) =>

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@xynogen/pix-runtime/paths";
-import { analyzeGraph, type GraphData, renderPatternReport } from "./analyzer.js";
+import { analyzeGraph, type GraphData, renderPatternReport } from "./analyzer.ts";
 
 const temporaryDirectories: string[] = [];
 

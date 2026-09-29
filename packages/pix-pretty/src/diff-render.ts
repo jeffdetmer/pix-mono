@@ -9,12 +9,12 @@
 import { config } from "@xynogen/pix-runtime/config";
 import { prettySection } from "@xynogen/pix-runtime/sections";
 import * as Diff from "diff";
-import { BG_BASE, BOLD, FG_DIM, FG_GREEN, FG_LNUM, FG_RED, FG_RULE, RST } from "./ansi.js";
-import { MAX_HL_CHARS, MAX_RENDER_LINES, WORD_DIFF_MIN_SIM } from "./config.js";
-import type { DiffLine, ParsedDiff } from "./diff.js";
-import { hlBlock } from "./highlight.js";
-import type { BundledLanguage, FgTheme } from "./types.js";
-import { termW as utilsTermW } from "./utils.js";
+import { BG_BASE, BOLD, FG_DIM, FG_GREEN, FG_LNUM, FG_RED, FG_RULE, RST } from "./ansi.ts";
+import { MAX_HL_CHARS, MAX_RENDER_LINES, WORD_DIFF_MIN_SIM } from "./config.ts";
+import type { DiffLine, ParsedDiff } from "./diff.ts";
+import { hlBlock } from "./highlight.ts";
+import type { BundledLanguage, FgTheme } from "./types.ts";
+import { termW as utilsTermW } from "./utils.ts";
 
 // ---------------------------------------------------------------------------
 // Env-overridable color/threshold helpers (mirror pi-diff)

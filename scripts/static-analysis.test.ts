@@ -109,3 +109,26 @@ test("no runtime require() of the Pi host packages", () => {
 	}
 	expect(offenders).toEqual([]);
 });
+
+test("relative imports use .ts, not .js", () => {
+	// Under jiti a "./x.js" specifier misses first and then falls back to x.ts. That costs
+	// about 5.7 ms per import at startup (measured: 30 imports, 210 ms as .js vs 40 ms as .ts).
+	const root = join(repoRoot, "packages");
+	const offenders: string[] = [];
+	for (const pkg of readdirSync(root)) {
+		const src = join(root, pkg, "src");
+		let files: string[];
+		try {
+			files = readdirSync(src, { recursive: true }) as string[];
+		} catch {
+			continue;
+		}
+		for (const file of files) {
+			if (!/\.ts$/.test(file)) continue;
+			const text = readFileSync(join(src, file), "utf8");
+			if (/(?:from |import\()"\.\.?\/[^"]+\.js"/.test(text))
+				offenders.push(`${pkg}/src/${file.replaceAll("\\", "/")}`);
+		}
+	}
+	expect(offenders).toEqual([]);
+});

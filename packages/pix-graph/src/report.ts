@@ -1,6 +1,6 @@
-import type { GodNode, Surprise } from "./analyze.js";
-import type { GraphData } from "./analyzer.js";
-import type { Communities } from "./cluster.js";
+import type { GodNode, Surprise } from "./analyze.ts";
+import type { GraphData } from "./analyzer.ts";
+import type { Communities } from "./cluster.ts";
 
 /** Inputs for the human-readable graph report. */
 export interface ReportInput {

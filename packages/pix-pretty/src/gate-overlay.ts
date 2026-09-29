@@ -26,7 +26,7 @@ import {
 	modalWidth,
 	selectListTheme,
 	terminalModalHeight,
-} from "./modal-frame.js";
+} from "./modal-frame.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

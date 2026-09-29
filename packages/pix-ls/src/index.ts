@@ -1,1 +1,1 @@
-export { registerLsTool } from "./ls.js";
+export { registerLsTool } from "./ls.ts";

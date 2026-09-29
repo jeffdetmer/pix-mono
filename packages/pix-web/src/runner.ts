@@ -5,7 +5,7 @@ import {
 	type FetchResponse,
 	getFetchProvider,
 	listFetchProviders,
-} from "./providers.js";
+} from "./providers.ts";
 
 export interface ProviderAttemptError {
 	provider: string;

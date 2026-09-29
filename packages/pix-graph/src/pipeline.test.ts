@@ -12,12 +12,12 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@xynogen/pix-runtime/paths";
-import { godNodes, surprisingConnections } from "./analyze.js";
-import { buildGraph } from "./build.js";
-import { cluster, cohesionScore } from "./cluster.js";
-import { collectFiles, extract } from "./extract.js";
-import { buildCodeGraph, buildCodeGraphProgress, createGraphParseCache } from "./pipeline.js";
-import { query, shortestPath } from "./query.js";
+import { godNodes, surprisingConnections } from "./analyze.ts";
+import { buildGraph } from "./build.ts";
+import { cluster, cohesionScore } from "./cluster.ts";
+import { collectFiles, extract } from "./extract.ts";
+import { buildCodeGraph, buildCodeGraphProgress, createGraphParseCache } from "./pipeline.ts";
+import { query, shortestPath } from "./query.ts";
 
 const dirs: string[] = [];
 afterEach(() => {

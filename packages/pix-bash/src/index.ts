@@ -1,1 +1,1 @@
-export { registerBashTool } from "./bash.js";
+export { registerBashTool } from "./bash.ts";

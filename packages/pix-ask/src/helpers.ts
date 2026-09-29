@@ -1,8 +1,8 @@
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme } from "@earendil-works/pi-tui";
-import type { OptionData, QuestionData } from "./schema.js";
-import { SENTINEL_CHAT, SENTINEL_FREEFORM, SENTINEL_NEXT } from "./schema.js";
-import type { AnswerKind, QuestionAnswer } from "./types.js";
+import type { OptionData, QuestionData } from "./schema.ts";
+import { SENTINEL_CHAT, SENTINEL_FREEFORM, SENTINEL_NEXT } from "./schema.ts";
+import type { AnswerKind, QuestionAnswer } from "./types.ts";
 
 // ── Markdown theme ─────────────────────────────────────────────────────
 

@@ -12,7 +12,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import registerProvider from "./provider.js";
+import registerProvider from "./provider.ts";
 
 export default async function (pi: ExtensionAPI): Promise<void> {
 	await registerProvider(pi);

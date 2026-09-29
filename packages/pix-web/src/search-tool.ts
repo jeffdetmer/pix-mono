@@ -2,10 +2,10 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { Type } from "typebox";
-import { makeRenderCall, makeRenderResult } from "./render.js";
-import { searchConfig } from "./search-config.js";
-import type { SearchType } from "./search-providers.js";
-import { runSearch } from "./search-runner.js";
+import { makeRenderCall, makeRenderResult } from "./render.ts";
+import { searchConfig } from "./search-config.ts";
+import type { SearchType } from "./search-providers.ts";
+import { runSearch } from "./search-runner.ts";
 
 type Outcome = "running" | "success" | "cancelled" | "error";
 interface Details {

@@ -1,4 +1,4 @@
-import type { GraphData, GraphNode } from "./analyzer.js";
+import type { GraphData, GraphNode } from "./analyzer.ts";
 
 /** Community id -> member node ids (0 = largest, deterministic). */
 export type Communities = Map<number, string[]>;

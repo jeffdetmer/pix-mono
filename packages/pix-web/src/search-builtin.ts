@@ -1,7 +1,7 @@
 import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
-import { searchConfig } from "./search-config.js";
-import type { SearchProvider, SearchRequest, SearchResultItem } from "./search-providers.js";
-import { registerSearchProvider } from "./search-providers.js";
+import { searchConfig } from "./search-config.ts";
+import type { SearchProvider, SearchRequest, SearchResultItem } from "./search-providers.ts";
+import { registerSearchProvider } from "./search-providers.ts";
 
 async function jsonResponse(url: string, init?: RequestInit): Promise<Record<string, unknown>> {
 	const response = await fetch(url, {

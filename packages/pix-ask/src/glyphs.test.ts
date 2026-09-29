@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { checkboxGlyphs, selectionGlyph } from "./glyphs.js";
+import { checkboxGlyphs, selectionGlyph } from "./glyphs.ts";
 
 describe("selectionGlyph", () => {
 	test("multi checked → ▣ / success", () => {

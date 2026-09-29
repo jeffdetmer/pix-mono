@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { COLLAPSED_TOOL_GLYPH } from "@xynogen/pix-pretty/utils";
-import { makeRenderCall, makeRenderResult } from "./render.js";
+import { makeRenderCall, makeRenderResult } from "./render.ts";
 
 const theme = {
 	fg: (t: string, s: string) => `[${t}]${s}`,

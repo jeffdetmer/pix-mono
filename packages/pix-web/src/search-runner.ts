@@ -5,7 +5,7 @@ import {
 	type SearchProvider,
 	type SearchRequest,
 	type SearchResultItem,
-} from "./search-providers.js";
+} from "./search-providers.ts";
 
 export interface SearchAttemptError {
 	provider: string;

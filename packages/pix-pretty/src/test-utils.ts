@@ -2,9 +2,9 @@
 // rebuilt these same mocks (MockTextComponent, capture-pi, theme, render ctx)
 // by hand; this collapses them to one import. Pure and Pi-host-agnostic.
 
-import type { CursorStore, FffState } from "./fff.js";
-import type { ToolContext } from "./tools/context.js";
-import type { PiPrettyApi, RenderContextLike, TextComponentCtor, ThemeLike } from "./types.js";
+import type { CursorStore, FffState } from "./fff.ts";
+import type { ToolContext } from "./tools/context.ts";
+import type { PiPrettyApi, RenderContextLike, TextComponentCtor, ThemeLike } from "./types.ts";
 
 /** In-memory TextComponent: stores text, splits on render. */
 export class MockTextComponent {

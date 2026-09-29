@@ -18,12 +18,12 @@ import {
 	ModalPager,
 	terminalModalHeight,
 } from "@xynogen/pix-pretty/modal-frame";
-import { ChipEditor } from "./chip-editor.js";
-import { checkboxGlyphs, selectionGlyph } from "./glyphs.js";
-import { safeMarkdownTheme, sentinelsFor } from "./helpers.js";
-import type { OptionData, Params, QuestionData } from "./schema.js";
-import { SENTINEL_FREEFORM, SENTINEL_NEXT, SEPARATOR, SPLIT_PANE_MIN_WIDTH } from "./schema.js";
-import type { AnswerKind, QuestionAnswer, QuestionnaireResult } from "./types.js";
+import { ChipEditor } from "./chip-editor.ts";
+import { checkboxGlyphs, selectionGlyph } from "./glyphs.ts";
+import { safeMarkdownTheme, sentinelsFor } from "./helpers.ts";
+import type { OptionData, Params, QuestionData } from "./schema.ts";
+import { SENTINEL_FREEFORM, SENTINEL_NEXT, SEPARATOR, SPLIT_PANE_MIN_WIDTH } from "./schema.ts";
+import type { AnswerKind, QuestionAnswer, QuestionnaireResult } from "./types.ts";
 
 // ── AskQuestionnaire ───────────────────────────────────────────────────
 

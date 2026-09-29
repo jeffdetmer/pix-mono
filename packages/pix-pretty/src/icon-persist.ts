@@ -11,7 +11,7 @@
 
 import { config, onConfigChange, updateConfig } from "@xynogen/pix-runtime/config";
 import { prettySection } from "@xynogen/pix-runtime/sections";
-import { ICON_MODES, type IconMode, setIconMode } from "./icon-catalog.js";
+import { ICON_MODES, type IconMode, setIconMode } from "./icon-catalog.ts";
 
 function isIconMode(m: string): m is IconMode {
 	return (ICON_MODES as readonly string[]).includes(m);

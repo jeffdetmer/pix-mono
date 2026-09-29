@@ -8,10 +8,10 @@ import {
 import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { listMicrophones, type Microphone, startRecording } from "@xynogen/pix-runtime/audio";
-import { cleanupModel } from "./cleanup.js";
-import { parseLanguage, saveConfig, voiceConfig } from "./config.js";
-import { isConfigured, listProviders, type VoiceKind } from "./providers.js";
-import { levelBar } from "./stt-command.js";
+import { cleanupModel } from "./cleanup.ts";
+import { parseLanguage, saveConfig, voiceConfig } from "./config.ts";
+import { isConfigured, listProviders, type VoiceKind } from "./providers.ts";
+import { levelBar } from "./stt-command.ts";
 
 const NINE_ROUTER = "9router";
 const ROUTER_ALIASES = { NINEROUTER_URL: "ROUTER_API_BASE", NINEROUTER_KEY: "ROUTER_API_KEY" };

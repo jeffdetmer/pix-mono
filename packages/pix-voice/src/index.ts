@@ -8,11 +8,11 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { once } from "@xynogen/pix-runtime/once";
-import { registerBuiltinProviders } from "./builtin.js";
-import registerVoiceCommand from "./command.js";
-import registerSpeak from "./speak.js";
-import registerSttCommand from "./stt-command.js";
-import registerTranscribe from "./transcribe.js";
+import { registerBuiltinProviders } from "./builtin.ts";
+import registerVoiceCommand from "./command.ts";
+import registerSpeak from "./speak.ts";
+import registerSttCommand from "./stt-command.ts";
+import registerTranscribe from "./transcribe.ts";
 
 export default function registerPixVoice(pi: ExtensionAPI): void {
 	registerBuiltinProviders();

@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { GrepCursor, GrepMatch } from "@ff-labs/fff-node";
 import { cacheDir } from "@xynogen/pix-runtime/paths";
 
-import type { FffBackedFinder, OptionalFffModule } from "./types.js";
+import type { FffBackedFinder, OptionalFffModule } from "./types.ts";
 
 export interface FffState {
 	module: OptionalFffModule | null;

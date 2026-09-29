@@ -1,8 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, extname, join, relative, sep } from "node:path";
 import ts from "typescript";
-import type { GraphLink, GraphNode } from "./analyzer.js";
-import { createGraphParseCache, type GraphParseCache } from "./parse-cache.js";
+import type { GraphLink, GraphNode } from "./analyzer.ts";
+import { createGraphParseCache, type GraphParseCache } from "./parse-cache.ts";
 
 export { createGraphParseCache, type GraphParseCache };
 

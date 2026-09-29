@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { projectDir } from "@xynogen/pix-runtime/paths";
-import type { GraphData } from "./analyzer.js";
-import { buildCodeGraph } from "./pipeline.js";
-import { query, shortestPath } from "./query.js";
+import type { GraphData } from "./analyzer.ts";
+import { buildCodeGraph } from "./pipeline.ts";
+import { query, shortestPath } from "./query.ts";
 
 const USAGE = `pix-graph — native TS code knowledge graph
 

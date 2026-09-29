@@ -19,9 +19,9 @@ import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { listMicrophones, type Recording, startRecording } from "@xynogen/pix-runtime/audio";
-import { cleanTranscript, cleanupModel, hasSlip } from "./cleanup.js";
-import { voiceConfig } from "./config.js";
-import { transcribeAudioFile } from "./transcribe.js";
+import { cleanTranscript, cleanupModel, hasSlip } from "./cleanup.ts";
+import { voiceConfig } from "./config.ts";
+import { transcribeAudioFile } from "./transcribe.ts";
 
 const WIDGET = "voice-stt";
 /** Device name column width. Pad and cut to it, so the level bar does not move. */

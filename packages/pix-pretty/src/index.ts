@@ -9,11 +9,11 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerFffCommands } from "./commands/fff.js";
-import { fffState } from "./fff.js";
-import { clearHighlightCache } from "./highlight.js";
-import { initIconMode } from "./icon-persist.js";
-import type { PiPrettyApi } from "./types.js";
+import { registerFffCommands } from "./commands/fff.ts";
+import { fffState } from "./fff.ts";
+import { clearHighlightCache } from "./highlight.ts";
+import { initIconMode } from "./icon-persist.ts";
+import type { PiPrettyApi } from "./types.ts";
 
 export default function piPrettyExtension(pi: ExtensionAPI): void {
 	const prettyPi = pi as unknown as PiPrettyApi;

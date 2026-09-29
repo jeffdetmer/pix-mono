@@ -1,4 +1,4 @@
-import type { ParsedFile } from "./extract.js";
+import type { ParsedFile } from "./extract.ts";
 
 // Kept apart from extract.ts so the extension can create a cache at start
 // without loading typescript (only `import type` from extract, erased at runtime).

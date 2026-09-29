@@ -11,12 +11,12 @@ import {
 import { withAgentBlock } from "@xynogen/pix-runtime";
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
 import { once } from "@xynogen/pix-runtime/once";
-import { buildResponseText } from "./helpers.js";
-import { AskQuestionnaire } from "./questionnaire.js";
-import { rpcFallback } from "./rpc.js";
-import type { Params } from "./schema.js";
-import { MAX_OPTIONS, MAX_QUESTIONS, MIN_OPTIONS, ParamsSchema } from "./schema.js";
-import type { QuestionAnswer, QuestionnaireResult } from "./types.js";
+import { buildResponseText } from "./helpers.ts";
+import { AskQuestionnaire } from "./questionnaire.ts";
+import { rpcFallback } from "./rpc.ts";
+import type { Params } from "./schema.ts";
+import { MAX_OPTIONS, MAX_QUESTIONS, MIN_OPTIONS, ParamsSchema } from "./schema.ts";
+import type { QuestionAnswer, QuestionnaireResult } from "./types.ts";
 
 // ── Re-exports (consumed by tests and single-select-layout) ───────────
 
@@ -25,13 +25,13 @@ export {
 	formatAnswerScalar,
 	hasAnyPreview,
 	sentinelsFor,
-} from "./helpers.js";
-export type { OptionData, QuestionData } from "./schema.js";
+} from "./helpers.ts";
+export type { OptionData, QuestionData } from "./schema.ts";
 export type {
 	AnswerKind,
 	QuestionAnswer,
 	QuestionnaireResult,
-} from "./types.js";
+} from "./types.ts";
 
 // ── Tool registration ──────────────────────────────────────────────────
 

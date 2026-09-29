@@ -1,6 +1,6 @@
 import { basename, extname } from "node:path";
 
-import type { BundledLanguage } from "./types.js";
+import type { BundledLanguage } from "./types.ts";
 
 export const EXT_LANG: Record<string, BundledLanguage> = {
 	ts: "typescript",

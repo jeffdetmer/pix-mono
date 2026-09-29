@@ -1,6 +1,6 @@
-import { normalizeShikiContrast } from "./ansi.js";
-import { CACHE_LIMIT, MAX_HL_CHARS, MAX_HL_LINE_CHARS } from "./config.js";
-import type { BundledLanguage, FgTheme } from "./types.js";
+import { normalizeShikiContrast } from "./ansi.ts";
+import { CACHE_LIMIT, MAX_HL_CHARS, MAX_HL_LINE_CHARS } from "./config.ts";
+import type { BundledLanguage, FgTheme } from "./types.ts";
 
 // Engine: cli-highlight (highlight.js-backed, synchronous ANSI output).
 //

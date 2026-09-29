@@ -11,8 +11,8 @@ import {
 	FG_RULE,
 	hasAnsi,
 	RST,
-} from "./ansi.js";
-import { MAX_PREVIEW_LINES } from "./config.js";
+} from "./ansi.ts";
+import { MAX_PREVIEW_LINES } from "./config.ts";
 import type {
 	FgTheme,
 	TextComponentCtor,
@@ -21,7 +21,7 @@ import type {
 	ToolImageContent,
 	ToolResultLike,
 	ToolTextContent,
-} from "./types.js";
+} from "./types.ts";
 
 export function renderToolError(error: string, theme: FgTheme): string {
 	return fillToolBackground(theme.fg("error", error), BG_ERROR);

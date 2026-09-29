@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
 import { join } from "node:path";
-import { MAX_PREVIEW_LINES } from "./config.js";
-import type { FgTheme } from "./types.js";
+import { MAX_PREVIEW_LINES } from "./config.ts";
+import type { FgTheme } from "./types.ts";
 import {
 	dotJoin,
 	fillToolBackground,
@@ -24,7 +24,7 @@ import {
 	termW,
 	unframeToolResult,
 	viewportText,
-} from "./utils.js";
+} from "./utils.ts";
 
 class MockTextComponent {
 	private text = "";

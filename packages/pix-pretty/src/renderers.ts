@@ -2,13 +2,13 @@ import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works
 import { config } from "@xynogen/pix-runtime/config";
 import { prettySection } from "@xynogen/pix-runtime/sections";
 
-import { FG_DIM, FG_LNUM, FG_RULE, RST } from "./ansi.js";
-import { MAX_PREVIEW_LINES } from "./config.js";
-import { hlBlock } from "./highlight.js";
-import { dirIcon, fileColor, fileIcon } from "./icons.js";
-import { lang } from "./lang.js";
-import type { FgTheme } from "./types.js";
-import { lnum, normalizeLineEndings, pluralize, rule, termW } from "./utils.js";
+import { FG_DIM, FG_LNUM, FG_RULE, RST } from "./ansi.ts";
+import { MAX_PREVIEW_LINES } from "./config.ts";
+import { hlBlock } from "./highlight.ts";
+import { dirIcon, fileColor, fileIcon } from "./icons.ts";
+import { lang } from "./lang.ts";
+import type { FgTheme } from "./types.ts";
+import { lnum, normalizeLineEndings, pluralize, rule, termW } from "./utils.ts";
 
 /** Layout controls for {@link renderFileContent}. */
 export interface RenderFileContentOptions {

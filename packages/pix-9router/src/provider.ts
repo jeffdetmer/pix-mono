@@ -12,8 +12,8 @@
 import type { RefreshModelsContext } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
-import type { ModelsDevModel, RouterModel } from "./data.js";
-import { fetchModelsDevIndex, lookupInIndex, routerBaseUrl, routerModels } from "./data.js";
+import type { ModelsDevModel, RouterModel } from "./data.ts";
+import { fetchModelsDevIndex, lookupInIndex, routerBaseUrl, routerModels } from "./data.ts";
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
 const DEFAULT_MAX_TOKENS = 16_384;

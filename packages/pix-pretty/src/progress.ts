@@ -19,8 +19,8 @@ import {
 	modalOverlayOptions,
 	modalWidth,
 	terminalModalHeight,
-} from "./modal-frame.js";
-import { SPINNER } from "./widget-format.js";
+} from "./modal-frame.ts";
+import { SPINNER } from "./widget-format.ts";
 
 interface ProgressTheme {
 	fg(color: string, text: string): string;

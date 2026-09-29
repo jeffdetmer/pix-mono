@@ -1,6 +1,6 @@
-import type { GraphData } from "./analyzer.js";
-import { assignCommunities, type Communities, cluster, scoreAll } from "./cluster.js";
-import type { Extraction } from "./extract.js";
+import type { GraphData } from "./analyzer.ts";
+import { assignCommunities, type Communities, cluster, scoreAll } from "./cluster.ts";
+import type { Extraction } from "./extract.ts";
 
 /** Fully built graph plus its community structure. */
 export interface BuiltGraph {

@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
-import { analyzeGraph, type GraphData, renderPatternReport } from "./analyzer.js";
+import { analyzeGraph, type GraphData, renderPatternReport } from "./analyzer.ts";
 
 interface CliOptions {
 	graphPath: string;

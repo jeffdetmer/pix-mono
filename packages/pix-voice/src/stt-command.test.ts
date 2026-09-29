@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { setKittyProtocolActive } from "@earendil-works/pi-tui";
-import { dictationInsert, isCancelKey, keyEvent, levelBar } from "./stt-command.js";
+import { dictationInsert, isCancelKey, keyEvent, levelBar } from "./stt-command.ts";
 
 describe("dictation cancel key", () => {
 	test("esc cancels only while a dictation runs, and not on release", () => {

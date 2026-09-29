@@ -1,5 +1,5 @@
-import type { FffState } from "../fff.js";
-import type { CommandContextLike, PiPrettyApi } from "../types.js";
+import type { FffState } from "../fff.ts";
+import type { CommandContextLike, PiPrettyApi } from "../types.ts";
 
 // ── FFF slash commands ─────────────────────────────────────────────────
 

@@ -30,10 +30,10 @@ import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse"
 import { once } from "@xynogen/pix-runtime/once";
 import { projectDir } from "@xynogen/pix-runtime/paths";
 import { Type } from "typebox";
-import type { GraphData } from "./analyzer.js";
-import { createGraphParseCache } from "./parse-cache.js";
-import type { BuildProgress } from "./pipeline.js";
-import { query as queryGraph } from "./query.js";
+import type { GraphData } from "./analyzer.ts";
+import { createGraphParseCache } from "./parse-cache.ts";
+import type { BuildProgress } from "./pipeline.ts";
+import { query as queryGraph } from "./query.ts";
 
 const OUT_DIR = `${projectDir()}/graph`; // "/" so prompt text reads the same on Windows
 // Also read graphs left by the CLI's old default / external graphify.
@@ -271,7 +271,7 @@ export default function registerGraph(pi: ExtensionAPI): void {
 
 				if (action === "build") {
 					// ponytail: pipeline pulls in typescript (9.1 MB, about 224 ms). Load it only when a build runs.
-					const { buildCodeGraphProgress } = await import("./pipeline.js");
+					const { buildCodeGraphProgress } = await import("./pipeline.ts");
 					const input = (params.path as string | undefined)?.trim() || ".";
 					const startedAt = Date.now();
 					let frame = 0;

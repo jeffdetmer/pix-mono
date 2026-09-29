@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Api, Model } from "@earendil-works/pi-ai";
-import { cleanupModel, hasSlip, plausibleCleanup } from "./cleanup.js";
+import { cleanupModel, hasSlip, plausibleCleanup } from "./cleanup.ts";
 
 describe("slip check before cleanup", () => {
 	test.each([

@@ -8,7 +8,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { runGit } from "@xynogen/pix-runtime/os";
-import type { EnvInfo } from "./types.js";
+import type { EnvInfo } from "./types.ts";
 
 async function git(cwd: string, args: string[]): Promise<string | null> {
 	try {

@@ -1,5 +1,5 @@
-import type { CursorStore, FffState } from "../fff.js";
-import type { TextComponentCtor } from "../types.js";
+import type { CursorStore, FffState } from "../fff.ts";
+import type { TextComponentCtor } from "../types.ts";
 
 // ── Shared context passed to each tool registrar ───────────────────────
 

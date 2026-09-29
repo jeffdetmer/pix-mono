@@ -10,7 +10,7 @@ import type { PiPrettyApi, ToolFactory } from "@xynogen/pix-pretty/types";
 import { shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 import { once } from "@xynogen/pix-runtime/once";
 import { homeDir } from "@xynogen/pix-runtime/paths";
-import { registerLsTool } from "./ls.js";
+import { registerLsTool } from "./ls.ts";
 
 export default function pixLsExtension(pi: ExtensionAPI): void {
 	const prettyPi = pi as unknown as PiPrettyApi;

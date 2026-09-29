@@ -1,5 +1,5 @@
-import type { GraphData, GraphNode } from "./analyzer.js";
-import type { Communities } from "./cluster.js";
+import type { GraphData, GraphNode } from "./analyzer.ts";
+import type { Communities } from "./cluster.ts";
 
 /** A most-connected entity — the core abstractions of the corpus. */
 export interface GodNode {

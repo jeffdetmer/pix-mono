@@ -1,1 +1,1 @@
-export { registerFindTool } from "./find.js";
+export { registerFindTool } from "./find.ts";

@@ -1,5 +1,5 @@
 import { basename, extname } from "node:path";
-import type { FgTheme } from "./types.js";
+import type { FgTheme } from "./types.ts";
 
 const ICONS_MODE = (process.env.PRETTY_ICONS ?? "nerd").toLowerCase();
 const USE_ICONS = ICONS_MODE !== "none" && ICONS_MODE !== "off";

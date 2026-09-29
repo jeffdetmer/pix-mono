@@ -4,9 +4,9 @@ import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { setIconMode } from "@xynogen/pix-pretty/icon-catalog";
 import { tempDir } from "@xynogen/pix-runtime/paths";
-import { voiceConfig } from "./config.js";
-import { registerProvider, type SpeechRequest } from "./providers.js";
-import registerSpeak, { player, saveSpeech } from "./speak.js";
+import { voiceConfig } from "./config.ts";
+import { registerProvider, type SpeechRequest } from "./providers.ts";
+import registerSpeak, { player, saveSpeech } from "./speak.ts";
 
 const oldProvider = voiceConfig.ttsProvider;
 const oldPlay = voiceConfig.ttsPlay;

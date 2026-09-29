@@ -1,1 +1,1 @@
-export { registerGrepTool } from "./grep.js";
+export { registerGrepTool } from "./grep.ts";

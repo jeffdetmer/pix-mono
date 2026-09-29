@@ -1,1 +1,1 @@
-export { registerReadTool } from "./read.js";
+export { registerReadTool } from "./read.ts";

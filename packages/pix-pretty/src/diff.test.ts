@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { parseDiff } from "./diff.js";
+import { parseDiff } from "./diff.ts";
 import {
 	DEFAULT_DIFF_COLORS,
 	diffThemeCacheKey,
 	renderDiffSummary,
 	renderUnified,
 	resolveDiffColors,
-} from "./diff-render.js";
+} from "./diff-render.ts";
 
 const OLD = "line1\nline2\nline3";
 const NEW = "line1\nCHANGED\nline3";

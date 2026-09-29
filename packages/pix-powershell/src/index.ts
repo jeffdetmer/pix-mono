@@ -1,2 +1,2 @@
-export { createPixPowerShellExtension, default } from "./extension.js";
-export { registerPowerShellTool, summarizePowerShellCommand } from "./powershell.js";
+export { createPixPowerShellExtension, default } from "./extension.ts";
+export { registerPowerShellTool, summarizePowerShellCommand } from "./powershell.ts";

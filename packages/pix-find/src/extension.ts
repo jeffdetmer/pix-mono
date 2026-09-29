@@ -10,7 +10,7 @@ import type { PiPrettyApi, ToolFactory } from "@xynogen/pix-pretty/types";
 import { shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 import { once } from "@xynogen/pix-runtime/once";
 import { homeDir } from "@xynogen/pix-runtime/paths";
-import { registerFindTool } from "./find.js";
+import { registerFindTool } from "./find.ts";
 
 export default function pixFindExtension(pi: ExtensionAPI): void {
 	const prettyPi = pi as unknown as PiPrettyApi;

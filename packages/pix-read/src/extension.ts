@@ -11,7 +11,7 @@ import { shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 
 import { once } from "@xynogen/pix-runtime/once";
 import { homeDir } from "@xynogen/pix-runtime/paths";
-import { registerReadTool } from "./read.js";
+import { registerReadTool } from "./read.ts";
 
 export default function pixReadExtension(pi: ExtensionAPI): void {
 	const prettyPi = pi as unknown as PiPrettyApi;

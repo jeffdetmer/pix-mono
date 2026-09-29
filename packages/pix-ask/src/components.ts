@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, truncateToWidth } from "@earendil-works/pi-tui";
-import type { QuestionData } from "./schema.js";
+import type { QuestionData } from "./schema.ts";
 
 // ── Color helpers ──────────────────────────────────────────────────────
 

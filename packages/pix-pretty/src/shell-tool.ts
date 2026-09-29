@@ -11,10 +11,10 @@
 import type { AgentToolUpdateCallback, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
-import { BG_BASE, FG_DIM, RST, resolveBaseBackground } from "./ansi.js";
-import { MAX_PREVIEW_LINES } from "./config.js";
-import { renderBashOutput } from "./renderers.js";
-import type { ToolContext } from "./tools/context.js";
+import { BG_BASE, FG_DIM, RST, resolveBaseBackground } from "./ansi.ts";
+import { MAX_PREVIEW_LINES } from "./config.ts";
+import { renderBashOutput } from "./renderers.ts";
+import type { ToolContext } from "./tools/context.ts";
 import type {
 	BashParams,
 	PiPrettyApi,
@@ -22,11 +22,12 @@ import type {
 	ThemeLike,
 	ToolFactory,
 	ToolResultLike,
-} from "./types.js";
+} from "./types.ts";
 import {
 	dotJoin,
 	fillToolBackground,
 	frameToolResult,
+	getErrorMessage,
 	getTextContent,
 	hideCollapsedToolCall,
 	isTextContent,
@@ -37,9 +38,8 @@ import {
 	setResultDetails,
 	termW,
 	unframeToolResult,
-} from "./utils.js";
-import { getErrorMessage } from "./utils.ts";
-import { formatDuration } from "./widget-format.js";
+} from "./utils.ts";
+import { formatDuration } from "./widget-format.ts";
 
 export interface ShellToolOptions {
 	/** Tool name to register (and collapse-config key), e.g. `"bash"`, `"powershell"`. */

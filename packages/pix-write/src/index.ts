@@ -1,1 +1,1 @@
-export { registerWriteTool } from "./write.js";
+export { registerWriteTool } from "./write.ts";
