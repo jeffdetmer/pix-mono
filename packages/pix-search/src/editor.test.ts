@@ -11,6 +11,7 @@ import {
 	type TUI,
 	visibleWidth,
 } from "@earendil-works/pi-tui";
+import { registerChips as registerInlineChips } from "@xynogen/pix-pretty/chips";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { dirIcon, fileIcon } from "@xynogen/pix-pretty/icons";
 import { atStartsMention, attachPicker, pathToken } from "./editor.ts";
@@ -45,10 +46,6 @@ test.each([
 			},
 		},
 	} as unknown as ExtensionContext;
-	// Load the sibling extension at runtime; it is not a pix-search dependency.
-	const { default: registerInlineChips } = await import(
-		new URL("../../pix-display/src/inline-chips.ts", import.meta.url).href
-	);
 	for (const register of searchFirst
 		? [registerSearch, registerInlineChips]
 		: [registerInlineChips, registerSearch])

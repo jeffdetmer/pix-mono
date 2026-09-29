@@ -1,11 +1,12 @@
 /** Add the @ picker to an editor without replacing its paste state or rendering. */
 import type { CustomEditor } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
+import { chipTag } from "@xynogen/pix-pretty/chips";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 
-/** Picked paths are marked as `<path>…</path>`; pix-display renders the span as a chip. */
+/** Picked paths use the shared `<path>` chip tag. pix-display renders it as a chip. */
 export function pathToken(path: string): string {
-	return `<path>${path}</path> `;
+	return `${chipTag.path(path)} `;
 }
 
 export type OpenPicker = () => Promise<string | null>;

@@ -5,19 +5,19 @@
  * Terminal-only rendering behavior stays inactive outside TUI mode.
  *
  * Modules:
- *   inline-chips.ts  Installs the shared InlineChipEditor
+ *   @xynogen/pix-pretty/chips  Inline chips (tag format, editor, sent messages)
  *   thinking.ts      Leaked reasoning tag → native thinking content blocks
  *   code-blocks.ts   Framed, syntax-highlighted code fences in LLM output
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { registerChips } from "@xynogen/pix-pretty/chips";
 
-import codeBlocksExtension from "./code-blocks.js";
-import inlineChipsExtension from "./inline-chips.js";
-import thinkingExtension from "./thinking.js";
+import codeBlocksExtension from "./code-blocks.ts";
+import thinkingExtension from "./thinking.ts";
 
 export default function pixDisplayExtension(pi: ExtensionAPI): void {
-	inlineChipsExtension(pi);
+	registerChips(pi);
 	thinkingExtension(pi);
 	codeBlocksExtension(pi);
 }

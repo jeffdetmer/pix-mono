@@ -54,8 +54,14 @@ problem on terminals without a Nerd Font, becomes a one-file edit here.
   tree with a default dot, connection status, and expandable shell variables
   with set state and an export example.
 
-UI features that used to live here have moved to [`pix-display`](packages/pix-display):
-paste chip rendering and reasoning-tag (`<think>`/`<thinking>`) → native
+### Inline chips (`./chips`)
+
+The one source of truth for inline chip tags. Producers build tags with `chipTag`:
+`chipTag.path(p)` (`@` picker), `chipTag.skill(ref)` (`$` picker), `chipTag.prompt(name, body)` (`/plan`).
+The model receives each tag verbatim. `registerChips(pi)` shows them as chips in the prompt
+editor and in sent user messages. `pix-display` calls it. Add a new chip kind here, not in a feature package.
+
+UI features that moved to [`pix-display`](packages/pix-display): reasoning-tag (`<think>`/`<thinking>`) → native
 `thinking` content blocks.
 
 ## Configuration
@@ -125,6 +131,7 @@ The package exposes its sub-modules via `exports`:
 @xynogen/pix-pretty/modal-frame
 @xynogen/pix-pretty/provider-picker
 @xynogen/pix-pretty/shell-tool   (shared bash/powershell tool registrar + renderer)
+@xynogen/pix-pretty/chips        (inline chip tags + editor/history chip renderer)
 ```
 
 ## Install

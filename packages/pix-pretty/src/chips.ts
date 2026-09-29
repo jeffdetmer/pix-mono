@@ -1,40 +1,60 @@
 /**
- * inline-chips — render inline tokens in the prompt editor as compact chips.
+ * chips — the one source of truth for inline chip tags: their text format
+ * (`chipTag`), editor chips, and sent-message chips. Producers (pix-search `@`,
+ * pix-skills `$`, pix-core `/plan`) build tags with `chipTag`. pix-display
+ * activates the renderer with `registerChips(pi)`.
  *
  *   long pasted text        →  buffer: [paste #1 +42 lines]     display: 󰉿 text 42 lines
  *   /tmp/shot.png           →  buffer: [paste #2 13 chars]      display: 󰋩 image #2
  *   <path>src/a.ts</path>   →  buffer: [paste #3 8 chars]       display: 󰉿 @a.ts
  *   <prompt name="plan">…   →  buffer: [paste #4 900 chars]     display:  plan prompt
+ *   <skill>a/b@tdd</skill>  →  buffer: [paste #5 7 chars]       display: 󱁤 $tdd a/b
  *
- * `<path>…</path>` from pix-search and Pi's `<paste>…</paste>` payloads are
- * promoted to atomic paste markers (one backspace deletes the whole chip) and
+ * Tags and Pi's `<paste>…</paste>` payloads are promoted to atomic paste markers (one backspace deletes the whole chip) and
  * expanded back verbatim for the model.
  */
 import { basename } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { BOLD, FG_BLUE, FG_DIM, FG_GREEN, FG_YELLOW, RST } from "@xynogen/pix-pretty/ansi";
-import { icon } from "@xynogen/pix-pretty/icon-catalog";
-import { dirIcon, fileIcon } from "@xynogen/pix-pretty/icons";
+import { BOLD, FG_BLUE, FG_DIM, FG_GREEN, FG_YELLOW, RST } from "./ansi.ts";
+import { icon } from "./icon-catalog.ts";
+import { dirIcon, fileIcon } from "./icons.ts";
+
+/** Build a chip tag. The model receives the tag verbatim. The UI shows a chip. */
+export const chipTag = {
+	/** `@` file or folder mention. A folder keeps its trailing `/`. */
+	path: (path: string) => `<path>${path}</path>`,
+	/** `$` skill: `name` (local) or `owner/repo@name` (skills.sh). */
+	skill: (ref: string) => `<skill>${ref}</skill>`,
+	/** Injected prompt, e.g. `/plan`. `name` must match `[\w-]+`. */
+	prompt: (name: string, body: string) => `<prompt name="${name}">${body}</prompt>`,
+};
 
 // ponytail: Pi only exposes atomic paste tokens today. Keep its private registry
 // adapter here; replace this adapter when Pi provides a public inline-token API.
 type Chip =
 	| { kind: "image" | "path"; path: string }
+	| { kind: "skill"; ref: string }
 	| { kind: "prompt"; name: string; body: string };
 type Registry = Map<number, string | Chip>;
 type PiEditor = {
 	pastes: Registry;
 	pasteCounter: number;
+	state: { lines: string[]; cursorLine: number; cursorCol: number };
+	setCursorCol(col: number): void;
 	expandPasteMarkers(text: string): string;
 	handlePaste(text: string): void;
 	insertTextAtCursorInternal(text: string): void;
 };
+/** A text paste becomes a chip only above this many characters (Pi's own limit is 1000). */
+const PASTE_MAX_CHARS = 100;
 const MARKER = /\[paste #(\d+)( (\+\d+ lines|\d+ chars))?\]/g;
 const SGR = "(?:\\x1b\\[[0-9;]*m|\\x1b_pi:c\\x07)*";
 const PASTE_SPAN = new RegExp(`${SGR}\\[${SGR}paste #(?:[^\\]]|${SGR})*\\]`, "g");
 const PATH_TAG = /<path>([^<]+)<\/path>/g;
+/** Matches `chipTag.skill` output. Group 1 is the ref. */
+export const SKILL_TAG = /<skill>([^<]+)<\/skill>/g;
 const PASTE_TAG = /<paste>([\s\S]*?)<\/paste>/g;
 // Injected prompt from another extension (e.g. /plan). Kept as a tag for the model.
 const PROMPT_TAG = /<prompt name="([\w-]+)">([\s\S]*?)<\/prompt>/g;
@@ -49,8 +69,9 @@ export function expandChips(text: string, registry: Registry): string {
 		const value = registry.get(Number(id));
 		if (value === undefined) return marker;
 		if (typeof value === "string") return `<paste>${value}</paste>`;
-		if (value.kind === "prompt") return `<prompt name="${value.name}">${value.body}</prompt>`;
-		return value.kind === "path" ? `<path>${value.path}</path>` : `<paste>${value.path}</paste>`;
+		if (value.kind === "prompt") return chipTag.prompt(value.name, value.body);
+		if (value.kind === "skill") return chipTag.skill(value.ref);
+		return value.kind === "path" ? chipTag.path(value.path) : `<paste>${value.path}</paste>`;
 	});
 }
 
@@ -68,17 +89,26 @@ function chipLabel(
 	id?: number,
 ): { head: string; meta: string; color: string } {
 	if (typeof value === "string") {
-		const lines = value.split("\n").length;
 		const count =
 			value.length < 1000 ? `${value.length}` : `${Number((value.length / 1000).toFixed(1))}k`;
 		return {
 			head: `${icon("paste.text")} text`,
-			meta: lines > 10 ? `${lines} lines` : `${count} chars`,
+			meta: `${count} chars`,
 			color: FG_GREEN,
 		};
 	}
 	if (value.kind === "prompt") {
 		return { head: `${icon("paste.prompt")} ${value.name}`, meta: "prompt", color: FG_YELLOW };
+	}
+	if (value.kind === "skill") {
+		// `owner/repo@name` (skills.sh) or bare `name` (local).
+		const at = value.ref.lastIndexOf("@");
+		// ponytail: reuses the `tools` icon. Add a `skill` catalog key in pix-runtime if it needs its own glyph.
+		return {
+			head: `${icon("tools")} $${value.ref.slice(at + 1)}`,
+			meta: at < 0 ? "" : value.ref.slice(0, at),
+			color: FG_YELLOW,
+		};
 	}
 	if (value.kind === "path") {
 		const dir = value.path.endsWith("/");
@@ -110,7 +140,8 @@ export function renderChips(line: string, registry: Registry): string {
 	});
 }
 
-const HISTORY_TAG = /<(paste|path)>([\s\S]*?)<\/\1>|<prompt name="([\w-]+)">([\s\S]*?)<\/prompt>/g;
+const HISTORY_TAG =
+	/<(paste|path|skill)>([\s\S]*?)<\/\1>|<prompt name="([\w-]+)">([\s\S]*?)<\/prompt>/g;
 const IMAGE_FILE =
 	/^(?:~|[a-zA-Z]:[/\\]|\/|\\\\)[^\r\n]+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif)$/i;
 const PREVIEW_CHARS = 40;
@@ -140,6 +171,7 @@ export function renderHistoryChips(markdown: string): string {
 			const body = text ?? "";
 			let value: string | Chip = body;
 			if (tag === "path") value = { kind: "path", path: body };
+			else if (tag === "skill") value = { kind: "skill", ref: body };
 			else if (IMAGE_FILE.test(body)) value = { kind: "image", path: body };
 			const { head, meta } = chipLabel(value);
 			// Text pastes keep a short glimpse so history stays scannable.
@@ -160,10 +192,43 @@ export function installChips(editor: CustomEditor): void {
 			editor.insertTextAtCursor(IMAGE_FILE.test(text) ? `<paste>${text}</paste>` : text.trim());
 			return;
 		}
+		// Pi cleans the text, takes the undo snapshot and picks inline vs chip by its own
+		// rule (>10 lines or >1000 chars). Size alone decides here, so fix Pi's pick after it.
+		const { cursorLine: l0, cursorCol: c0 } = pi.state;
 		const before = pi.pasteCounter;
 		handlePaste(text);
+		const chipped = pi.pasteCounter > before ? pi.pastes.get(pi.pasteCounter) : undefined;
+		if (chipped !== undefined && typeof chipped !== "string") return;
+		// Pi inserted its text or marker from (l0, c0) to the cursor.
+		const { lines, cursorLine: l1, cursorCol: c1 } = pi.state;
+		const first = lines[l0] ?? "";
+		const last = lines[l1] ?? "";
+		const value =
+			chipped ??
+			(l0 === l1
+				? first.slice(c0, c1)
+				: [first.slice(c0), ...lines.slice(l0 + 1, l1), last.slice(0, c1)].join("\n"));
+		const wantChip = value.length > PASTE_MAX_CHARS;
+		if (wantChip !== (chipped !== undefined)) {
+			pi.state.lines = [
+				...lines.slice(0, l0),
+				first.slice(0, c0) + last.slice(c1),
+				...lines.slice(l1 + 1),
+			];
+			pi.state.cursorLine = l0;
+			pi.setCursorCol(c0);
+			if (wantChip) {
+				const id = ++pi.pasteCounter;
+				pi.pastes.set(id, value);
+				pi.insertTextAtCursorInternal(`[paste #${id} ${value.length} chars]`);
+			} else {
+				pi.pastes.delete(pi.pasteCounter);
+				pi.pasteCounter = before;
+				pi.insertTextAtCursorInternal(value);
+			}
+		}
 		// Land the cursor after the chip, not glued to it.
-		if (pi.pasteCounter > before) pi.insertTextAtCursorInternal(" ");
+		if (wantChip) pi.insertTextAtCursorInternal(" ");
 	};
 	const insertTextAtCursor = editor.insertTextAtCursor.bind(editor);
 	editor.insertTextAtCursor = (text: string) => {
@@ -185,6 +250,7 @@ export function installChips(editor: CustomEditor): void {
 				chip({ kind: "prompt", name, body }, body.length),
 			)
 			.replace(PATH_TAG, (_match, path: string) => chip({ kind: "path", path }, path.length))
+			.replace(SKILL_TAG, (_match, ref: string) => chip({ kind: "skill", ref }, ref.length))
 			.replace(PASTE_TAG, (_match, body: string) =>
 				chip(IMAGE_FILE.test(body) ? { kind: "image", path: body } : body, body.length),
 			)
@@ -205,7 +271,8 @@ export function installChips(editor: CustomEditor): void {
 		});
 }
 
-export default function (pi: ExtensionAPI): void {
+/** Activate chips: sent-message transformer + editor patch. pix-display calls this. */
+export function registerChips(pi: ExtensionAPI): void {
 	// ponytail: local Pi 0.82 types predate the runtime Markdown transformer hook.
 	const markdownPi = pi as ExtensionAPI & {
 		registerMarkdownTransformer?: (

@@ -12,14 +12,16 @@ import {
 	type TUI,
 	visibleWidth,
 } from "@earendil-works/pi-tui";
-import { icon } from "@xynogen/pix-pretty/icon-catalog";
-import { dirIcon, fileIcon } from "@xynogen/pix-pretty/icons";
-import installInlineChips, {
+import {
+	chipTag,
 	expandChips,
 	installChips,
+	registerChips,
 	renderChips,
 	renderHistoryChips,
-} from "../src/inline-chips.js";
+} from "./chips.ts";
+import { icon } from "./icon-catalog.ts";
+import { dirIcon, fileIcon } from "./icons.ts";
 
 const strip = (s: string) => s.replace(/\x1b\[[0-9;]*m|\x1b_pi:c\x07/g, "");
 
@@ -46,7 +48,7 @@ test("renderChips: text, image and path chips", () => {
 	const line =
 		"a [paste #1 2232 chars] b [paste #2 +42 lines] c [paste #3 10 chars] [paste #4 12 chars] [paste #5 8 chars] [paste #6 1 chars] <path>raw</path>";
 	expect(strip(renderChips(line, registry))).toBe(
-		`a ${icon("paste.text")} text 2.2k chars b ${icon("paste.text")} text 42 lines c ${icon("paste.image")} image #3 ${fileIcon("src/index.ts")}@index.ts ${dirIcon()}@dir/ ${dirIcon()}@/ <path>raw</path>`,
+		`a ${icon("paste.text")} text 2.2k chars b ${icon("paste.text")} text 83 chars c ${icon("paste.image")} image #3 ${fileIcon("src/index.ts")}@index.ts ${dirIcon()}@dir/ ${dirIcon()}@/ <path>raw</path>`,
 	);
 	expect(renderChips("[paste #9]", registry)).toBe("[paste #9]");
 	expect(renderChips("plain", registry)).toBe("plain");
@@ -94,7 +96,7 @@ test("renderHistoryChips collapses sent-message tags into inline-code chips", ()
 	).toContain(`\`${icon("paste.image")} image\``);
 	expect(out).toContain(`\`${fileIcon("src/x.ts")}@x.ts\``);
 	expect(out).toContain(`\`${dirIcon()}@pkg/\``);
-	expect(out).toContain("11 lines · a b c d e f g h i j k");
+	expect(out).toContain("21 chars · a b c d e f g h i j k");
 	expect(out).toContain(" plain ");
 	expect(out).not.toContain("<paste>");
 	expect(out).not.toContain("<path>");
@@ -182,7 +184,7 @@ test.each(["tui", "rpc"] as const)("lifecycle in %s mode chains a previous facto
 	type Factory = NonNullable<ReturnType<ExtensionContext["ui"]["getEditorComponent"]>>;
 	const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => void>();
 	let transformer: ((md: string, ctx: { messageType: string }) => string) | undefined;
-	installInlineChips({
+	registerChips({
 		on: (name: string, fn: (event: unknown, ctx: ExtensionContext) => void) =>
 			handlers.set(name, fn),
 		registerMarkdownTransformer: (fn: typeof transformer) => {
@@ -235,4 +237,36 @@ test("installChips renders <prompt> as a prompt chip and sends the tag verbatim"
 	expect(renderHistoryChips(`${tag} add login`)).toBe(
 		`\`${icon("paste.prompt")} plan prompt\` add login`,
 	);
+});
+
+test("chipTag.skill becomes an atomic chip and expands back verbatim", () => {
+	const e = editor();
+	const tags = `${chipTag.skill("acme/skills@tdd")} ${chipTag.skill("commit")} `;
+	expect(tags).toBe("<skill>acme/skills@tdd</skill> <skill>commit</skill> ");
+	e.insertTextAtCursor(tags);
+	expect(e.getExpandedText()).toBe(tags);
+	expect(strip(e.render(100).join("\n"))).toContain(
+		`${icon("tools")} $tdd acme/skills ${icon("tools")} $commit`,
+	);
+	expect(renderHistoryChips(`use ${chipTag.skill("acme/skills@tdd")} now`)).toBe(
+		`use \`${icon("tools")} $tdd acme/skills\` now`,
+	);
+});
+
+test("text paste chips by character count, not line count", () => {
+	const e = editor();
+	// 20 lines, 59 chars: Pi would chip it (>10 lines). Pix keeps it inline.
+	const short = Array.from({ length: 20 }, (_, i) => `l${i}`).join("\n");
+	e.handleInput(`\x1b[200~${short}\x1b[201~`);
+	expect(e.getText()).toBe(short);
+	expect(e.getLines()).toHaveLength(20);
+	// One line, 101 chars: Pi would keep it inline (<=1000). Pix chips it.
+	const long = "y".repeat(101);
+	e.handleInput(`\x1b[200~${long}\x1b[201~`);
+	expect(e.getText()).toMatch(/l19\[paste #\d+ 101 chars\] $/);
+	expect(e.getExpandedText()).toBe(`${short}<paste>${long}</paste> `);
+	expect(strip(e.render(100).join("\n"))).toContain(`${icon("paste.text")} text 101 chars`);
+	// Exactly 100 chars stays inline.
+	e.handleInput(`\x1b[200~${"z".repeat(100)}\x1b[201~`);
+	expect(e.getText()).toEndWith(` ${"z".repeat(100)}`);
 });

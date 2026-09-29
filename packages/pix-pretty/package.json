@@ -1,6 +1,6 @@
 {
 	"name": "@xynogen/pix-pretty",
-	"version": "1.28.1",
+	"version": "1.29.0",
 	"description": "Enhanced tool output rendering with syntax highlighting, file icons, tree views, diff rendering, and FFF search",
 	"type": "module",
 	"main": "src/index.ts",
@@ -31,7 +31,8 @@
 		"./shell-tool": "./src/shell-tool.ts",
 		"./tool-status": "./src/tool-status.ts",
 		"./test-utils": "./src/test-utils.ts",
-		"./transient-error": "./src/transient-error.ts"
+		"./transient-error": "./src/transient-error.ts",
+		"./chips": "./src/chips.ts"
 	},
 	"scripts": {
 		"test": "bun test"
