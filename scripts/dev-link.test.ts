@@ -81,9 +81,12 @@ describe("dev-link", () => {
 			);
 		}
 		expect(existsSync(join(root, "node_modules", "maria2", "dist", "index.js"))).toBe(true);
+		// dev-link.sh is bash, so it writes "/" paths on Windows too. Compare with one separator.
+		const slash = (p: string) => p.replaceAll("\\", "/");
 		expect(
-			JSON.parse(readFileSync(join(root, "home", ".pi", "agent", "settings.json"), "utf8"))
-				.packages,
-		).toEqual([join(root, "packages", "pix-app")]);
+			JSON.parse(
+				readFileSync(join(root, "home", ".pi", "agent", "settings.json"), "utf8"),
+			).packages.map(slash),
+		).toEqual([slash(join(root, "packages", "pix-app"))]);
 	});
 });

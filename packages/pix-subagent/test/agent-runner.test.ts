@@ -5,6 +5,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import {
 	attachTurnLimit,
@@ -165,7 +166,7 @@ describe("parseExtensionsSpec", () => {
 	test("path entry → resolved to absolute and canonical name added", () => {
 		const result = parseExtensionsSpec(["./extensions/foo.ts"], "/cwd");
 		expect(result.paths.length).toBe(1);
-		expect(result.paths[0]).toContain("extensions/foo.ts");
+		expect(result.paths[0]).toBe(resolve("/cwd", "extensions/foo.ts"));
 		expect(result.names.has("foo")).toBe(true);
 	});
 

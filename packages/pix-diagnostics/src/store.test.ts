@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
 import { DiagnosticStore } from "./store.ts";
 
 const error = {
@@ -20,9 +21,10 @@ describe("DiagnosticStore", () => {
 		});
 		store.set({ filePath: "/repo/src/b.ts", diagnostics: [], checkedAt: 2, state: "clean" });
 
+		// The store keys on resolve(): POSIX paths gain a drive letter on Windows.
 		expect(store.recent().map((item) => item.filePath)).toEqual([
-			"/repo/src/b.ts",
-			"/repo/src/a.ts",
+			resolve("/repo/src/b.ts"),
+			resolve("/repo/src/a.ts"),
 		]);
 		expect(store.get("/repo/src/a.ts")?.diagnostics).toEqual([error]);
 	});
@@ -37,7 +39,10 @@ describe("DiagnosticStore", () => {
 			store.set({ filePath, diagnostics: [], checkedAt, state: "clean" });
 		}
 
-		expect(store.recent().map((item) => item.filePath)).toEqual(["/c.ts", "/b.ts"]);
+		expect(store.recent().map((item) => item.filePath)).toEqual([
+			resolve("/c.ts"),
+			resolve("/b.ts"),
+		]);
 	});
 
 	test("notifies one listener once for one write", () => {

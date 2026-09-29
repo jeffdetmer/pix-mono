@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { projectDir, tempDir } from "@xynogen/pix-runtime/paths";
 import { createResolver, loadProjectServers, rootForFile } from "./server-registry.ts";
 
-const access = async (path: string) => path === "/repo/package.json";
+// Compare resolved paths: on Windows the code walks drive-letter paths, not /repo/...
+const access = async (path: string) => path === resolve("/repo/package.json");
 
 function project(config?: unknown): string {
 	const cwd = mkdtempSync(join(tempDir(), "pix-lsp-"));
@@ -49,6 +50,6 @@ describe("project LSP configuration", () => {
 	});
 
 	test("uses the nearest root marker", async () => {
-		expect(await rootForFile("/repo/src/a.ts", ["package.json"], access)).toBe("/repo");
+		expect(await rootForFile("/repo/src/a.ts", ["package.json"], access)).toBe(resolve("/repo"));
 	});
 });

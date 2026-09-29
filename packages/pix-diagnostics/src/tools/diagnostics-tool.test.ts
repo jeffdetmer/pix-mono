@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
 import type { DiagnosticRequest, LspManager, NavigationResult } from "../lsp/manager.ts";
 import { DiagnosticStore } from "../store.ts";
 import type { DiagnosticSnapshot } from "../types.ts";
@@ -102,7 +103,7 @@ describe("lens_diagnostics tool", () => {
 		const tool = capture(new DiagnosticStore(), manager);
 		await tool.execute("t", { source: "lsp", paths: ["a.ts", "b.ts"] });
 		expect(manager.calls).toHaveLength(1);
-		expect(manager.calls[0]?.paths).toEqual(["/repo/a.ts", "/repo/b.ts"]);
+		expect(manager.calls[0]?.paths).toEqual([resolve("/repo/a.ts"), resolve("/repo/b.ts")]);
 	});
 
 	test("source=lsp without paths throws a validation error", async () => {

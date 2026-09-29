@@ -84,7 +84,13 @@ describe("elicitation with the real MCP SDK", () => {
 		const { manager } = await createConnectedManager("rpc");
 		const connection = manager.getConnection("real")!;
 
-		await expect(connection.client.callTool({ name: "url", arguments: {} })).rejects.toThrow(
+		// ponytail: `await expect(p).rejects.toThrow()` hangs in Bun 1.4 for this SDK error.
+		// Catch the rejection and assert on it directly.
+		const error = await connection.client.callTool({ name: "url", arguments: {} }).then(
+			() => undefined,
+			(e: unknown) => e,
+		);
+		expect((error as Error | undefined)?.message).toMatch(
 			/does not support URL-mode elicitation requests/,
 		);
 		expect(mocks.open).not.toHaveBeenCalled();

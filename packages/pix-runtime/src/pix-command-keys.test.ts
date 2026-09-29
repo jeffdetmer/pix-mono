@@ -399,7 +399,11 @@ describe("/pix tabs", () => {
 		d.feed(TAB.legacy);
 		expect(d.lines().join("\n")).not.toMatch(/Other platforms/);
 		d.feed(KEYS.up.legacy);
-		expect(d.lines().join("\n")).toMatch(/│ → ○ wslview\s+not used on this OS/);
+		// The last other-platform row differs per host OS, so match its shape, not a name.
+		const lines = d.lines();
+		const cursor = lines.findIndex((l) => /│ → /.test(l));
+		expect(lines[cursor]).toMatch(/│ → ○ [\w-]+\s+not used on this OS/);
+		expect(lines[cursor + 1]).toMatch(/^│\s+│$/);
 	});
 
 	it("/ filters the Binaries list; esc clears the filter before it closes the overlay", async () => {
@@ -407,7 +411,8 @@ describe("/pix tabs", () => {
 		d.feed(TAB.legacy);
 		d.feed("/");
 		for (const ch of "ssh") d.feed(ch);
-		const rows = () => d.lines().filter((l) => /│ [→ ] \S+ [\w-]+\s{2}/.test(l));
+		// One status glyph, then the name. The "Other platforms" header has no glyph.
+		const rows = () => d.lines().filter((l) => /│ [→ ] \S{1,2} [\w-]+\s{2}/.test(l));
 		expect(rows().every((l) => /ssh|scp|sshpass/.test(l))).toBe(true);
 		d.feed("\r");
 		d.feed("\u001b");

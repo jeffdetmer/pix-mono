@@ -371,7 +371,7 @@ describe("config discovery", () => {
 			await importConfig();
 
 		const importsPreview = previewCompatibilityImports(["cursor", "codex"]);
-		expect(importsPreview.path).toContain(".pi/agent/mcp.json");
+		expect(importsPreview.path).toBe(join(home, ".pi", "agent", "mcp.json"));
 		expect(importsPreview.changed).toBe(true);
 		expect(importsPreview.diffText).toContain("+++ after");
 		expect(importsPreview.diffText).toContain('+     "codex"');

@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import { resolveAddTargetPath } from "../src/config.ts";
 import { type AddPanelCallbacks, McpAddPanel } from "../src/mcp-add-panel.ts";
 
@@ -69,10 +69,10 @@ function editPanel() {
 describe("MCP add target", () => {
 	it("writes global servers to Pi's agent mcp.json", () => {
 		expect(resolveAddTargetPath("global", "/project", "/custom/agent/mcp.json")).toBe(
-			"/custom/agent/mcp.json",
+			resolve("/custom/agent/mcp.json"),
 		);
 		expect(resolveAddTargetPath("project", "/project", "/ignored/mcp.json")).toBe(
-			join("/project", ".mcp.json"),
+			resolve("/project", ".mcp.json"),
 		);
 	});
 });

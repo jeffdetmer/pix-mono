@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { tempDir } from "@xynogen/pix-runtime/paths";
+import { canSymlink } from "@xynogen/pix-runtime/testing";
 
 const systemHomedir = nodeOs.homedir();
 mock.module("node:os", () => ({
@@ -125,7 +126,8 @@ describe("cli init helper", () => {
 		expect(logs.join("\n")).toContain(piConfigPath);
 	});
 
-	it("runs when invoked through a symlinked bin path", () => {
+	// Windows without Developer Mode cannot create symlinks. CI (Linux) runs this.
+	it.skipIf(!canSymlink())("runs when invoked through a symlinked bin path", () => {
 		const home = mkdtempSync(join(tempDir(), "pi-mcp-cli-home-"));
 		const binDir = mkdtempSync(join(tempDir(), "pi-mcp-cli-bin-"));
 		const symlinkPath = join(binDir, "pix-mcp");

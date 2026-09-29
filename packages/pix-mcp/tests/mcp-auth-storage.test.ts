@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { getAuthEntry, getAuthEntryFilePath, saveAuthEntry } from "../src/mcp-auth.ts";
 
 describe("mcp-auth storage paths", () => {
@@ -35,7 +35,7 @@ describe("mcp-auth storage paths", () => {
 			const rel = relative(authDir, filePath);
 			expect(rel.startsWith("..")).toBe(false);
 			expect(isAbsolute(rel)).toBe(false);
-			expect(rel).toMatch(/^sha256-[a-f0-9]{64}\/tokens\.json$/);
+			expect(rel.split(sep).join("/")).toMatch(/^sha256-[a-f0-9]{64}\/tokens\.json$/);
 			expect(existsSync(filePath)).toBe(true);
 		}
 

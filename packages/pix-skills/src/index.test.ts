@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { pixRuntime } from "@xynogen/pix-runtime/config";
 import { tempDir } from "@xynogen/pix-runtime/paths";
 import { ioSection } from "@xynogen/pix-runtime/sections";
+import { canSymlink } from "@xynogen/pix-runtime/testing";
 
 import registerSkills, {
 	copySkillResource,
@@ -25,6 +26,8 @@ import registerSkills, {
 	type ThemeLike,
 	tokenizeCommand,
 } from "./index.ts";
+
+const SYMLINKS = canSymlink();
 
 // Stub theme tags fragments so assertions verify which color/bold applied
 // without depending on real ANSI codes.
@@ -529,7 +532,8 @@ describe("readSkillResource", () => {
 		);
 	});
 
-	it("rejects symlinks that escape the skill bundle", async () => {
+	// Windows without Developer Mode cannot create symlinks. CI (Linux) runs these.
+	it.skipIf(!SYMLINKS)("rejects symlinks that escape the skill bundle", async () => {
 		const root = await makeBundle();
 		const outside = await mkdtemp(join(tempDir(), "pix-skill-outside-"));
 		roots.push(outside);
@@ -615,7 +619,7 @@ describe("copySkillResource", () => {
 		).rejects.toThrow("Invalid output path");
 	});
 
-	it("rejects output parents that symlink outside the project", async () => {
+	it.skipIf(!SYMLINKS)("rejects output parents that symlink outside the project", async () => {
 		const { bundle, project } = await makeDirectories();
 		const outside = await mkdtemp(join(tempDir(), "pix-skill-copy-outside-"));
 		roots.push(outside);
@@ -627,7 +631,7 @@ describe("copySkillResource", () => {
 		).rejects.toThrow("Invalid output path");
 	});
 
-	it("replaces an output symlink without writing through it", async () => {
+	it.skipIf(!SYMLINKS)("replaces an output symlink without writing through it", async () => {
 		const { bundle, project } = await makeDirectories();
 		const outside = await mkdtemp(join(tempDir(), "pix-skill-copy-target-"));
 		roots.push(outside);
