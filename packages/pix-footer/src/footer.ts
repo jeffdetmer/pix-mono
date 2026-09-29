@@ -12,6 +12,7 @@
  */
 
 import { basename } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import type { AssistantMessage, AssistantMessageEvent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
@@ -240,12 +241,10 @@ function renderModel(
 	return out;
 }
 
-/** Strip ANSI to inspect raw text, keep original colored string for output. */
-const stripAnsi = (s: string): string => s.replace(/\x1b\[[0-9;]*m/g, "");
-
 /** Replace verbose status text with icon + value. */
 export function compactStatus(key: string, value: string, theme: Theme): string {
-	const raw = stripAnsi(value);
+	// Inspect the raw text, keep the colored string for output.
+	const raw = stripVTControlCharacters(value);
 	switch (key) {
 		case "pi-lens-lsp": {
 			const legacyCount = raw.match(/LSP Active \((\d+)\)/)?.[1];

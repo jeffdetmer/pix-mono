@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { type ExtensionAPI, initTheme } from "@earendil-works/pi-coding-agent";
-import { type BtwMessageDetails, formatDuration, registerBtwRenderer } from "./render.ts";
+import { type BtwMessageDetails, registerBtwRenderer } from "./render.ts";
 
 const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
 
@@ -39,12 +39,6 @@ function render(details: BtwMessageDetails, expanded = false): string {
 }
 
 describe("BTW renderer", () => {
-	test("formats durations compactly", () => {
-		expect(formatDuration(450)).toBe("450ms");
-		expect(formatDuration(2_100)).toBe("2.1s");
-		expect(formatDuration(65_000)).toBe("1m 5s");
-	});
-
 	test("renders metadata and question as distinct side-thread card chrome", () => {
 		backgrounds.length = 0;
 		const output = render({

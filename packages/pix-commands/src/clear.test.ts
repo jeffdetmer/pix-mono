@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { cacheDir, tempDir } from "@xynogen/pix-runtime/paths";
-import registerClear from "./clear.ts";
+import registerClear, { outermost } from "./clear.ts";
 
 // Sandbox: /clear deletes cacheDir() and <tempDir>/jiti. Never let a test reach the real ones.
 let sandbox: string;
@@ -84,5 +84,14 @@ describe("/clear", () => {
 		// Regression: other programs' temp files must survive.
 		expect(existsSync(join(tmp, "other-app.sock"))).toBe(true);
 		expect(notes.at(-1)).toMatch(/cleared\. Run \/reload/);
+	});
+});
+
+describe("outermost", () => {
+	test("lists a nested target once, under its parent", () => {
+		const base = tempDir();
+		const cache = join(base, "cache");
+		expect(outermost([cache, join(cache, "jiti")])).toEqual([cache]);
+		expect(outermost([cache, join(base, "jiti")])).toEqual([cache, join(base, "jiti")]);
 	});
 });

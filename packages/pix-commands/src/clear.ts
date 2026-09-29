@@ -1,15 +1,25 @@
 import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { type ConfirmUI, confirmOverlay } from "@xynogen/pix-pretty/confirm";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { cacheDir, tempDir } from "@xynogen/pix-runtime/paths";
 
+/** Drop a target that sits inside another target: deleting the parent removes it. */
+export function outermost(paths: string[]): string[] {
+	const inside = (child: string, parent: string) => {
+		const rel = relative(parent, child);
+		return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+	};
+	return paths.filter((p) => !paths.some((q) => inside(p, q)));
+}
+
 async function clearCache(_pi: ExtensionAPI, ctx: ExtensionCommandContext) {
 	// Only Pi's own files. The temp dir is shared with every other program, so
 	// delete jiti's transpile cache inside it, never the temp dir itself.
-	const targets = [cacheDir(), join(tempDir(), "jiti")];
+	// With TMPDIR=~/.cache/pi the jiti dir is inside cacheDir(), so list it once.
+	const targets = outermost([cacheDir(), join(tempDir(), "jiti")]);
 	if (ctx.hasUI) {
 		// SAFETY: ctx.ui structurally provides the ConfirmUI surface (custom/theme);
 		// the host's UI type is wider, so we narrow to the subset confirmOverlay uses.

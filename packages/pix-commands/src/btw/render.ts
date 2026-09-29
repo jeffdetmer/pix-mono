@@ -2,7 +2,7 @@ import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { dotJoin } from "@xynogen/pix-pretty/utils";
-import { formatDuration as fmtDuration } from "@xynogen/pix-pretty/widget-format";
+import { formatDuration } from "@xynogen/pix-pretty/widget-format";
 
 export interface BtwMessageDetails {
 	question: string;
@@ -14,11 +14,6 @@ export interface BtwMessageDetails {
 	durationMs: number;
 	toolUses: number;
 	error?: string;
-}
-
-// ponytail: thin wrapper keeps old import path; canonical is formatDuration(ms,'btw') in pix-pretty
-export function formatDuration(ms: number): string {
-	return fmtDuration(ms, "btw");
 }
 
 export function registerBtwRenderer(
@@ -37,7 +32,7 @@ export function registerBtwRenderer(
 		const meta = dotJoin([
 			details.model,
 			details.thinkingLevel,
-			formatDuration(details.durationMs),
+			formatDuration(details.durationMs, "btw"),
 			details.toolUses > 0 && `${details.toolUses} tools`,
 		]);
 

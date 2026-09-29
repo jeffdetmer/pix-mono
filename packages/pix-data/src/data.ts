@@ -200,23 +200,13 @@ export class DataSource<T> {
 	}
 }
 
-function fetchWithTimeout(
-	url: string,
-	timeoutMs: number,
-	headers?: Record<string, string>,
-): Promise<Response> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	return fetch(url, { signal: controller.signal, headers }).finally(() => clearTimeout(timer));
-}
-
 /** Single-request raw fetch — the default DataSource fetch strategy. */
 async function defaultFetchRaw(
 	url: string,
 	headers: Record<string, string> | undefined,
 	timeoutMs: number,
 ): Promise<unknown> {
-	const response = await fetchWithTimeout(url, timeoutMs, headers);
+	const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers });
 	if (!response.ok) throw new Error(`fetch failed: ${response.status}`);
 	return response.json();
 }
