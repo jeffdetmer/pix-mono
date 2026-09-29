@@ -10,6 +10,7 @@
  * session lifecycle. `write`/`edit` results only mark files as touched.
  */
 
+import { basename } from "node:path";
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
@@ -61,9 +62,7 @@ export function renderWidget(store: DiagnosticStore, width: number, theme: Theme
 	if (unconfirmed > 0) parts.push(theme.fg("warning", `${unconfirmed} unconfirmed`));
 	if (unavailable > 0) parts.push(theme.fg("warning", `${unavailable} unavailable`));
 
-	const files = notable
-		.slice(0, MAX_RECENT)
-		.map((snap) => snap.filePath.split("/").pop() ?? snap.filePath);
+	const files = notable.slice(0, MAX_RECENT).map((snap) => basename(snap.filePath));
 	const more = notable.length > files.length ? ` +${notable.length - files.length}` : "";
 	const fileList = files.length > 0 ? theme.fg("dim", files.join(", ") + more) : "";
 	if (fileList) parts.push(fileList);
