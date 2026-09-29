@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { CallToolResult } from "@modelcontextprotocol/client";
-import { UrlElicitationRequiredError } from "@modelcontextprotocol/client";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { isGlimpseAvailable, openGlimpseWindow } from "./glimpse-ui.ts";
 import { logger } from "./logger.ts";
+import { isUrlElicitationRequired } from "./sdk.ts";
 import type { McpExtensionState } from "./state.ts";
 import {
 	extractUiPromptText,
@@ -400,7 +400,7 @@ export async function maybeStartUiSession(
 			},
 		};
 	} catch (error) {
-		if (error instanceof UrlElicitationRequiredError) throw error;
+		if (isUrlElicitationRequired(error)) throw error;
 		const message = getErrorMessage(error);
 		log.error("Failed to start UI session", error instanceof Error ? error : undefined);
 		state.ui?.notify(

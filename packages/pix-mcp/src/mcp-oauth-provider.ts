@@ -13,7 +13,6 @@ import type {
 	OAuthClientProvider,
 	OAuthTokens,
 } from "@modelcontextprotocol/client";
-import { UnauthorizedError } from "@modelcontextprotocol/client";
 import {
 	clearAllCredentials,
 	clearClientInfo,
@@ -26,6 +25,7 @@ import {
 	updateOAuthState,
 	updateTokens,
 } from "./mcp-auth.ts";
+import { loadSdk } from "./sdk.ts";
 
 // Callback server configuration
 const DEFAULT_OAUTH_CALLBACK_PORT = 19876;
@@ -242,6 +242,7 @@ export class McpOAuthProvider implements OAuthClientProvider {
 		// No saved oauthState means we're on the post-refresh authorize fallback.
 		const entry = await getAuthForUrl(this.serverName, this.serverUrl);
 		if (!entry?.oauthState) {
+			const { UnauthorizedError } = await loadSdk();
 			throw new UnauthorizedError(`Re-authentication required for MCP server: ${this.serverName}`);
 		}
 		// URL is passed to callback, not logged (may contain sensitive params)
@@ -287,6 +288,7 @@ export class McpOAuthProvider implements OAuthClientProvider {
 		}
 		const entry = await getAuthForUrl(this.serverName, this.serverUrl);
 		if (!entry?.oauthState) {
+			const { UnauthorizedError } = await loadSdk();
 			throw new UnauthorizedError(`Re-authentication required for MCP server: ${this.serverName}`);
 		}
 		return entry.oauthState;

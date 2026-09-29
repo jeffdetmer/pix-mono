@@ -1,16 +1,9 @@
 import type {
+	Client,
 	ReadResourceResult,
 	RequestOptions,
 	UrlElicitationRequiredError,
 } from "@modelcontextprotocol/client";
-import {
-	Client,
-	SdkHttpError,
-	SSEClientTransport,
-	StreamableHTTPClientTransport,
-	UnauthorizedError,
-} from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { abortable, throwIfAborted } from "./abort.ts";
 import {
@@ -20,11 +13,13 @@ import {
 } from "./elicitation-handler.ts";
 import { logger } from "./logger.ts";
 import { extractOAuthConfig, supportsOAuth } from "./mcp-auth-flow.ts";
+import { loadSdk, loadStdio } from "./sdk.ts";
 
 // A still-401 after the auth provider's retry means the server genuinely needs
 // auth. SDK v1 threw UnauthorizedError; SDK v2 throws SdkHttpError{status:401}.
 // Treat both as terminal auth failures (never fall through to SSE).
-function isUnauthorizedHttpError(error: unknown): boolean {
+async function isUnauthorizedHttpError(error: unknown): Promise<boolean> {
+	const { SdkHttpError, UnauthorizedError } = await loadSdk();
 	return (
 		error instanceof UnauthorizedError || (error instanceof SdkHttpError && error.status === 401)
 	);
@@ -33,7 +28,8 @@ function isUnauthorizedHttpError(error: unknown): boolean {
 // Only a typed endpoint-shape mismatch means the server doesn't speak
 // StreamableHTTP and SSE is worth trying. Any other error (403/500/network/
 // protocol) is real and must propagate rather than be masked as "try SSE".
-function shouldFallbackToSse(error: unknown): boolean {
+async function shouldFallbackToSse(error: unknown): Promise<boolean> {
+	const { SdkHttpError } = await loadSdk();
 	return error instanceof SdkHttpError && [404, 405, 406, 415].includes(error.status);
 }
 
@@ -170,7 +166,7 @@ export class McpServerManager {
 		signal?: AbortSignal,
 	): Promise<ServerConnection> {
 		throwIfAborted(signal);
-		const client = this.createClient(name);
+		const client = await this.createClient(name);
 		this.connectingClients.set(name, client);
 
 		let transport: Transport;
@@ -188,6 +184,7 @@ export class McpServerManager {
 				}
 			}
 
+			const { StdioClientTransport } = await loadStdio();
 			transport = new StdioClientTransport({
 				command,
 				args,
@@ -226,7 +223,7 @@ export class McpServerManager {
 		} catch (error) {
 			connection.status = "closed";
 			// Check for a terminal 401 (UnauthorizedError or SdkHttpError) - server requires OAuth
-			if (isUnauthorizedHttpError(error) && supportsOAuth(definition)) {
+			if ((await isUnauthorizedHttpError(error)) && supportsOAuth(definition)) {
 				// Clean up both client and transport before reporting needs-auth.
 				await client.close().catch(() => {});
 				await transport.close().catch(() => {});
@@ -264,7 +261,8 @@ export class McpServerManager {
 		};
 	}
 
-	private createClient(serverName: string): Client {
+	private async createClient(serverName: string): Promise<Client> {
+		const { Client } = await loadSdk();
 		const capabilities = this.buildClientCapabilities();
 		const client = new Client(
 			{ name: `pi-mcp-${serverName}`, version: "1.0.0" },
@@ -378,6 +376,7 @@ export class McpServerManager {
 			});
 		}
 
+		const { Client, SSEClientTransport, StreamableHTTPClientTransport } = await loadSdk();
 		// Try StreamableHTTP first (modern MCP servers)
 		const streamableTransport = new StreamableHTTPClientTransport(url, {
 			requestInit,
@@ -410,14 +409,14 @@ export class McpServerManager {
 			// Terminal auth failure — never fall through to SSE, the server needs auth.
 			// SDK v2 surfaces a still-401 (after any provider retry) as SdkHttpError,
 			// not UnauthorizedError, so both must be treated as auth-required.
-			if (isUnauthorizedHttpError(error)) {
+			if (await isUnauthorizedHttpError(error)) {
 				throw error;
 			}
 
 			// Only fall back to SSE for a typed endpoint-shape mismatch (the server
 			// doesn't speak StreamableHTTP). Any other error — 403/500/network/
 			// protocol — is real and must propagate, not be masked as "try SSE".
-			if (!shouldFallbackToSse(error)) {
+			if (!(await shouldFallbackToSse(error))) {
 				throw error;
 			}
 

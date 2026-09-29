@@ -3,11 +3,7 @@
  *
  * High-level OAuth flow management using the MCP SDK's built-in auth functions.
  */
-import {
-	auth as runSdkAuth,
-	StreamableHTTPClientTransport,
-	UnauthorizedError,
-} from "@modelcontextprotocol/client";
+import type { StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import open from "open";
 import {
 	clearAllCredentials,
@@ -31,6 +27,7 @@ import {
 	waitForCallback,
 } from "./mcp-callback-server.ts";
 import { type McpOAuthConfig, McpOAuthProvider } from "./mcp-oauth-provider.ts";
+import { loadSdk } from "./sdk.ts";
 import type { ServerEntry } from "./types.ts";
 
 /** Auth status for a server */
@@ -177,6 +174,7 @@ export async function startAuth(
 				throw new Error("Browser redirect is not used for client_credentials flow");
 			},
 		});
+		const { auth: runSdkAuth, UnauthorizedError } = await loadSdk();
 		const result = await runSdkAuth(authProvider, { serverUrl });
 		if (result !== "AUTHORIZED") {
 			throw new UnauthorizedError("Failed to authorize");
@@ -236,6 +234,7 @@ export async function startAuth(
 
 		await updateOAuthState(serverName, oauthState, serverUrl);
 
+		const { auth: runSdkAuth, StreamableHTTPClientTransport, UnauthorizedError } = await loadSdk();
 		const result = await runSdkAuth(authProvider, { serverUrl });
 		if (result === "AUTHORIZED") {
 			releaseCallbackServer(oauthState);
@@ -546,6 +545,7 @@ export async function getValidToken(
 				return null;
 			}
 
+			const { auth: runSdkAuth } = await loadSdk();
 			const result = await runSdkAuth(authProvider, { serverUrl });
 			if (result !== "AUTHORIZED") {
 				return null;

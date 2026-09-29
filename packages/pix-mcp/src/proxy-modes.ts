@@ -1,8 +1,7 @@
+import { createRequire } from "node:module";
 import type { AgentToolResult, ToolInfo } from "@earendil-works/pi-coding-agent";
-import { UrlElicitationRequiredError } from "@modelcontextprotocol/client";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { getErrorMessage, padIcon } from "@xynogen/pix-pretty/utils";
-import { checkSync } from "recheck";
 import { abortable, throwIfAborted } from "./abort.ts";
 import {
 	getFailureAgeSeconds,
@@ -17,6 +16,7 @@ import {
 	guardMcpOutput,
 	resolveMcpOutputGuardOptions,
 } from "./mcp-output-guard.ts";
+import { isUrlElicitationRequired } from "./sdk.ts";
 import type { McpExtensionState } from "./state.ts";
 import { buildToolMetadata, findToolByName, formatSchema, getToolNames } from "./tool-metadata.ts";
 import { resolveMcpResultContent, transformMcpContent } from "./tool-registrar.ts";
@@ -24,6 +24,15 @@ import type { McpContent, ToolMetadata } from "./types.ts";
 import { getServerPrefix, parseUiPromptHandoff } from "./types.ts";
 import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.ts";
 import { formatAuthRequiredMessage, truncateAtWord } from "./utils.ts";
+
+// ponytail: recheck costs about 66 ms to load and only regex search uses it. Load it on
+// first use. createRequire keeps executeSearch sync (recheck is CommonJS).
+const requireLazy = createRequire(import.meta.url);
+let recheck: typeof import("recheck") | undefined;
+const checkSync: typeof import("recheck").checkSync = (...args) => {
+	recheck ??= requireLazy("recheck") as typeof import("recheck");
+	return recheck.checkSync(...args);
+};
 
 type ProxyToolResult = AgentToolResult<Record<string, unknown>>;
 
@@ -1332,7 +1341,7 @@ async function performToolCall(
 			signal,
 		);
 	} catch (error) {
-		if (error instanceof UrlElicitationRequiredError) {
+		if (isUrlElicitationRequired(error)) {
 			const action = await state.manager.handleUrlElicitationRequired(serverName, error);
 			const message =
 				action === "accept"

@@ -3,7 +3,6 @@ import type {
 	AgentToolUpdateCallback,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { UrlElicitationRequiredError } from "@modelcontextprotocol/client";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { abortable, throwIfAborted } from "./abort.ts";
 import { getFailureAgeSeconds, lazyConnect } from "./init.ts";
@@ -16,6 +15,7 @@ import {
 import type { MetadataCache } from "./metadata-cache.ts";
 import { isServerCacheValid } from "./metadata-cache.ts";
 import { resourceNameToToolName } from "./resource-tools.ts";
+import { isUrlElicitationRequired } from "./sdk.ts";
 import type { McpExtensionState } from "./state.ts";
 import { formatSchema } from "./tool-metadata.ts";
 import { resolveMcpResultContent, transformMcpContent } from "./tool-registrar.ts";
@@ -475,7 +475,7 @@ export function createDirectToolExecutor(
 				},
 			};
 		} catch (error) {
-			if (error instanceof UrlElicitationRequiredError) {
+			if (isUrlElicitationRequired(error)) {
 				const action = await state.manager.handleUrlElicitationRequired(spec.serverName, error);
 				const message =
 					action === "accept"

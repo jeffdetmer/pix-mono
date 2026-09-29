@@ -1,8 +1,8 @@
 import type { ReadResourceResult } from "@modelcontextprotocol/client";
-import { UrlElicitationRequiredError } from "@modelcontextprotocol/client";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { ResourceFetchError, ResourceParseError } from "./errors.ts";
 import { logger } from "./logger.ts";
+import { isUrlElicitationRequired } from "./sdk.ts";
 import type { McpServerManager } from "./server-manager.ts";
 import type { UiResourceContent, UiResourceMeta } from "./types.ts";
 import { RESOURCE_MIME_TYPE } from "./ui-app-bridge-helpers.ts";
@@ -33,7 +33,7 @@ export class UiResourceHandler {
 		try {
 			result = await this.manager.readResource(serverName, uri);
 		} catch (error) {
-			if (error instanceof UrlElicitationRequiredError) throw error;
+			if (isUrlElicitationRequired(error)) throw error;
 			const message = getErrorMessage(error);
 			log.error("Failed to read resource", error instanceof Error ? error : undefined);
 			throw new ResourceFetchError(uri, message, {

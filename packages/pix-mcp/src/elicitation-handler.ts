@@ -7,10 +7,9 @@ import type {
 	ElicitResult,
 	JsonSchemaType,
 } from "@modelcontextprotocol/client";
-import { ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/client";
-import { AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
 import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import open from "open";
+import { loadAjv, loadSdk } from "./sdk.ts";
 
 export type ElicitationValue = string | number | boolean | string[] | undefined;
 type FormProperty = ElicitRequestFormParams["requestedSchema"]["properties"][string];
@@ -67,7 +66,7 @@ export async function handleFormElicitation(
 	}
 
 	while (true) {
-		const content = coerceAndValidateFormValues(params, values);
+		const content = await coerceAndValidateFormValues(params, values);
 		const action = await options.ui.select(
 			formatReview(options.serverName, properties, content),
 			properties.length > 0 ? ["Submit", "Edit", "Decline"] : ["Submit", "Decline"],
@@ -102,7 +101,7 @@ async function collectValidField(
 		const result = await collectField(ui, params, name, schema, current);
 		if (!("value" in result)) return result;
 		try {
-			coerceAndValidateFormValues(
+			await coerceAndValidateFormValues(
 				{
 					...params,
 					requestedSchema: {
@@ -215,10 +214,10 @@ async function collectField(
 	return entered === undefined ? { cancelled: true } : { cancelled: false, value: entered };
 }
 
-export function coerceAndValidateFormValues(
+export async function coerceAndValidateFormValues(
 	params: ElicitRequestFormParams,
 	values: Record<string, ElicitationValue>,
-): Record<string, string | number | boolean | string[]> {
+): Promise<Record<string, string | number | boolean | string[]>> {
 	const output: Record<string, string | number | boolean | string[]> = {};
 	const required = new Set(params.requestedSchema.required ?? []);
 	for (const [name, schema] of Object.entries(params.requestedSchema.properties)) {
@@ -288,6 +287,7 @@ export function coerceAndValidateFormValues(
 			output[name] = arrayValue;
 		}
 	}
+	const { AjvJsonSchemaValidator } = await loadAjv();
 	const validation = new AjvJsonSchemaValidator().getValidator(
 		params.requestedSchema as JsonSchemaType,
 	)(output);
@@ -348,6 +348,7 @@ export async function handleUrlElicitation(
 	options: ElicitationHandlerOptions,
 	params: ElicitRequestURLParams,
 ): Promise<ElicitResult> {
+	const { ProtocolError, ProtocolErrorCode } = await loadSdk();
 	if (!options.allowUrl)
 		throw new ProtocolError(ProtocolErrorCode.InvalidParams, "URL elicitation is not supported");
 
