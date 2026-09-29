@@ -9,6 +9,7 @@ import { CursorStore, fffState } from "@xynogen/pix-pretty/fff";
 import type { PiPrettyApi, TextComponentCtor, ToolFactory } from "@xynogen/pix-pretty/types";
 import { shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 import { once } from "@xynogen/pix-runtime/once";
+import { homeDir } from "@xynogen/pix-runtime/paths";
 import { createPixPowerShellOperations } from "./operations.js";
 import { registerPowerShellTool } from "./powershell.js";
 
@@ -67,7 +68,7 @@ export function createPixPowerShellExtension(options: PixPowerShellOptions = {})
 
 				registered = true;
 				const cwd = process.cwd();
-				const home = process.env.USERPROFILE ?? process.env.HOME ?? "";
+				const home = homeDir();
 				registerPowerShellTool(pi as unknown as PiPrettyApi, createTool, {
 					cwd,
 					sp: (p: string) => shortPath(cwd, home, p),

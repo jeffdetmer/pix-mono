@@ -8,6 +8,7 @@ import { CursorStore, fffState } from "@xynogen/pix-pretty/fff";
 import type { PiPrettyApi, TextComponentCtor, ToolFactory } from "@xynogen/pix-pretty/types";
 import { shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 import { once } from "@xynogen/pix-runtime/once";
+import { homeDir } from "@xynogen/pix-runtime/paths";
 import { registerBashTool } from "./bash.js";
 
 export default function pixBashExtension(pi: ExtensionAPI): void {
@@ -25,7 +26,7 @@ export default function pixBashExtension(pi: ExtensionAPI): void {
 		}
 
 		const cwd = process.cwd();
-		const home = process.env.HOME ?? "";
+		const home = homeDir();
 
 		registerBashTool(prettyPi, createBashTool, {
 			cwd,

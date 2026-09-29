@@ -1,4 +1,4 @@
-import { relative } from "node:path";
+import { isAbsolute, relative } from "node:path";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 import {
@@ -512,8 +512,10 @@ function _readTtyColumns(): number | undefined {
 export function shortPath(cwd: string, home: string, p: string): string {
 	if (!p) return "";
 	const r = relative(cwd, p);
-	if (!r.startsWith("..") && !r.startsWith("/")) return r;
-	return p.replace(home, "~");
+	// isAbsolute: on Windows, relative() across drives returns the absolute target.
+	if (!r.startsWith("..") && !isAbsolute(r)) return r;
+	// Empty home (unset HOME) must not match: "".replace would prefix every path with "~".
+	return home && p.startsWith(home) ? `~${p.slice(home.length)}` : p;
 }
 
 /** Paints a rule line. Callers pass `(s) => theme.fg(status, s)` so the frame

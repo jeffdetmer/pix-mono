@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import { join } from "node:path";
 import { MAX_PREVIEW_LINES } from "./config.js";
 import type { FgTheme } from "./types.js";
 import {
@@ -19,6 +20,7 @@ import {
 	sectionFrame,
 	sectionRule,
 	setResultDetails,
+	shortPath,
 	termW,
 	unframeToolResult,
 	viewportText,
@@ -586,5 +588,25 @@ describe("sectionRule", () => {
 		const out = sectionRule("=== x ===", tag, 400) ?? "";
 		const visible = out.replace(/<\/?[a-z]+>/g, "");
 		expect([...visible].length).toBe(400);
+	});
+});
+
+describe("shortPath", () => {
+	const home = join("/", "home", "me");
+	const cwd = join(home, "repo");
+
+	it("gives a cwd-relative path inside cwd", () => {
+		expect(shortPath(cwd, home, join(cwd, "src", "a.ts"))).toBe(join("src", "a.ts"));
+	});
+
+	it("shortens home to ~ outside cwd", () => {
+		expect(shortPath(cwd, home, join(home, "other", "b.ts"))).toBe(
+			`~${join("/", "other", "b.ts")}`,
+		);
+	});
+
+	it("leaves the path as is when home is empty (HOME unset on Windows)", () => {
+		const outside = join("/", "srv", "c.ts");
+		expect(shortPath(cwd, "", outside)).toBe(outside);
 	});
 });

@@ -11,6 +11,7 @@
  *   "plan" is rendered as the leftmost segment, others appended after model.
  */
 
+import { basename } from "node:path";
 import type { AssistantMessage, AssistantMessageEvent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
@@ -39,10 +40,8 @@ export function renderThinkingLevel(theme: Theme, level: string, text: string): 
 
 const GIT_POLL_MS = 2_000;
 
-const shortCwd = (cwd: string): string => {
-	const base = cwd.split("/").filter(Boolean).pop();
-	return base ?? cwd;
-};
+// basename splits on \ too on Windows. A root ("/", "C:\\") has no basename, so show it whole.
+const shortCwd = (cwd: string): string => basename(cwd) || cwd;
 
 function fmtCost(entry: ModelsDevModel | undefined): string {
 	const costIn = entry?.cost?.input ?? 0;

@@ -10,6 +10,7 @@ import type { PiPrettyApi, TextComponentCtor, ToolFactory } from "@xynogen/pix-p
 import { shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 
 import { once } from "@xynogen/pix-runtime/once";
+import { homeDir } from "@xynogen/pix-runtime/paths";
 import { registerWriteTool } from "./write.js";
 
 export default function pixWriteExtension(pi: ExtensionAPI): void {
@@ -27,7 +28,7 @@ export default function pixWriteExtension(pi: ExtensionAPI): void {
 		}
 
 		const cwd = process.cwd();
-		const home = process.env.HOME ?? "";
+		const home = homeDir();
 
 		attachResizeListener();
 

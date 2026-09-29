@@ -16,6 +16,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type KeybindingsManager, matchesKey } from "@earendil-works/pi-tui";
+import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import {
 	frameModal,
 	MIN_MODAL_HEIGHT,
@@ -153,7 +154,7 @@ export function registerOptCommand(
 								width,
 								maxHeight: terminalModalHeight(tui.terminal?.rows),
 								minHeight: MIN_MODAL_HEIGHT,
-								header: [theme.fg("accent", theme.bold("󱎫  Optimizer")), ""],
+								header: [theme.fg("accent", theme.bold(`${icon("opt.title")}  Optimizer`)), ""],
 								body: rows,
 								footer: [
 									"",

@@ -22,6 +22,7 @@ import type {
 } from "@xynogen/pix-pretty/types";
 import { getErrorMessage, shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 import { once } from "@xynogen/pix-runtime/once";
+import { homeDir } from "@xynogen/pix-runtime/paths";
 import { registerGrepTool } from "./grep.js";
 
 export default function pixGrepExtension(pi: ExtensionAPI): void {
@@ -39,7 +40,7 @@ export default function pixGrepExtension(pi: ExtensionAPI): void {
 		}
 
 		const cwd = process.cwd();
-		const home = process.env.HOME ?? "";
+		const home = homeDir();
 		const cursorStore = new CursorStore();
 
 		// ── FFF init ────────────────────────────────────────────────────────

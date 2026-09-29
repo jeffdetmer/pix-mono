@@ -39,7 +39,7 @@ import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { padIcon } from "@xynogen/pix-pretty/utils";
 import { runTool } from "@xynogen/pix-runtime/exec";
 import { runGit } from "@xynogen/pix-runtime/os";
-import { agentDir } from "@xynogen/pix-runtime/paths";
+import { agentDir, homeDir } from "@xynogen/pix-runtime/paths";
 
 // ─── Theme shim (same pattern as footer.ts) ───────────────────────────────────
 
@@ -74,7 +74,7 @@ export interface CheckResult {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 export const shortCwd = (cwd: string, home?: string): string => {
-	const h = home ?? process.env.HOME ?? "";
+	const h = home ?? homeDir();
 	return h && cwd.startsWith(h) ? `~${cwd.slice(h.length)}` : cwd;
 };
 
