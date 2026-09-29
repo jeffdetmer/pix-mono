@@ -6,8 +6,22 @@ import {
 	fetchRemoteSkill,
 	parseGitHubSource,
 	remoteSkillsCacheRoot,
+	safeDestination,
 	searchRemoteSkills,
 } from "./remote.ts";
+
+describe("safeDestination", () => {
+	const root = join(tempDir(), "skill-root");
+
+	it("accepts nested bundle paths on every OS", () => {
+		expect(safeDestination(root, "scripts/a.ts")).toBe(join(root, "scripts", "a.ts"));
+	});
+
+	it("rejects traversal, backslashes, absolute paths and the root itself", () => {
+		for (const bad of ["../x", "a/../../x", "a\\..\\x", "/etc/passwd", "", "."])
+			expect(() => safeDestination(root, bad)).toThrow("Unsafe remote path");
+	});
+});
 
 const roots: string[] = [];
 

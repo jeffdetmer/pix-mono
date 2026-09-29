@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { cacheDir } from "@xynogen/pix-runtime/paths";
 
 const SKILLS_SH = "https://skills.sh";
@@ -170,10 +170,14 @@ async function fetchText(
 	return (await fetchBytes(fetcher, url, signal, maxBytes)).toString("utf-8");
 }
 
-function safeDestination(root: string, relativePath: string): string {
+export function safeDestination(root: string, relativePath: string): string {
+	// A remote path uses "/" only. A backslash in the INPUT could act as a separator on
+	// Windows. Check the input: relative() itself returns "\\" on Windows for any nested file.
+	if (relativePath.includes("\\") || relativePath.startsWith("/"))
+		throw new Error("Unsafe remote path");
 	const destination = resolve(root, ...relativePath.split("/"));
 	const rel = relative(resolve(root), destination);
-	if (!rel || rel.startsWith("..") || rel.includes("\\")) throw new Error("Unsafe remote path");
+	if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("Unsafe remote path");
 	return destination;
 }
 
