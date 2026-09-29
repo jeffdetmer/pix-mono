@@ -1,9 +1,20 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
+import { writeFileAtomicSync } from "@xynogen/pix-runtime/atomic-write";
 import { godNodes, surprisingConnections } from "./analyze.js";
 import { analyzeGraph, analyzeGraphProgress } from "./analyzer.js";
 import { buildGraph } from "./build.js";
-import { collectFiles, extract, parseFilesProgress } from "./extract.js";
+import {
+	collectFiles,
+	createGraphParseCache,
+	extract,
+	type GraphParseCache,
+	parseFilesProgress,
+} from "./extract.js";
+
+export { createGraphParseCache } from "./extract.js";
+
 import { renderGraphReport } from "./report.js";
 
 /** Result of a full build — the graph and where it landed on disk. */
@@ -13,6 +24,9 @@ export interface BuildResult {
 	links: number;
 	communities: number;
 	outputDir: string;
+	cached?: boolean;
+	parsedFiles?: number;
+	reusedFiles?: number;
 }
 
 /** Ordered build phases, for progress reporting. */
@@ -48,6 +62,43 @@ function phaseStart(phase: BuildPhase): number {
 }
 
 const yieldToLoop = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+// ponytail: bump this when extraction changes for builds outside the pix-graph source tree.
+const CACHE_VERSION = 1;
+const CACHE_FILE = ".graph-cache.json";
+const OUTPUT_FILES = ["graph.json", "graph.cleaned.json", "GRAPH_REPORT.md"] as const;
+
+type CacheEntry = { key: string; result: BuildResult };
+
+function buildKey(files: string[], repoRoot: string, inputPath: string): string {
+	const hash = createHash("sha256");
+	hash.update(`${CACHE_VERSION}\0${resolve(repoRoot)}\0${resolve(inputPath)}\0`);
+	for (const file of files) {
+		hash.update(relative(repoRoot, file));
+		hash.update("\0");
+		hash.update(readFileSync(file));
+		hash.update("\0");
+	}
+	return hash.digest("hex");
+}
+
+function cachedBuild(outputDir: string, key: string): BuildResult | undefined {
+	if (!OUTPUT_FILES.every((file) => existsSync(resolve(outputDir, file)))) return undefined;
+	try {
+		const cache = JSON.parse(readFileSync(resolve(outputDir, CACHE_FILE), "utf8")) as CacheEntry;
+		if (cache.key !== key || !cache.result || cache.result.outputDir !== outputDir)
+			return undefined;
+		if (
+			!Number.isSafeInteger(cache.result.files) ||
+			!Number.isSafeInteger(cache.result.nodes) ||
+			!Number.isSafeInteger(cache.result.links) ||
+			!Number.isSafeInteger(cache.result.communities)
+		)
+			return undefined;
+		return { ...cache.result, cached: true };
+	} catch {
+		return undefined;
+	}
+}
 
 /**
  * Full code-graph pipeline: extract → build/cluster → analyze → clean → write.
@@ -95,6 +146,7 @@ export async function buildCodeGraphProgress(
 	outputDir: string,
 	onProgress: (p: BuildProgress) => void,
 	signal?: AbortSignal,
+	parseCache: GraphParseCache = createGraphParseCache(),
 ): Promise<BuildResult> {
 	const checkAbort = (): void => {
 		if (signal?.aborted) throw new Error("Operation aborted");
@@ -105,6 +157,13 @@ export async function buildCodeGraphProgress(
 	checkAbort();
 	const files = collectFiles(resolve(inputPath));
 	const fileCount = files.length;
+	const key = buildKey(files, repoRoot, inputPath);
+	checkAbort();
+	const cached = cachedBuild(outputDir, key);
+	if (cached) {
+		onProgress({ phase: "write", fraction: 1, label: "unchanged — using cached graph" });
+		return cached;
+	}
 	onProgress({ phase: "scan", fraction: PHASE_WEIGHT.scan, label: `${fileCount} files` });
 
 	// Parse files in yielding chunks (the slow half of extraction) so the widget
@@ -121,6 +180,8 @@ export async function buildCodeGraphProgress(
 			});
 		},
 		signal,
+		40,
+		parseCache,
 	);
 	checkAbort();
 	onProgress({
@@ -162,6 +223,8 @@ export async function buildCodeGraphProgress(
 	onProgress({ phase: "write", fraction: phaseStart("write"), label: "writing output…" });
 	await yieldToLoop();
 	mkdirSync(outputDir, { recursive: true });
+	// Invalidate the old manifest before any output changes. A failed write must rebuild.
+	rmSync(resolve(outputDir, CACHE_FILE), { force: true });
 	writeFileSync(resolve(outputDir, "graph.json"), `${JSON.stringify(built.graph, null, 2)}\n`);
 	writeFileSync(
 		resolve(outputDir, "graph.cleaned.json"),
@@ -169,12 +232,18 @@ export async function buildCodeGraphProgress(
 	);
 	writeFileSync(resolve(outputDir, "GRAPH_REPORT.md"), report);
 
-	onProgress({ phase: "write", fraction: 1, label: "done" });
-	return {
+	const result: BuildResult = {
 		files: fileCount,
 		nodes: built.graph.nodes.length,
 		links: built.graph.links.length,
 		communities: built.communities.size,
 		outputDir,
+		cached: false,
+		parsedFiles: parseCache.parsedFiles,
+		reusedFiles: parseCache.reusedFiles,
 	};
+	// Write the manifest last. An interrupted build cannot mark partial output as current.
+	writeFileAtomicSync(resolve(outputDir, CACHE_FILE), `${JSON.stringify({ key, result })}\n`);
+	onProgress({ phase: "write", fraction: 1, label: "done" });
+	return result;
 }

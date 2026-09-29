@@ -18,16 +18,23 @@ import { join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
-import { dotJoin, frameToolResult, getErrorMessage } from "@xynogen/pix-pretty/utils";
+import {
+	dotJoin,
+	formatCollapsedToolRow,
+	frameToolResult,
+	getErrorMessage,
+	hideCollapsedToolCall,
+} from "@xynogen/pix-pretty/utils";
 import { formatDuration, SPINNER } from "@xynogen/pix-pretty/widget-format";
+import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
 import { once } from "@xynogen/pix-runtime/once";
 import { projectDir } from "@xynogen/pix-runtime/paths";
 import { Type } from "typebox";
 import type { GraphData } from "./analyzer.js";
-import { type BuildProgress, buildCodeGraphProgress } from "./pipeline.js";
+import { type BuildProgress, buildCodeGraphProgress, createGraphParseCache } from "./pipeline.js";
 import { query as queryGraph } from "./query.js";
 
-const OUT_DIR = `${projectDir()}/pix-graph`; // "/" so prompt text reads the same on Windows
+const OUT_DIR = `${projectDir()}/graph`; // "/" so prompt text reads the same on Windows
 // Also read graphs left by the CLI's old default / external graphify.
 const LEGACY_DIRS = ["graphify-out"];
 const BAR_WIDTH = 20;
@@ -148,10 +155,12 @@ function loadGraph(cwd: string): GraphData | undefined {
 export default function registerGraph(pi: ExtensionAPI): void {
 	once(pi, "pix-graph", () => {
 		const cwd = process.cwd();
+		const parseCache = createGraphParseCache();
 
 		pi.registerTool({
 			name: "graph",
 			label: "Graph",
+			renderShell: "self",
 			description:
 				"Code knowledge graph (TS/JS). action=build extracts+clusters the codebase into " +
 				`${OUT_DIR}/graph.json (also use to update after edits). action=query answers a ` +
@@ -182,8 +191,10 @@ export default function registerGraph(pi: ExtensionAPI): void {
 				),
 			}),
 
-			renderCall(args, theme) {
+			renderCall(args, theme, context) {
 				const t = theme as Theme;
+				if (hideCollapsedToolCall(context.state as CollapseState, context.expanded, () => {}))
+					return new Text("", 0, 0);
 				const a = args as { action?: string; question?: string; path?: string; dfs?: boolean };
 				const title = t.fg("toolTitle", t.bold("graph"));
 				if (a.action === "query") {
@@ -218,6 +229,25 @@ export default function registerGraph(pi: ExtensionAPI): void {
 					component = new Text(text, 0, 0);
 				}
 				if (options.isPartial || !details) return component;
+				if (
+					tickCollapse(
+						"graph",
+						context.state as CollapseState,
+						context.invalidate,
+						context.expanded,
+					)
+				)
+					return new Text(
+						formatCollapsedToolRow(
+							t,
+							"graph",
+							details.action,
+							isError ? "failed" : "done",
+							isError ? "error" : "success",
+						),
+						0,
+						0,
+					);
 				return frameToolResult(component, theme, isError);
 			},
 
@@ -269,11 +299,14 @@ export default function registerGraph(pi: ExtensionAPI): void {
 								emit();
 							},
 							signal,
+							parseCache,
 						);
 						const took = formatDuration(Date.now() - startedAt, "btw");
 						return ok(
-							`Graph built in ${took}: ${r.files} files → ${r.nodes} nodes, ${r.links} links, ` +
-								`${r.communities} communities → ${OUT_DIR}/`,
+							`Graph ${r.cached ? "unchanged (cache hit)" : `built in ${took}`}: ` +
+								`${r.files} files → ${r.nodes} nodes, ${r.links} links, ` +
+								`${r.communities} communities → ${OUT_DIR}/` +
+								(r.cached ? "" : ` · parsed ${r.parsedFiles} · reused ${r.reusedFiles}`),
 						);
 					} catch (error) {
 						const msg = getErrorMessage(error);

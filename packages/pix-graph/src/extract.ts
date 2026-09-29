@@ -98,6 +98,16 @@ interface ParsedFile {
 	fileId: string;
 }
 
+export interface GraphParseCache {
+	entries: Map<string, { text: string; parsed: ParsedFile }>;
+	parsedFiles: number;
+	reusedFiles: number;
+}
+
+export function createGraphParseCache(): GraphParseCache {
+	return { entries: new Map(), parsedFiles: 0, reusedFiles: 0 };
+}
+
 /** Read + parse one file into the shape the extractor consumes. */
 function parseFile(file: string, repoRoot: string): ParsedFile {
 	const rel = relative(repoRoot, file).split(sep).join("/");
@@ -118,12 +128,39 @@ export async function parseFilesProgress(
 	onProgress?: (done: number, total: number) => void,
 	signal?: AbortSignal,
 	chunkSize = 40,
+	cache?: GraphParseCache,
 ): Promise<ParsedFile[]> {
 	const parsed: ParsedFile[] = [];
+	if (cache) {
+		cache.parsedFiles = 0;
+		cache.reusedFiles = 0;
+		for (const file of cache.entries.keys()) if (!files.includes(file)) cache.entries.delete(file);
+	}
 	for (let i = 0; i < files.length; i += chunkSize) {
 		if (signal?.aborted) throw new Error("Operation aborted");
 		for (let j = i; j < Math.min(i + chunkSize, files.length); j++) {
-			parsed.push(parseFile(files[j] as string, repoRoot));
+			const file = files[j] as string;
+			if (!cache) {
+				parsed.push(parseFile(file, repoRoot));
+				continue;
+			}
+			const text = readFileSync(file, "utf8");
+			const prior = cache.entries.get(file);
+			if (prior?.text === text) {
+				parsed.push(prior.parsed);
+				cache.reusedFiles++;
+			} else {
+				const rel = relative(repoRoot, file).split(sep).join("/");
+				const next = {
+					file,
+					rel,
+					source: ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX),
+					fileId: fileNodeId(rel),
+				};
+				parsed.push(next);
+				cache.entries.set(file, { text, parsed: next });
+				cache.parsedFiles++;
+			}
 		}
 		onProgress?.(Math.min(i + chunkSize, files.length), files.length);
 		await yieldToLoop();

@@ -15,7 +15,12 @@ import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateHead } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
-import { frameToolResult } from "@xynogen/pix-pretty/utils";
+import {
+	formatCollapsedToolRow,
+	frameToolResult,
+	hideCollapsedToolCall,
+} from "@xynogen/pix-pretty/utils";
+import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
 import { Type } from "typebox";
 import type { DiagnosticRequest, LspManager } from "../lsp/manager.ts";
 import type { DiagnosticStore } from "../store.ts";
@@ -98,6 +103,7 @@ export function registerDiagnosticsTool(pi: ExtensionAPI, deps: DiagnosticsToolD
 	pi.registerTool({
 		name: "lens_diagnostics",
 		label: "Diagnostics",
+		renderShell: "self",
 		description:
 			"Report LSP diagnostics. source=session returns cached findings (all files, or " +
 			"filter with paths); source=lsp runs a fresh check on 1..100 explicit paths. " +
@@ -125,8 +131,10 @@ export function registerDiagnosticsTool(pi: ExtensionAPI, deps: DiagnosticsToolD
 			),
 		}),
 
-		renderCall(args, theme) {
+		renderCall(args, theme, context) {
 			const t = theme as Theme;
+			if (hideCollapsedToolCall(context.state as CollapseState, context.expanded, () => {}))
+				return new Text("", 0, 0);
 			const a = args as { source?: string; paths?: string[] };
 			const title = t.fg("toolTitle", t.bold("lens_diagnostics"));
 			const src = t.fg("muted", a.source ?? "session");
@@ -143,6 +151,31 @@ export function registerDiagnosticsTool(pi: ExtensionAPI, deps: DiagnosticsToolD
 			const role = isError ? "error" : "success";
 			const body = new Text(`${t.fg(role, glyph)} ${text}`, 0, 0);
 			if (options.isPartial || !details) return body;
+			if (
+				tickCollapse(
+					"lens_diagnostics",
+					context.state as CollapseState,
+					context.invalidate,
+					context.expanded,
+				)
+			)
+				return new Text(
+					formatCollapsedToolRow(
+						t,
+						"lens_diagnostics",
+						`${details.files} files`,
+						[
+							`${details.findings} findings`,
+							details.unconfirmed ? `${details.unconfirmed} unconfirmed` : "",
+							details.unavailable ? `${details.unavailable} unavailable` : "",
+						]
+							.filter(Boolean)
+							.join(" · "),
+						isError ? "error" : "success",
+					),
+					0,
+					0,
+				);
 			return frameToolResult(body, theme, isError);
 		},
 

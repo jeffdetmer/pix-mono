@@ -8,6 +8,14 @@ const theme = {
 };
 
 describe("diagnostic widget", () => {
+	test("draws a full-width top rule above the LSP row", () => {
+		const store = new DiagnosticStore();
+		store.set({ filePath: "/repo/a.ts", checkedAt: 1, state: "clean", diagnostics: [] });
+		const lines = renderWidget(store, 80, theme as never);
+		expect(lines[0]).toBe(`[borderMuted]${"─".repeat(80)}[/borderMuted]`);
+		expect(lines[1]).toMatch(/LSP.*1 checked.*1 clean/);
+	});
+
 	test("shows the LSP role, severity counts, and recent files", () => {
 		const store = new DiagnosticStore();
 		store.set({
@@ -20,7 +28,7 @@ describe("diagnostic widget", () => {
 			],
 		});
 
-		const text = renderWidget(store, 120, theme as never).join("\n");
+		const text = renderWidget(store, 320, theme as never).join("\n");
 		expect(text).toMatch(/LSP.*1 error.*1 warning.*a\.ts/);
 	});
 
@@ -51,13 +59,42 @@ describe("diagnostic widget", () => {
 		expect(text).not.toContain("clean.ts");
 	});
 
-	test("shows the checked file count without findings", () => {
+	test("separates confirmed clean files from files without an LSP result", () => {
 		const store = new DiagnosticStore();
 		store.set({ filePath: "/repo/a.ts", checkedAt: 1, state: "clean", diagnostics: [] });
 		store.set({ filePath: "/repo/b.ts", checkedAt: 2, state: "unconfirmed", diagnostics: [] });
-		store.set({ filePath: "/repo/touched.ts", checkedAt: 3, state: "touched", diagnostics: [] });
-		const text = renderWidget(store, 80, theme as never).join("\n");
-		expect(text).toMatch(/LSP.*2 files/);
+		store.set({ filePath: "/repo/c.ts", checkedAt: 3, state: "unavailable", diagnostics: [] });
+		store.set({ filePath: "/repo/touched.ts", checkedAt: 4, state: "touched", diagnostics: [] });
+		const text = renderWidget(store, 320, theme as never).join("\n");
+		expect(text).toMatch(/LSP.*3 checked.*1 clean.*1 unconfirmed.*1 unavailable.*c\.ts, b\.ts/);
+	});
+
+	test("shows uncertain files beside files with findings", () => {
+		const store = new DiagnosticStore();
+		store.set({
+			filePath: "/repo/error.ts",
+			checkedAt: 1,
+			state: "findings",
+			diagnostics: [
+				{ filePath: "/repo/error.ts", severity: "error", message: "bad", line: 1, column: 1 },
+			],
+		});
+		store.set({
+			filePath: "/repo/unknown.ts",
+			checkedAt: 2,
+			state: "unconfirmed",
+			diagnostics: [],
+		});
+		const text = renderWidget(store, 320, theme as never).join("\n");
+		expect(text).toMatch(/LSP.*2 checked.*1 error.*1 unconfirmed.*unknown\.ts, error\.ts/);
+	});
+
+	test("shows an unconfirmed check without claiming the file is clean at normal width", () => {
+		const store = new DiagnosticStore();
+		store.set({ filePath: "/repo/a.ts", checkedAt: 1, state: "unconfirmed", diagnostics: [] });
+		const plain = { fg: (_role: string, text: string) => text };
+		const text = renderWidget(store, 80, plain as never).join("\n");
+		expect(text).toMatch(/LSP.*1 checked.*1 unconfirmed.*a\.ts/);
 	});
 
 	test("returns no row before LSP checks a file", () => {
@@ -82,7 +119,7 @@ describe("diagnostic widget", () => {
 				},
 			],
 		});
-		const [line] = renderWidget(store, 24, theme as never);
+		const [, line] = renderWidget(store, 24, theme as never);
 		expect(visibleWidth(line ?? "")).toBeLessThanOrEqual(24);
 	});
 });

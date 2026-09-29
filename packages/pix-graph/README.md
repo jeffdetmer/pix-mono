@@ -15,11 +15,11 @@ One tool, two modes:
 
 | Call | Effect |
 |---|---|
-| `graph(action:"build", path?)` | (Re)build/update the graph from source into `.pi/pix-graph/`. Run again after edits to refresh. |
+| `graph(action:"build", path?)` | (Re)build/update the graph from source into `.pi/graph/`. Run again after edits to refresh. |
 | `graph(action:"query", question, dfs?)` | Answer a codebase question by traversing the existing graph. BFS (default) for broad context, `dfs:true` to trace a path. |
 
 `pix-nudge` also drops a one-line reminder to prefer `graph(action:"query")` over
-grepping when `.pi/pix-graph/graph.json` exists (it also detects a legacy
+grepping when `.pi/graph/graph.json` exists (it also detects a legacy
 `graphify-out/graph.json`). Output lives under the gitignored `.pi/` dir.
 
 ## CLI
@@ -30,7 +30,7 @@ pix-graph query "<question>" [--graph FILE] [--dfs] [--depth N]
 pix-graph path "<from>" "<to>" [--graph FILE]      # shortest path between nodes
 ```
 
-`build` writes into `--out` (default `.pi/pix-graph/`):
+`build` writes into `--out` (default `.pi/graph/`):
 
 | Output | Description |
 |---|---|
@@ -43,7 +43,7 @@ pix-graph path "<from>" "<to>" [--graph FILE]      # shortest path between nodes
 ```ts
 import { buildCodeGraph, query, analyzeGraph } from "@xynogen/pix-graph";
 
-const result = buildCodeGraph("src", process.cwd(), ".pi/pix-graph");
+const result = buildCodeGraph("src", process.cwd(), ".pi/graph");
 // → { nodes, links, communities, outputDir }
 ```
 

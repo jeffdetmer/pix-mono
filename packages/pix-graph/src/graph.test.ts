@@ -10,12 +10,23 @@ type ExecuteFn = (
 ) => Promise<{ content: Array<{ text: string }>; isError?: boolean; details?: unknown }>;
 
 type ToolDef = {
+	renderShell?: string;
+	renderCall: (
+		args: { action: string; question?: string },
+		theme: { fg: (role: string, text: string) => string; bold: (text: string) => string },
+		context: { state: { collapsed: boolean }; expanded: boolean },
+	) => { render: (width: number) => string[] };
 	execute: ExecuteFn;
 	renderResult: (
 		result: { content: Array<{ type: "text"; text: string }>; details?: unknown },
 		options: { expanded: boolean; isPartial: boolean },
 		theme: { fg: (role: string, text: string) => string; bold: (text: string) => string },
-		context: { isError: boolean },
+		context: {
+			isError: boolean;
+			state?: { collapsed: boolean };
+			expanded?: boolean;
+			invalidate?: () => void;
+		},
 	) => { render: (width: number) => string[] };
 };
 
@@ -71,6 +82,40 @@ async function run(params: Record<string, unknown>, cwd: string) {
 }
 
 describe("graph tool", () => {
+	test("uses a self-rendered single row after collapse and keeps the full result on expand", () => {
+		const tool = captureTool();
+		const theme = { fg: (_role: string, text: string) => text, bold: (text: string) => text };
+		const state = { collapsed: true };
+		const context = { state, expanded: false, isError: false, invalidate: () => {} };
+		const result = {
+			content: [{ type: "text" as const, text: "answer" }],
+			details: { _type: "graphResult", action: "query", outcome: "success" },
+		};
+		expect(tool.renderShell).toBe("self");
+		expect(
+			tool
+				.renderCall({ action: "query", question: "how" }, theme, context)
+				.render(80)
+				.join("\n")
+				.trim(),
+		).toBe("");
+		const collapsed = tool
+			.renderResult(result, { expanded: false, isPartial: false }, theme, context)
+			.render(80)
+			.join("\n");
+		expect(collapsed).toMatch(/graph.*query/);
+		expect(collapsed.split("\n")).toHaveLength(1);
+		const expanded = tool
+			.renderResult(result, { expanded: true, isPartial: false }, theme, {
+				...context,
+				expanded: true,
+			})
+			.render(80)
+			.join("\n");
+		expect(expanded).toContain("answer");
+		expect(expanded.split("\n").length).toBeGreaterThan(1);
+	});
+
 	test("frames terminal results by status but leaves running and partial results open", () => {
 		const renderResult = captureTool().renderResult;
 		const theme = {
@@ -89,7 +134,12 @@ describe("graph tool", () => {
 				},
 				{ expanded, isPartial },
 				theme,
-				{ isError: outcome === "error" },
+				{
+					isError: outcome === "error",
+					state: { collapsed: false },
+					expanded,
+					invalidate: () => {},
+				},
 			)
 				.render(20)
 				.join("\n");
@@ -109,7 +159,14 @@ describe("graph tool", () => {
 		expect(res.isError).toBeFalsy();
 		const text = res.content.map((c) => c.text).join("");
 		expect(text).toContain("Graph built");
-		expect(text).toContain(".pi/pix-graph");
+		expect(text).toContain(".pi/graph/");
+	});
+
+	test("a repeated build reports a cache hit", async () => {
+		const root = fixture();
+		await run({ action: "build" }, root);
+		const result = await run({ action: "build" }, root);
+		expect(result.content[0]?.text).toMatch(/Graph unchanged \(cache hit\).*files.*nodes/);
 	});
 
 	test("query mode traverses a built graph", async () => {

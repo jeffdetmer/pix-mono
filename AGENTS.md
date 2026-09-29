@@ -481,7 +481,7 @@ bun run check              # biome lint + format
 bun run check:fix          # auto-fix
 bun run typecheck          # tsc --noEmit
 bun run test               # unit tests (--isolate + sandbox preload)
-bun run graph:build        # refresh .pi/pix-graph/graph.json
+bun run graph:build        # refresh .pi/graph/graph.json
 ```
 
 Commit format: `type(scope): short description`. The scope is the package name, for example `fix(pix-core): ...`.

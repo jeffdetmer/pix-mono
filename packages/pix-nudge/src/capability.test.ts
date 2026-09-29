@@ -223,13 +223,13 @@ describe("graphifyHint", () => {
 		expect(graphifyHint(tmpDir)).toBeUndefined();
 	});
 
-	test("returns hint for the pix-graph output dir (.pi/pix-graph)", () => {
+	test("returns hint for the graph output dir (.pi/graph)", () => {
 		try {
-			mkdirSync(join(projectDir(tmpDir), "pix-graph"), { recursive: true });
-			writeFileSync(join(tmpDir, ".pi/pix-graph", "graph.json"), "{}");
+			mkdirSync(join(projectDir(tmpDir), "graph"), { recursive: true });
+			writeFileSync(join(tmpDir, ".pi/graph", "graph.json"), "{}");
 			const hint = graphifyHint(tmpDir);
 			expect(hint).toBeTypeOf("string");
-			expect(hint).toContain(".pi/pix-graph/graph.json");
+			expect(hint).toContain(".pi/graph/graph.json");
 			expect(hint).toContain('graph(action:"query"');
 		} finally {
 			rmSync(tmpDir, { recursive: true, force: true });

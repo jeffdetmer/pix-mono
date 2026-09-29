@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { ProcManager } from "./manager.ts";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -46,6 +46,36 @@ describe.skipIf(process.platform === "win32")("ProcManager lifecycle", () => {
 		expect(tail?.lines).toEqual(["b", "c"]);
 		const since = await mgr.logsSince(m.handle);
 		expect(since?.lines).toEqual(["a", "b", "c"]); // tail did not consume the cursor
+	});
+
+	test("stops recording at the byte cap while the process keeps running", async () => {
+		mgr = new ProcManager(128);
+		const m = mgr.start("yes hello | head -c 4096; sleep 5", process.cwd());
+		await until(() => m.capped);
+		expect(m.capped).toBe(true);
+		expect(m.status).toBe("running");
+		const path = mgr.get(m.handle)?.logPath;
+		expect(path).toBeDefined();
+		const size = statSync(path as string).size;
+		expect(size).toBe(128);
+		await wait(200);
+		expect(statSync(path as string).size).toBe(128);
+	});
+
+	test("tails a large log without losing its last line", async () => {
+		mgr = new ProcManager();
+		const m = mgr.start(
+			"printf 'é\\n'; yes x | head -c 20000; printf '\\nlast\\n'; sleep 5",
+			process.cwd(),
+		);
+		await until(
+			() =>
+				m.status !== "running" ||
+				(existsSync(mgr.get(m.handle)?.logPath ?? "") &&
+					statSync(mgr.get(m.handle)?.logPath ?? "").size > 20000),
+		);
+		const tail = await mgr.logsTail(m.handle, 1);
+		expect(tail?.lines).toEqual(["last"]);
 	});
 
 	test("exit is recorded with code", async () => {

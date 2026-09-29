@@ -44,10 +44,10 @@ export const CAPABILITY_REMINDER =
 /**
  * Build the optional graph hint line.
  * Returns a string if a built graph.json exists in cwd (the pix-graph tool writes
- * `.pi/pix-graph/`, external graphify / older CLI wrote `graphify-out/`), else undefined.
+ * `.pi/graph/`, external graphify / older CLI wrote `graphify-out/`), else undefined.
  */
 export function graphifyHint(cwd: string): string | undefined {
-	const dir = [`${projectDir()}/pix-graph`, "graphify-out"].find((d) =>
+	const dir = [`${projectDir()}/graph`, "graphify-out"].find((d) =>
 		existsSync(join(cwd, d, "graph.json")),
 	);
 	if (dir) {

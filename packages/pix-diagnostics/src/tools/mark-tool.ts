@@ -11,7 +11,12 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
-import { frameToolResult } from "@xynogen/pix-pretty/utils";
+import {
+	formatCollapsedToolRow,
+	frameToolResult,
+	hideCollapsedToolCall,
+} from "@xynogen/pix-pretty/utils";
+import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
 import { Type } from "typebox";
 import type { Disposition, DispositionStore } from "../dispositions.ts";
 
@@ -26,6 +31,7 @@ export function registerMarkTool(pi: ExtensionAPI, deps: MarkToolDeps): void {
 	pi.registerTool({
 		name: "lens_diagnostic_mark",
 		label: "Mark diagnostic",
+		renderShell: "self",
 		description:
 			"Record a disposition for a diagnostic: false-positive, suppress, defer, or flagged. " +
 			"action=set marks (needs path, code, disposition); action=list shows all; action=clear " +
@@ -44,8 +50,10 @@ export function registerMarkTool(pi: ExtensionAPI, deps: MarkToolDeps): void {
 			note: Type.Optional(Type.String({ description: "Optional note." })),
 		}),
 
-		renderCall(args, theme) {
+		renderCall(args, theme, context) {
 			const t = theme as Theme;
+			if (hideCollapsedToolCall(context.state as CollapseState, context.expanded, () => {}))
+				return new Text("", 0, 0);
 			const a = args as { action?: string; disposition?: string; path?: string };
 			const title = t.fg("toolTitle", t.bold("lens_diagnostic_mark"));
 			const act = t.fg("muted", a.action ?? "");
@@ -56,12 +64,44 @@ export function registerMarkTool(pi: ExtensionAPI, deps: MarkToolDeps): void {
 		renderResult(result, options, theme, context) {
 			const t = theme as Theme;
 			const text = result.content.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n");
-			const details = result.details as { outcome?: string } | undefined;
+			const details = result.details as
+				| {
+						outcome?: string;
+						count?: number;
+						cleared?: number;
+						disposition?: string;
+				  }
+				| undefined;
 			const isError = context.isError || details?.outcome === "error";
 			const glyph = isError ? icon("status.error") : icon("status.done");
 			const role = isError ? "error" : "success";
 			const body = new Text(`${t.fg(role, glyph)} ${text}`, 0, 0);
 			if (options.isPartial || !details) return body;
+			if (
+				tickCollapse(
+					"lens_diagnostic_mark",
+					context.state as CollapseState,
+					context.invalidate,
+					context.expanded,
+				)
+			)
+				return new Text(
+					formatCollapsedToolRow(
+						t,
+						"lens_diagnostic_mark",
+						"",
+						isError
+							? "failed"
+							: details.count !== undefined
+								? `${details.count} marks`
+								: details.cleared !== undefined
+									? `${details.cleared} cleared`
+									: `marked ${details.disposition ?? "done"}`,
+						isError ? "error" : "success",
+					),
+					0,
+					0,
+				);
 			return frameToolResult(body, theme, isError);
 		},
 

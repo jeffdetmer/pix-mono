@@ -4,15 +4,12 @@
  * Spawn shape (settled by design review):
  *   detached: true       → child leads its own process group (pgid === pid),
  *                          so we kill the whole tree via process.kill(-pgid).
- *   stdio: [ignore,fd,fd]→ the child writes straight to its log file; the parent
- *                          holds no pipe, so a full stdout buffer never blocks
- *                          the child and Pi can exit while the child lives.
- *   child.unref()        → the log fd + child do not keep the parent event loop
- *                          alive.
+ *   stdio: pipes          → the parent writes only the first MAX_LOG_BYTES to disk.
+ *   child.unref()        → the child does not keep Pi alive.
  *
- * Cap: at MAX_LOG_BYTES / MAX_LOG_LINES we STOP recording (rewrite the process's
- * stdio to /dev/null) instead of truncating — the file stays intact and complete
- * up to the cap. No disk ring buffer.
+ * ponytail: stdout and stderr share one capped file. Their relative order depends
+ * on pipe delivery. A process kept after a Pi crash loses its output pipes; a
+ * separate recorder process would preserve capture across crashes.
  *
  * Crash reaper: each running process writes a pidfile {pgid, startTicks}. On the
  * next session_start we find pidfiles whose pgid is still alive AND whose start
@@ -29,8 +26,9 @@ import {
 	rmSync,
 	statSync,
 	writeFileSync,
+	writeSync,
 } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { open, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { generateLfid } from "@xynogen/pix-runtime/lfid";
 import { cacheDir } from "@xynogen/pix-runtime/paths";
@@ -53,6 +51,7 @@ interface LiveProc {
 	child?: ChildProcess;
 	logPath: string;
 	fd?: number;
+	bytes: number;
 	cursor: number; // model's byte cursor into the log
 }
 
@@ -87,7 +86,9 @@ export interface Orphan {
 export class ProcManager {
 	private readonly procs = new Map<string, LiveProc>();
 
-	constructor() {
+	constructor(private readonly logMaxBytes = MAX_LOG_BYTES) {
+		if (!Number.isSafeInteger(logMaxBytes) || logMaxBytes < 1)
+			throw new Error("logMaxBytes must be a positive safe integer");
 		mkdirSync(PROC_DIR, { recursive: true });
 	}
 
@@ -133,6 +134,7 @@ export class ProcManager {
 		this.procs.set(orphan.handle, {
 			meta,
 			logPath: this.logPathFor(orphan.handle),
+			bytes: 0,
 			cursor: 0,
 		});
 		return meta;
@@ -143,12 +145,19 @@ export class ProcManager {
 		const handle = this.freshHandle();
 		const logPath = this.logPathFor(handle);
 		const fd = openSync(logPath, "w");
-		const child = spawn(command, {
-			cwd,
-			shell: true,
-			detached: true,
-			stdio: ["ignore", fd, fd],
-		});
+		let child: ChildProcess;
+		try {
+			child = spawn(command, {
+				cwd,
+				shell: true,
+				detached: true,
+				stdio: ["ignore", "pipe", "pipe"],
+			});
+		} catch (err) {
+			closeSync(fd);
+			rmSync(logPath, { force: true });
+			throw err;
+		}
 		child.unref();
 		const pid = child.pid ?? -1;
 		const meta: ProcMeta = {
@@ -163,13 +172,27 @@ export class ProcManager {
 			status: "running",
 			capped: false,
 		};
-		const live: LiveProc = { meta, child, logPath, fd, cursor: 0 };
+		const live: LiveProc = { meta, child, logPath, fd, bytes: 0, cursor: 0 };
+		for (const stream of [child.stdout, child.stderr]) {
+			stream?.on("data", (chunk: Buffer) => {
+				const length = Math.min(chunk.length, this.logMaxBytes - live.bytes);
+				let offset = 0;
+				while (offset < length && live.fd !== undefined) {
+					const written = writeSync(live.fd, chunk, offset, length - offset);
+					if (!written) throw new Error("process log write made no progress");
+					offset += written;
+					live.bytes += written;
+				}
+				if (live.bytes >= this.logMaxBytes) meta.capped = true;
+			});
+			if (stream && "unref" in stream && typeof stream.unref === "function") stream.unref();
+		}
 		this.procs.set(handle, live);
 		writeFileSync(
 			this.pidPath(handle),
 			JSON.stringify({ pgid: meta.pgid, startTicks: meta.startTicks, command }),
 		);
-		child.on("exit", (code, signal) => {
+		child.on("close", (code, signal) => {
 			meta.status = signal ? "killed" : "exited";
 			meta.exitCode = code ?? undefined;
 			this.closeFd(live);
@@ -185,7 +208,7 @@ export class ProcManager {
 		}
 	}
 
-	/** Enforce the cap: at the limit, redirect the child to /dev/null and mark capped. */
+	/** Update the status of an adopted process whose original parent is gone. */
 	checkCap(handle: string): void {
 		const live = this.procs.get(handle);
 		if (live?.meta.status !== "running") return;
@@ -194,19 +217,13 @@ export class ProcManager {
 			silent(() => rmSync(this.pidPath(handle), { force: true }));
 			return;
 		}
-		if (live.meta.capped) return;
-		let bytes = 0;
-		try {
-			bytes = statSync(live.logPath).size;
-		} catch {
-			return;
+		if (!live.child) {
+			try {
+				live.meta.capped = statSync(live.logPath).size >= this.logMaxBytes;
+			} catch {
+				// An adopted process can lack its old log.
+			}
 		}
-		if (bytes < MAX_LOG_BYTES) return;
-		// Stop recording without touching the intact file: close our fd so the
-		// child's inherited fd keeps its own offset, then mark capped. The file is
-		// never rewritten. The child keeps running.
-		live.meta.capped = true;
-		this.closeFd(live);
 	}
 
 	/** Cursor read — new complete lines since the model's last call. */
@@ -228,19 +245,43 @@ export class ProcManager {
 	): Promise<{ lines: string[]; logPath: string; capped: boolean } | undefined> {
 		const live = this.procs.get(handle);
 		if (!live) return undefined;
-		const text = await this.readLog(live.logPath);
-		const lines = text.split("\n");
-		if (lines.at(-1) === "") lines.pop(); // drop trailing empty from final newline
-		return { lines: tailLines(lines, n), logPath: live.logPath, capped: live.meta.capped };
+		const lines = await this.readTail(live.logPath, n);
+		return { lines, logPath: live.logPath, capped: live.meta.capped };
 	}
 
 	/** Freshest complete line, for the widget/list. Does not move any cursor. */
 	async lastLine(handle: string): Promise<string | undefined> {
 		const live = this.procs.get(handle);
 		if (!live) return undefined;
-		const text = await this.readLog(live.logPath);
-		const lines = text.split("\n").filter((l) => l.length);
-		return lines.at(-1);
+		return (await this.readTail(live.logPath, 1)).at(-1);
+	}
+
+	private async readTail(path: string, n: number): Promise<string[]> {
+		let file: Awaited<ReturnType<typeof open>> | undefined;
+		try {
+			file = await open(path, "r");
+			let offset = (await file.stat()).size;
+			const chunks: Buffer[] = [];
+			let newlines = 0;
+			const count = Math.min(Math.max(1, Math.floor(n)), MAX_LOG_LINES);
+			while (offset > 0 && newlines <= count) {
+				const size = Math.min(offset, 8192);
+				offset -= size;
+				const chunk = Buffer.allocUnsafe(size);
+				const { bytesRead } = await file.read(chunk, 0, size, offset);
+				if (!bytesRead) break;
+				const data = chunk.subarray(0, bytesRead);
+				chunks.unshift(data);
+				for (const byte of data) if (byte === 10) newlines++;
+			}
+			const lines = Buffer.concat(chunks).toString("utf8").split("\n");
+			if (lines.at(-1) === "") lines.pop();
+			return tailLines(lines, count);
+		} catch {
+			return [];
+		} finally {
+			await file?.close();
+		}
 	}
 
 	private async readLog(path: string): Promise<string> {

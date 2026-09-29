@@ -1,7 +1,7 @@
 /**
  * diagnostics.ts — the single Pix diagnostic widget and runtime wiring.
  *
- * `renderWidget` reads a `DiagnosticStore` and renders one compact line:
+ * `renderWidget` reads a `DiagnosticStore` and renders a top rule and one compact line:
  *
  *   <LSP icon> LSP  <N error>  <N warning>  <recent files>
  *
@@ -13,6 +13,7 @@
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
+import { rule } from "@xynogen/pix-pretty/utils";
 import { DispositionStore } from "./dispositions.ts";
 import { createManager, type LspManager } from "./lsp/manager.ts";
 import { DiagnosticStore } from "./store.ts";
@@ -43,25 +44,34 @@ export function renderWidget(store: DiagnosticStore, width: number, theme: Theme
 	const w = Math.max(1, width || 80);
 	const checkedFiles = store.recent().filter((snapshot) => snapshot.state !== "touched");
 	if (checkedFiles.length === 0) return [];
-	const filesWithFindings = checkedFiles.filter((snapshot) => snapshot.diagnostics.length > 0);
+	const notable = checkedFiles.filter(
+		(snapshot) =>
+			snapshot.diagnostics.length > 0 || ["unconfirmed", "unavailable"].includes(snapshot.state),
+	);
+	const clean = checkedFiles.filter((snapshot) => snapshot.state === "clean").length;
+	const unconfirmed = checkedFiles.filter((snapshot) => snapshot.state === "unconfirmed").length;
+	const unavailable = checkedFiles.filter((snapshot) => snapshot.state === "unavailable").length;
 
 	const { errors, warnings } = severityCounts(store);
 	const parts: string[] = [theme.fg("toolTitle", `${icon("lsp")} LSP`)];
+	parts.push(theme.fg("muted", `${checkedFiles.length} checked`));
 	if (errors > 0) parts.push(theme.fg("error", `${icon("status.error")} ${errors} error`));
 	if (warnings > 0) parts.push(theme.fg("warning", `${icon("status.warn")} ${warnings} warning`));
-	if (filesWithFindings.length === 0) {
-		parts.push(theme.fg("success", `${icon("status.ok")} ${checkedFiles.length} files`));
-	}
+	if (clean > 0) parts.push(theme.fg("success", `${icon("status.ok")} ${clean} clean`));
+	if (unconfirmed > 0) parts.push(theme.fg("warning", `${unconfirmed} unconfirmed`));
+	if (unavailable > 0) parts.push(theme.fg("warning", `${unavailable} unavailable`));
 
-	const files = filesWithFindings
+	const files = notable
 		.slice(0, MAX_RECENT)
 		.map((snap) => snap.filePath.split("/").pop() ?? snap.filePath);
-	const more =
-		filesWithFindings.length > files.length ? ` +${filesWithFindings.length - files.length}` : "";
+	const more = notable.length > files.length ? ` +${notable.length - files.length}` : "";
 	const fileList = files.length > 0 ? theme.fg("dim", files.join(", ") + more) : "";
 	if (fileList) parts.push(fileList);
 
-	return [truncateToWidth(` ${parts.join("  ")}`, w, "…")];
+	return [
+		rule(w, (glyphs) => theme.fg("borderMuted", glyphs)),
+		truncateToWidth(` ${parts.join("  ")}`, w, "…"),
+	];
 }
 
 // ─── Extension ────────────────────────────────────────────────────────────────

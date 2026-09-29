@@ -12,7 +12,7 @@ Louvain finds communities, and you traverse the result instead of grepping.
 
 Two ways to drive it — a **model-callable tool** (preferred inside Pi) and a
 **CLI** (scripts, CI, or when the tool isn't loaded). Both read and write the
-same `.pi/pix-graph/graph.json`.
+same `.pi/graph/graph.json`.
 
 ## The `graph` tool (preferred)
 
@@ -25,18 +25,18 @@ graph(action:"query", question:"how does auth work")        # BFS — broad neig
 graph(action:"query", question:"trace build → write", dfs:true)   # DFS — follow one path
 ```
 
-- **build** extracts + clusters and writes `.pi/pix-graph/{graph.json, graph.cleaned.json, GRAPH_REPORT.md}`. A live progress widget streams scan → parse → cluster → analyze → write. Re-run after edits to refresh (this is the "update" path).
+- **build** extracts + clusters and writes `.pi/graph/{graph.json, graph.cleaned.json, GRAPH_REPORT.md}`. A live progress widget streams scan → parse → cluster → analyze → write. Re-run after edits to refresh (this is the "update" path).
 - **query** loads the existing graph and returns a ranked tree of matching nodes with the relation each was reached by. Add `dfs:true` to trace a single path instead of fanning out.
 
 ## When to use it
 
 - Any "how does X work / what calls Y / where is Z / trace the flow" question about the code → `graph(action:"query", …)` **before** reading files. The graph already maps the call structure.
 - After you change code and expect to query again → `graph(action:"build")` to refresh.
-- `pix-nudge` reminds you automatically when `.pi/pix-graph/graph.json` exists.
+- `pix-nudge` reminds you automatically when `.pi/graph/graph.json` exists.
 
 ## Fast path — a graph already exists
 
-If `.pi/pix-graph/graph.json` (or a legacy `graphify-out/graph.json`) is present
+If `.pi/graph/graph.json` (or a legacy `graphify-out/graph.json`) is present
 and the request is a natural-language question about the codebase, go straight
 to `graph(action:"query", question)`. Do not rebuild first unless the code changed
 materially since the last build.
@@ -44,22 +44,22 @@ materially since the last build.
 ## CLI (outside Pi, or when the tool isn't loaded)
 
 ```bash
-bun packages/pix-graph/src/cli.ts build [path]                  # → .pi/pix-graph/
+bun packages/pix-graph/src/cli.ts build [path]                  # → .pi/graph/
 bun packages/pix-graph/src/cli.ts query "<question>" [--dfs] [--depth N]
 bun packages/pix-graph/src/cli.ts path "<from>" "<to>"          # shortest path between two nodes
 # from the repo root you can also use:  bun run graph:build
 ```
 
 `--graph <file>` points query/path at a specific graph (default
-`.pi/pix-graph/graph.cleaned.json`, falling back to `graph.json`).
+`.pi/graph/graph.cleaned.json`, falling back to `graph.json`).
 
 ## Outputs
 
 | File | Contents |
 |---|---|
-| `.pi/pix-graph/graph.json` | Full graph — nodes, links, community assignments |
-| `.pi/pix-graph/graph.cleaned.json` | Same, with false inferred `calls` edges removed (validated against real TS bindings) |
-| `.pi/pix-graph/GRAPH_REPORT.md` | Communities, god nodes (most-connected abstractions), surprising cross-file connections |
+| `.pi/graph/graph.json` | Full graph — nodes, links, community assignments |
+| `.pi/graph/graph.cleaned.json` | Same, with false inferred `calls` edges removed (validated against real TS bindings) |
+| `.pi/graph/GRAPH_REPORT.md` | Communities, god nodes (most-connected abstractions), surprising cross-file connections |
 
 The `.pi/` directory is gitignored, so the graph never gets committed.
 

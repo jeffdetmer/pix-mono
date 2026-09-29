@@ -1,12 +1,22 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	unlinkSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@xynogen/pix-runtime/paths";
 import { godNodes, surprisingConnections } from "./analyze.js";
 import { buildGraph } from "./build.js";
 import { cluster, cohesionScore } from "./cluster.js";
 import { collectFiles, extract } from "./extract.js";
-import { buildCodeGraph } from "./pipeline.js";
+import { buildCodeGraph, buildCodeGraphProgress, createGraphParseCache } from "./pipeline.js";
 import { query, shortestPath } from "./query.js";
 
 const dirs: string[] = [];
@@ -131,6 +141,41 @@ describe("query", () => {
 });
 
 describe("buildCodeGraph", () => {
+	test("reuses unchanged output and rebuilds after a same-size edit or missing output", async () => {
+		const root = fixture();
+		const out = join(root, ".pi/graph");
+		const input = join(root, "packages/a/src/lonely.ts");
+		const progress = () => {};
+		const first = await buildCodeGraphProgress(root, root, out, progress);
+		expect(first.cached).toBe(false);
+		const second = await buildCodeGraphProgress(root, root, out, progress);
+		expect(second.cached).toBe(true);
+		expect(second.nodes).toBe(first.nodes);
+		const before = statSync(input);
+		writeFileSync(input, "export const lonely = 43;\n");
+		utimesSync(input, before.atime, before.mtime);
+		expect((await buildCodeGraphProgress(root, root, out, progress)).cached).toBe(false);
+		expect((await buildCodeGraphProgress(root, root, out, progress)).cached).toBe(true);
+		unlinkSync(join(out, "graph.cleaned.json"));
+		expect((await buildCodeGraphProgress(root, root, out, progress)).cached).toBe(false);
+	});
+
+	test("reuses parsed source files on a changed build", async () => {
+		const root = fixture();
+		const out = join(root, ".pi/graph");
+		const cache = createGraphParseCache();
+		const progress = () => {};
+		await buildCodeGraphProgress(root, root, out, progress, undefined, cache);
+		const input = join(root, "packages/a/src/lonely.ts");
+		writeFileSync(input, "export const lonely = 43;\n");
+		const result = await buildCodeGraphProgress(root, root, out, progress, undefined, cache);
+		expect(result.cached).toBe(false);
+		expect(result.parsedFiles).toBe(1);
+		expect(result.reusedFiles).toBe(2);
+		const graph = JSON.parse(readFileSync(join(out, "graph.json"), "utf8"));
+		expect(graph.nodes.some((node: { label: string }) => node.label === "lonely")).toBe(true);
+	});
+
 	test("writes graph.json, cleaned graph, and report", () => {
 		const root = fixture();
 		const out = join(root, "graphify-out");
