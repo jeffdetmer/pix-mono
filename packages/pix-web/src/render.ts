@@ -1,21 +1,12 @@
-/**
- * render.ts — dim renderer for fetch tool output.
- *
- * fetch returns external web content the model already consumed; the
- * full body is noise in the transcript. We render it dim (theme `dim` token)
- * so it reads like faded reasoning — present for inspection, visually quiet.
- * The tool title line stays normal so calls remain scannable.
- *
- * pi-tui's Text component is loaded via require() so the renderers degrade to
- * the default pi renderer (undefined-safe via cast) when pi-tui is absent.
- */
+/** Render web results as Markdown in the transcript without changing model content. */
 
-import type {
-	AgentToolResult,
-	Theme,
-	ToolRenderResultOptions,
+import {
+	type AgentToolResult,
+	getMarkdownTheme,
+	type Theme,
+	type ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import type { Component } from "@earendil-works/pi-tui";
+import { type Component, Markdown, Text } from "@earendil-works/pi-tui";
 import {
 	type CollapsedToolStatus,
 	formatCollapsedToolRow,
@@ -46,28 +37,12 @@ interface CompactRendererConfig<TDetails> {
 	status?: (details: TDetails) => CollapsedToolStatus;
 }
 
-type TextCtor = new (text?: string, padX?: number, padY?: number) => TextLike;
-
-// Preview cap is intentionally generous — dimming already de-emphasises the
-// body, so we only truncate to keep pathological multi-thousand-line dumps
-// from flooding the viewport. Expanding shows everything.
+// ponytail: limit the preview by source lines; expand to see the full page.
 const MAX_PREVIEW_LINES = 32;
 
-let TextComponent: TextCtor | undefined;
-try {
-	TextComponent = (require("@earendil-works/pi-tui") as { Text: TextCtor }).Text;
-} catch {
-	TextComponent = undefined;
-}
-
 function getText(lastComponent: Component | undefined): TextLike {
-	if (lastComponent && "setText" in lastComponent)
-		return unframeToolResult(lastComponent as TextLike);
-	// TextComponent is always present in the interactive TUI (pi-tui peer); the
-	// require() guard only matters for headless/test contexts where renderers
-	// are never invoked.
-	if (TextComponent) return new TextComponent("", 0, 0);
-	throw new Error("pi-tui Text component unavailable");
+	const component = lastComponent && unframeToolResult(lastComponent as TextLike);
+	return component instanceof Text ? component : new Text("", 0, 0);
 }
 
 function allText(result: AgentToolResult<unknown>): string {
@@ -113,16 +88,16 @@ export function makeRenderResult<TDetails>(config?: CompactRendererConfig<TDetai
 		theme: Theme,
 		ctx: RenderCtx,
 	): Component => {
-		const text = getText(ctx.lastComponent);
 		const body = allText(result);
 
-		if (ctx.isError) {
-			text.setText(`  ${theme.fg("error", body || "Error")}`);
-			return opts.isPartial ? text : frameToolResult(text, theme, true);
-		}
-		if (!body.trim()) {
-			text.setText(`  ${theme.fg("muted", "(empty)")}`);
-			return opts.isPartial ? text : frameToolResult(text, theme, false);
+		if (ctx.isError || !body.trim()) {
+			const text = getText(ctx.lastComponent);
+			text.setText(
+				ctx.isError
+					? `  ${theme.fg("error", body || "Error")}`
+					: `  ${theme.fg("muted", "(empty)")}`,
+			);
+			return opts.isPartial ? text : frameToolResult(text, theme, ctx.isError);
 		}
 
 		const details = result.details as TDetails | undefined;
@@ -133,6 +108,7 @@ export function makeRenderResult<TDetails>(config?: CompactRendererConfig<TDetai
 			details &&
 			tickCollapse(config.tool, ctx.state as CollapseState, ctx.invalidate, opts.expanded)
 		) {
+			const text = getText(ctx.lastComponent);
 			text.setText(
 				formatCollapsedToolRow(
 					theme,
@@ -145,7 +121,21 @@ export function makeRenderResult<TDetails>(config?: CompactRendererConfig<TDetai
 			return text;
 		}
 
-		text.setText(dimBody(body, theme, opts.expanded));
-		return opts.isPartial ? text : frameToolResult(text, theme, isError);
+		if (opts.isPartial || isError) {
+			const text = getText(ctx.lastComponent);
+			text.setText(dimBody(body, theme, opts.expanded));
+			return opts.isPartial ? text : frameToolResult(text, theme, isError);
+		}
+		const lines = body.split("\n");
+		const preview = opts.expanded ? body : lines.slice(0, MAX_PREVIEW_LINES).join("\n");
+		const remaining = lines.length - MAX_PREVIEW_LINES;
+		const markdown = new Markdown(
+			remaining > 0 && !opts.expanded ? `… ${remaining} more lines\n\n${preview}` : preview,
+			2,
+			0,
+			getMarkdownTheme(),
+			{ color: (value) => theme.fg("dim", value) },
+		);
+		return frameToolResult(markdown, theme, false);
 	};
 }
