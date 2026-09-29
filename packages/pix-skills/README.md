@@ -26,6 +26,12 @@ read_skills(source="nutlope/hallmark", name="hallmark", full=true, refresh=true)
 
 Remote skills are cached under `~/.cache/pi/skills.sh/` (or `$XDG_CACHE_HOME/pi/skills.sh/` when configured). A missing local skill is never fetched automatically, and search results never trigger a download. See [Remote skill security](#remote-skill-security) for the trust boundaries.
 
+## `$` skill picker
+
+Type `$` at a token boundary (line start or after whitespace) to open a skill picker. It lists local skills (fuzzy by name) and, after 2+ query characters, Skills.sh search results. `⏎` inserts `<skill>name</skill>` (local) or `<skill>owner/repo@name</skill>` (Skills.sh). On submit, pix-skills replaces each token with the skill body in Pi's `<skill name location>` format, so the transcript shows a collapsible skill card, the same as `/skill:name`. A Skills.sh token fetches and caches the bundle at submit time and carries an untrusted-content notice. Remote skills never run command directives. A token that fails to load stays in the text, and Pi shows an error notice. `Esc`, a mid-word `$`, and a pasted `$` keep a literal `$`.
+
+To make `$` the only way to pick a skill, set `"enableSkillCommands": false` in `~/.pi/agent/settings.json`. That hides Pi's `/skill:name` entries from the `/` menu.
+
 ## How it works
 
 Bundled skills are **off-context by default**: every skill carries `disable-model-invocation: true` in
