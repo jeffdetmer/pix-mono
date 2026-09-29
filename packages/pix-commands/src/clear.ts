@@ -1,13 +1,14 @@
 import { rm } from "node:fs/promises";
+import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { type ConfirmUI, confirmOverlay } from "@xynogen/pix-pretty/confirm";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
-import { cacheDir } from "@xynogen/pix-runtime/paths";
+import { cacheDir, tempDir } from "@xynogen/pix-runtime/paths";
 
 async function clearCache(_pi: ExtensionAPI, ctx: ExtensionCommandContext) {
-	const dir = cacheDir();
-	const tmp = process.env.TMPDIR;
-	const targets = tmp ? [dir, tmp] : [dir];
+	// Only Pi's own files. The temp dir is shared with every other program, so
+	// delete jiti's transpile cache inside it, never the temp dir itself.
+	const targets = [cacheDir(), join(tempDir(), "jiti")];
 	if (ctx.hasUI) {
 		// SAFETY: ctx.ui structurally provides the ConfirmUI surface (custom/theme);
 		// the host's UI type is wider, so we narrow to the subset confirmOverlay uses.

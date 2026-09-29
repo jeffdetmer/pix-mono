@@ -1,19 +1,25 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { cacheDir } from "@xynogen/pix-runtime/paths";
+import { cacheDir, tempDir } from "@xynogen/pix-runtime/paths";
 import registerClear from "./clear.ts";
 
-// Sandbox: /clear deletes cacheDir() and $TMPDIR. Never let a test reach the real ones.
+// Sandbox: /clear deletes cacheDir() and <tempDir>/jiti. Never let a test reach the real ones.
 let sandbox: string;
-const saved = { XDG_CACHE_HOME: process.env.XDG_CACHE_HOME, TMPDIR: process.env.TMPDIR };
+let tmp: string;
+// tempDir() reads TMPDIR on POSIX and TEMP/TMP on Windows. Point all three at the sandbox.
+const TMP_VARS = ["TMPDIR", "TEMP", "TMP"] as const;
+const saved = Object.fromEntries(["XDG_CACHE_HOME", ...TMP_VARS].map((k) => [k, process.env[k]]));
 beforeEach(() => {
-	sandbox = mkdtempSync(join(tmpdir(), "pix-clear-"));
+	sandbox = mkdtempSync(join(tempDir(), "pix-clear-"));
 	process.env.XDG_CACHE_HOME = sandbox;
-	delete process.env.TMPDIR;
+	tmp = join(sandbox, "tmp");
+	for (const k of TMP_VARS) process.env[k] = tmp;
+	expect(tempDir()).toBe(tmp);
 	mkdirSync(cacheDir(), { recursive: true });
+	mkdirSync(join(tmp, "jiti"), { recursive: true });
+	writeFileSync(join(tmp, "other-app.sock"), "");
 });
 afterEach(() => {
 	for (const [k, v] of Object.entries(saved)) {
@@ -74,6 +80,9 @@ describe("/clear", () => {
 		const { c, notes } = ctx(true);
 		await handler()("", c as never);
 		expect(existsSync(cacheDir())).toBe(false);
+		expect(existsSync(join(tmp, "jiti"))).toBe(false);
+		// Regression: other programs' temp files must survive.
+		expect(existsSync(join(tmp, "other-app.sock"))).toBe(true);
 		expect(notes.at(-1)).toMatch(/cleared\. Run \/reload/);
 	});
 });
