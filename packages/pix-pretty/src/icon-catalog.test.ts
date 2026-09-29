@@ -15,3 +15,12 @@ it("re-exports the full icon-catalog surface", () => {
 	// Resolves through the shim (default nerd mode).
 	expect(shim.icon("cwd")).toBe("\u{F024B}");
 });
+
+it("resolves pix-pretty's own icons in every mode", () => {
+	for (const key of shim.PRETTY_ICON_KEYS) {
+		for (const mode of shim.ICON_MODES) expect(shim.iconFor(key, mode).length).toBeGreaterThan(0);
+	}
+	expect(shim.iconFor("mode.plan", "ascii")).toBe("P");
+	expect(shim.iconFor("mode.normal", "ascii")).toBe(">");
+	expect(shim.iconFor("mode.plan", "nerd")).not.toBe(shim.iconFor("mode.normal", "nerd"));
+});

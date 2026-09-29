@@ -1,5 +1,38 @@
 import { describe, expect, it } from "bun:test";
-import { isPlanPath, parsePlan } from "./plan-mode.ts";
+import { CustomEditor, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
+import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
+import { setIconMode } from "@xynogen/pix-pretty/icon-catalog";
+import { attachTabToggle, isPlanPath, modeStatus, parsePlan } from "./plan-mode.ts";
+
+describe("modeStatus", () => {
+	it("plan shows its icon and label in warning, normal shows another icon in muted", () => {
+		setIconMode("ascii");
+		const fg = (role: string, text: string) => `<${role}>${text}`;
+		expect(modeStatus(true, fg)).toBe("<warning>P plan");
+		expect(modeStatus(false, fg)).toBe("<muted>>");
+	});
+});
+
+describe("attachTabToggle", () => {
+	it("Tab toggles in an empty prompt and stays a normal key with text", () => {
+		const tui = { requestRender() {} } as unknown as TUI;
+		const editor = new CustomEditor(
+			tui,
+			{ borderColor: (t: string) => t, selectList: {} } as EditorTheme,
+			{ matches: () => false } as unknown as KeybindingsManager,
+		);
+		let toggles = 0;
+		attachTabToggle(editor, () => toggles++);
+		editor.handleInput("	");
+		editor.handleInput("	");
+		expect(toggles).toBe(2);
+		expect(editor.getText()).toBe("");
+		editor.handleInput("a");
+		editor.handleInput("	");
+		expect(toggles).toBe(2);
+		expect(editor.getText()).toStartWith("a");
+	});
+});
 
 describe("parsePlan", () => {
 	it("reads title, description, and body from frontmatter", () => {

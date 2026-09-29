@@ -1,7 +1,7 @@
 /**
  * pix-core plan mode — `/plan` opens a modal to manage saved plans in
  * `<cwd>/.pi/plans/*.md`. Plan mode turns on when the user starts a new plan or
- * edits one from the modal; ctrl+alt+p toggles it by hand.
+ * edits one from the modal. Tab in an empty prompt, or ctrl+alt+p, toggles it by hand.
  *
  * While plan mode is on:
  *   - active tools shrink to `read` + `write` + `bash` (previous set restored on exit);
@@ -16,8 +16,10 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
-import { Key } from "@earendil-works/pi-tui";
+import { CustomEditor, isToolCallEventType } from "@earendil-works/pi-coding-agent";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
+import { chipTag } from "@xynogen/pix-pretty/chips";
+import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { modalOverlayOptions } from "@xynogen/pix-pretty/modal-frame";
 import { projectDir } from "@xynogen/pix-runtime/paths";
 import { PlanModal, type PlanModalResult } from "./plan-modal.ts";
@@ -96,6 +98,29 @@ function listPlans(cwd: string): Plan[] {
 		.map((f) => parsePlan(f, readFileSync(join(dir, f), "utf-8")));
 }
 
+/**
+ * Tab toggles plan mode only in an empty prompt with no autocomplete list open.
+ * Any text in the prompt keeps Tab for Pi's path and slash-command completion.
+ */
+export function attachTabToggle(editor: CustomEditor, toggle: () => void): void {
+	const handleInput = editor.handleInput.bind(editor);
+	editor.handleInput = (data: string) => {
+		if (matchesKey(data, "tab") && editor.getText() === "" && !editor.isShowingAutocomplete()) {
+			toggle();
+			return;
+		}
+		handleInput(data);
+	};
+}
+
+/** Footer status: plan mode shows its icon and label, normal mode shows only its icon. */
+export function modeStatus(
+	on: boolean,
+	fg: (role: "warning" | "muted", text: string) => string,
+): string {
+	return on ? fg("warning", `${icon("mode.plan")} plan`) : fg("muted", icon("mode.normal"));
+}
+
 export default function registerPlanMode(pi: ExtensionAPI): void {
 	let enabled = false;
 	let toolsBefore: string[] | undefined;
@@ -111,7 +136,10 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 		}
 		const changed = enabled !== on;
 		enabled = on;
-		ctx.ui.setStatus("plan", on ? ctx.ui.theme.fg("warning", "plan") : undefined);
+		ctx.ui.setStatus(
+			"plan",
+			modeStatus(on, (r, t) => ctx.ui.theme.fg(r, t)),
+		);
 		pi.appendEntry(STATE_ENTRY, { enabled, toolsBefore });
 		if (changed) {
 			ctx.ui.notify(
@@ -142,7 +170,7 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 			// the tag verbatim, so the model sees the guide and the user sees a chip.
 			// pix-display adds the trailing space after the chip.
 			ctx.ui.setEditorText("");
-			ctx.ui.pasteToEditor(`<prompt name="plan">${PLAN_GUIDE}</prompt>`);
+			ctx.ui.pasteToEditor(chipTag.prompt("plan", PLAN_GUIDE));
 			// pasteToEditor does not repaint; without this the chip waits for the next
 			// unrelated render (footer tick, keypress), which felt like a 2 s lag.
 			requestRender();
@@ -155,7 +183,10 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 			apply(ctx, true);
 			ctx.ui.setEditorText("");
 			ctx.ui.pasteToEditor(
-				`<prompt name="plan-edit">Edit the plan in \`${path}\` with \`write\`. Keep its title/description header. Apply the change the user gives after this tag.</prompt>`,
+				chipTag.prompt(
+					"plan-edit",
+					`Edit the plan in \`${path}\` with \`write\`. Keep its title/description header. Apply the change the user gives after this tag.`,
+				),
 			);
 			requestRender();
 			return;
@@ -179,12 +210,25 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 		handler: (ctx) => apply(ctx, !enabled),
 	});
 
+	// ponytail: registerShortcut("tab") runs before the editor and would break Pi's
+	// Tab autocomplete. Wrap the editor so Tab toggles only when the prompt is empty.
+	pi.on("session_start", (_event, ctx) => {
+		if (ctx.mode !== "tui") return;
+		const previous = ctx.ui.getEditorComponent();
+		ctx.ui.setEditorComponent((tui, theme, kb) => {
+			const editor = previous?.(tui, theme, kb) ?? new CustomEditor(tui, theme, kb);
+			if (editor instanceof CustomEditor) attachTabToggle(editor, () => apply(ctx, !enabled));
+			return editor;
+		});
+	});
+
 	pi.on("tool_call", async (event, ctx) => {
 		if (!enabled) return;
 		if (!PLAN_TOOLS.includes(event.toolName)) {
 			return {
 				block: true,
-				reason: "Plan mode: only read, bash, and write are allowed. Toggle off with ctrl+alt+p.",
+				reason:
+					"Plan mode: only read, bash, and write are allowed. Toggle off with Tab (empty prompt) or ctrl+alt+p.",
 			};
 		}
 		if (isToolCallEventType("write", event) && !isPlanPath(ctx.cwd, event.input.path)) {
@@ -203,10 +247,14 @@ export default function registerPlanMode(pi: ExtensionAPI): void {
 					e.type === "custom" && e.customType === STATE_ENTRY,
 			)
 			.pop() as { data?: { enabled?: boolean; toolsBefore?: string[] } } | undefined;
-		if (!entry?.data?.enabled) return;
-		toolsBefore = entry.data.toolsBefore;
-		enabled = true;
-		pi.setActiveTools(PLAN_TOOLS);
-		ctx.ui.setStatus("plan", ctx.ui.theme.fg("warning", "plan"));
+		if (entry?.data?.enabled) {
+			toolsBefore = entry.data.toolsBefore;
+			enabled = true;
+			pi.setActiveTools(PLAN_TOOLS);
+		}
+		ctx.ui.setStatus(
+			"plan",
+			modeStatus(enabled, (r, t) => ctx.ui.theme.fg(r, t)),
+		);
 	});
 }

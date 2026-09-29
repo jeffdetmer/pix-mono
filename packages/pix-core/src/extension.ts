@@ -82,7 +82,7 @@ const MEMBERS = [
 	// compaction section; runs after runtime is live).
 	registerCompaction,
 	// /plan: plan manager modal. Plan mode (read + bash + write to .pi/plans) turns on
-	// for new/edit, and ctrl+alt+p toggles it.
+	// for new/edit. Tab in an empty prompt, or ctrl+alt+p, toggles it.
 	registerPlanMode,
 ] satisfies readonly PixExtension[];
 
