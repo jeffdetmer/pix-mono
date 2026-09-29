@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import { type ConfirmUI, confirmOverlay } from "@xynogen/pix-pretty/confirm";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { openProgress, type ProgressHandle, type ProgressUI } from "@xynogen/pix-pretty/progress";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { SPINNER } from "@xynogen/pix-pretty/widget-format";
 import { runTool } from "@xynogen/pix-runtime/exec";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
@@ -156,7 +157,7 @@ async function updatePi(ctx: ExtensionCommandContext, progress?: ProgressHandle)
 	progress?.setLabel(`Updating Pi (${PI_SELF_UPDATE.label})…`);
 	const result = await runWithRetry(runtimeExec, PI_SELF_UPDATE).catch((err: unknown) => ({
 		ok: false,
-		output: err instanceof Error ? err.message : String(err),
+		output: getErrorMessage(err),
 		attempts: 1,
 	}));
 	const after = await currentVersion().catch(() => "unknown");
@@ -179,7 +180,7 @@ async function updatePackages(ctx: ExtensionCommandContext, progress?: ProgressH
 		timeout: ioTimeoutMs(),
 	}).catch((err: unknown) => ({
 		stdout: "",
-		stderr: err instanceof Error ? err.message : String(err),
+		stderr: getErrorMessage(err),
 		code: 1,
 	}));
 	const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();

@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import {
 	getSearchProvider,
 	listSearchProviders,
@@ -47,7 +48,7 @@ export async function runSearch(
 			if (error instanceof DOMException && error.name === "AbortError") throw error;
 			errors.push({
 				provider: provider.id,
-				message: error instanceof Error ? error.message : String(error),
+				message: getErrorMessage(error),
 			});
 		}
 	}

@@ -1,33 +1,32 @@
 // config.ts - Config loading with import support
 
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { writeFileAtomicSync } from "@xynogen/pix-runtime/atomic-write";
-import { projectDir } from "@xynogen/pix-runtime/paths";
+import { homeDir, projectDir } from "@xynogen/pix-runtime/paths";
 import { getAgentPath } from "./agent-dir.ts";
 import type { ImportKind, McpConfig, McpSettings, ServerEntry, ServerProvenance } from "./types.ts";
 
-const GENERIC_GLOBAL_CONFIG_PATH = join(homedir(), ".config", "mcp", "mcp.json");
+const GENERIC_GLOBAL_CONFIG_PATH = join(homeDir(), ".config", "mcp", "mcp.json");
 const PROJECT_CONFIG_NAME = ".mcp.json";
 const PROJECT_PI_CONFIG_NAME = `${projectDir()}/mcp.json`;
 const REPOPROMPT_BINARY_CANDIDATES = [
-	join(homedir(), "RepoPrompt", "repoprompt_cli"),
+	join(homeDir(), "RepoPrompt", "repoprompt_cli"),
 	"/Applications/Repo Prompt.app/Contents/MacOS/repoprompt-mcp",
 ];
 
 const IMPORT_PATHS: Record<ImportKind, string[]> = {
-	cursor: [join(homedir(), ".cursor", "mcp.json")],
+	cursor: [join(homeDir(), ".cursor", "mcp.json")],
 	"claude-code": [
-		join(homedir(), ".claude", "mcp.json"),
-		join(homedir(), ".claude.json"),
-		join(homedir(), ".claude", "claude_desktop_config.json"),
+		join(homeDir(), ".claude", "mcp.json"),
+		join(homeDir(), ".claude.json"),
+		join(homeDir(), ".claude", "claude_desktop_config.json"),
 	],
 	"claude-desktop": [
-		join(homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json"),
+		join(homeDir(), "Library", "Application Support", "Claude", "claude_desktop_config.json"),
 	],
-	codex: [join(homedir(), ".codex", "config.json")],
-	windsurf: [join(homedir(), ".windsurf", "mcp.json")],
+	codex: [join(homeDir(), ".codex", "config.json")],
+	windsurf: [join(homeDir(), ".windsurf", "mcp.json")],
 	vscode: [".vscode/mcp.json"],
 };
 

@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { showOverlay } from "@xynogen/pix-pretty/gate-overlay";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { modalOverlayOptions } from "@xynogen/pix-pretty/modal-frame";
-import { padIcon } from "@xynogen/pix-pretty/utils";
+import { getErrorMessage, padIcon } from "@xynogen/pix-pretty/utils";
 import {
 	ensureCompatibilityImports,
 	getMcpDiscoverySummary,
@@ -173,7 +173,7 @@ export async function reconnectServers(
 				}
 			}
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+			const message = getErrorMessage(error);
 			state.failureTracker.set(name, Date.now());
 			if (ctx.hasUI) {
 				ctx.ui.notify(`MCP: Failed to reconnect to ${name}: ${message}`, "error");
@@ -246,7 +246,7 @@ export async function authenticateServer(
 		ctx.ui.notify(message, "error");
 		return { ok: false, message };
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		ctx.ui.notify(`Failed to authenticate "${serverName}": ${message}`, "error");
 		return { ok: false, message };
 	} finally {

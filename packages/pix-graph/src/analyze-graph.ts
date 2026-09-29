@@ -2,6 +2,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { analyzeGraph, type GraphData, renderPatternReport } from "./analyzer.js";
 
 interface CliOptions {
@@ -52,7 +53,7 @@ function readGraph(path: string): GraphData {
 	try {
 		return JSON.parse(readFileSync(path, "utf8")) as GraphData;
 	} catch (error) {
-		const detail = error instanceof Error ? error.message : String(error);
+		const detail = getErrorMessage(error);
 		throw new Error(`Unable to read graph ${path}: ${detail}`, { cause: error });
 	}
 }
@@ -80,6 +81,6 @@ function main(): void {
 try {
 	main();
 } catch (error) {
-	console.error(error instanceof Error ? error.message : String(error));
+	console.error(getErrorMessage(error));
 	process.exitCode = 1;
 }

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { type ConfirmUI, confirmOverlay } from "@xynogen/pix-pretty/confirm";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { cacheDir, tempDir } from "@xynogen/pix-runtime/paths";
 
 async function clearCache(_pi: ExtensionAPI, ctx: ExtensionCommandContext) {
@@ -28,7 +29,7 @@ async function clearCache(_pi: ExtensionAPI, ctx: ExtensionCommandContext) {
 	try {
 		for (const t of targets) await rm(t, { recursive: true, force: true });
 	} catch (err) {
-		const msg = err instanceof Error ? err.message : String(err);
+		const msg = getErrorMessage(err);
 		ctx.ui.notify(`Cache clear failed. ${msg}`, "error");
 		return;
 	}

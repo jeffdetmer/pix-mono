@@ -54,6 +54,19 @@ describe("theme-derived diff rendering", () => {
 		}
 	});
 
+	it("takes row tints from the theme tool backgrounds", () => {
+		const light = {
+			...theme,
+			getBgAnsi: (key: string) =>
+				key === "toolSuccessBg" ? "\x1b[48;2;232;240;232m" : "\x1b[48;2;240;232;232m",
+		};
+		const c = resolveDiffColors(light);
+		expect(c.bgAdd).toBe("\x1b[48;2;232;240;232m");
+		expect(c.bgGutterDel).toBe("\x1b[48;2;240;232;232m");
+		// Emphasis: the tint moved 25% toward the diff foreground (120;210;150).
+		expect(c.bgAddHighlight).toBe("\x1b[48;2;204;233;212m");
+	});
+
 	it("includes semantic theme colors in cache identity", () => {
 		const changed = { ...theme, getFgAnsi: () => "\x1b[38;2;1;2;3m" };
 		expect(diffThemeCacheKey(theme)).not.toBe(diffThemeCacheKey(changed));

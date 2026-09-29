@@ -24,9 +24,8 @@
 
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { homedir } from "node:os";
 import { join, sep } from "node:path";
-import { agentDir } from "@xynogen/pix-runtime/paths";
+import { agentDir, homeDir } from "@xynogen/pix-runtime/paths";
 import { findExecutableSync } from "@xynogen/pix-runtime/which";
 
 const PI_PACKAGE = ["@earendil-works", "pi-coding-agent"] as const;
@@ -97,7 +96,7 @@ function packageRoots(): string[] {
 	pushRoot(rootBeforeDist(resolvePiBinary()));
 
 	// 4. Well-known global install locations.
-	const home = homedir();
+	const home = homeDir();
 	for (const root of [
 		join(home, ".bun", "install", "global", "node_modules"),
 		join(home, ".npm-global", "lib", "node_modules"),

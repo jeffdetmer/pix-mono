@@ -33,6 +33,7 @@ import {
 	dotJoin,
 	fillToolBackground,
 	frameToolResult,
+	getErrorMessage,
 	getTextContent,
 	hideCollapsedToolCall,
 	normalizeLineEndings,
@@ -324,8 +325,7 @@ export default function (pi: ExtensionAPI): void {
 			}
 
 			if (executionError) {
-				const msg =
-					executionError instanceof Error ? executionError.message : String(executionError);
+				const msg = getErrorMessage(executionError);
 				return {
 					content: [{ type: "text", text: `sudo_run failed: ${msg}` }],
 					details: makeDetails(command, reason, {
@@ -343,7 +343,7 @@ export default function (pi: ExtensionAPI): void {
 			try {
 				result = await runWithSudo(command, "", signal);
 			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
+				const msg = getErrorMessage(err);
 				return {
 					content: [{ type: "text", text: `sudo_run failed: ${msg}` }],
 					details: makeDetails(

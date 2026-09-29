@@ -23,6 +23,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { agentDir } from "@xynogen/pix-runtime/paths";
 import { isBundled, loadEngine, parse, parseDynamic, type SgNode } from "./engine.ts";
 
@@ -119,7 +120,7 @@ export async function ensureLanguage(lang: string): Promise<GrammarResult> {
 		registered.add(lang);
 		return { kind: "ready" };
 	} catch (err) {
-		return { kind: "error", message: err instanceof Error ? err.message : String(err) };
+		return { kind: "error", message: getErrorMessage(err) };
 	}
 }
 
@@ -144,7 +145,7 @@ export async function installGrammar(pkg: string): Promise<{ ok: boolean; messag
 		});
 		return { ok: true };
 	} catch (err) {
-		return { ok: false, message: err instanceof Error ? err.message : String(err) };
+		return { ok: false, message: getErrorMessage(err) };
 	}
 }
 
@@ -194,6 +195,6 @@ export async function parseWithGrammar(
 		if (ready.kind !== "ready") return ready;
 		return { kind: "ok", root: parseDynamic(engine, lang, source) };
 	} catch (err) {
-		return { kind: "error", message: err instanceof Error ? err.message : String(err) };
+		return { kind: "error", message: getErrorMessage(err) };
 	}
 }

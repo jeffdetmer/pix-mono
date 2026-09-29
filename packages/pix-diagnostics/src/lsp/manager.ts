@@ -14,6 +14,7 @@
 
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import type { DiagnosticSnapshot, PixDiagnostic } from "../types.ts";
 import {
 	createResolver,
@@ -466,7 +467,7 @@ class LazyLspManager implements LspManager {
 			return { server };
 		} catch (error) {
 			if (error instanceof Error && error.name === "AbortError") throw error;
-			return { unavailable: error instanceof Error ? error.message : String(error) };
+			return { unavailable: getErrorMessage(error) };
 		}
 	}
 

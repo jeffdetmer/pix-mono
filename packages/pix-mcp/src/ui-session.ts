@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import { UrlElicitationRequiredError } from "@modelcontextprotocol/client";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { isGlimpseAvailable, openGlimpseWindow } from "./glimpse-ui.ts";
 import { logger } from "./logger.ts";
 import type { McpExtensionState } from "./state.ts";
@@ -86,7 +87,7 @@ async function openInBrowser(state: McpExtensionState, url: string): Promise<voi
 	try {
 		await state.openBrowser(url);
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		state.ui?.notify(`MCP UI browser open failed: ${message}`, "warning");
 		state.ui?.notify(`Open manually: ${url}`, "info");
 	}
@@ -360,7 +361,7 @@ export async function maybeStartUiSession(
 				});
 			} catch (error) {
 				log.debug("Glimpse unavailable, using browser", {
-					error: error instanceof Error ? error.message : String(error),
+					error: getErrorMessage(error),
 				});
 				await openInBrowser(state, handle.url);
 			}
@@ -400,7 +401,7 @@ export async function maybeStartUiSession(
 		};
 	} catch (error) {
 		if (error instanceof UrlElicitationRequiredError) throw error;
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		log.error("Failed to start UI session", error instanceof Error ? error : undefined);
 		state.ui?.notify(
 			`MCP UI unavailable for ${request.toolName} (${request.serverName}): ${message}`,

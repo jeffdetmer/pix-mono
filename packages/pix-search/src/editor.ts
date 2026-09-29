@@ -1,6 +1,7 @@
 /** Add the @ picker to an editor without replacing its paste state or rendering. */
 import type { CustomEditor } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 
 /** Picked paths are marked as `<path>…</path>`; pix-display renders the span as a chip. */
 export function pathToken(path: string): string {
@@ -28,7 +29,7 @@ export function attachPicker(
 			editor.insertTextAtCursor(path ? pathToken(path) : "@");
 		} catch (error) {
 			editor.insertTextAtCursor("@");
-			onError(`File picker failed: ${error instanceof Error ? error.message : String(error)}`);
+			onError(`File picker failed: ${getErrorMessage(error)}`);
 		} finally {
 			tui.requestRender();
 		}

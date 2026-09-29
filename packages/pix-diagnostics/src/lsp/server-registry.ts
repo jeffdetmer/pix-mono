@@ -2,9 +2,8 @@
 
 import { readFileSync } from "node:fs";
 import { access } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
-import { projectDir } from "@xynogen/pix-runtime/paths";
+import { homeDir, projectDir } from "@xynogen/pix-runtime/paths";
 import { findExecutable } from "@xynogen/pix-runtime/which";
 
 export interface LspServerSpec {
@@ -116,7 +115,7 @@ export async function rootForFile(
 	canAccess: AccessFn = defaultAccess,
 ): Promise<string> {
 	const start = dirname(resolve(filePath));
-	const stop = homedir();
+	const stop = homeDir();
 	let dir = start;
 	for (;;) {
 		for (const marker of markers) {

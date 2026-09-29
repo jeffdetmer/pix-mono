@@ -11,6 +11,7 @@ import {
 	UnauthorizedError,
 } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { abortable, throwIfAborted } from "./abort.ts";
 import {
 	handleUrlElicitation,
@@ -484,9 +485,7 @@ export class McpServerManager {
 		try {
 			this.metadataChangedCallback?.(serverName);
 		} catch (error) {
-			logger.error(
-				`MCP: Failed to update metadata for ${serverName}: ${error instanceof Error ? error.message : String(error)}`,
-			);
+			logger.error(`MCP: Failed to update metadata for ${serverName}: ${getErrorMessage(error)}`);
 		}
 	}
 

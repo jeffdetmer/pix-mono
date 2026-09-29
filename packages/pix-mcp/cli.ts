@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { agentDir, projectDir } from "@xynogen/pix-runtime/paths";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
+import { agentDir, homeDir, projectDir } from "@xynogen/pix-runtime/paths";
 
-const HOME = os.homedir();
+const HOME = homeDir();
 
 const AGENT_DIR = agentDir();
 const PI_CONFIG_PATH = path.join(AGENT_DIR, "mcp.json");
@@ -49,7 +49,7 @@ function readJsonFile(filePath: string): Record<string, unknown> {
 	try {
 		return JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<string, unknown>;
 	} catch (cause) {
-		const message = cause instanceof Error ? cause.message : String(cause);
+		const message = getErrorMessage(cause);
 		throw new Error(`Cannot read JSON from ${filePath}: ${message}`, { cause });
 	}
 }
@@ -201,7 +201,7 @@ if (isEntrypoint) {
 			process.exitCode = code;
 		})
 		.catch((err) => {
-			console.error(`\nHelper failed: ${err instanceof Error ? err.message : String(err)}`);
+			console.error(`\nHelper failed: ${getErrorMessage(err)}`);
 			process.exit(1);
 		});
 }

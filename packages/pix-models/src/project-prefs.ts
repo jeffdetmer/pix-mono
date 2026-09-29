@@ -14,6 +14,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { writeFileAtomicSync } from "@xynogen/pix-runtime/atomic-write";
 import { agentDir, projectDir } from "@xynogen/pix-runtime/paths";
 
@@ -75,7 +76,7 @@ export function savePrefs(
 		return target;
 	} catch (err) {
 		if (ctx.hasUI) {
-			const msg = err instanceof Error ? err.message : String(err);
+			const msg = getErrorMessage(err);
 			showTransientMessage(ctx.ui, `Failed to save ${label}: ${msg}`, "warning");
 		}
 		return undefined;

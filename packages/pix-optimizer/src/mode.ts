@@ -14,6 +14,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { showTransientError } from "@xynogen/pix-pretty/transient-error";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { loadOptValue, saveOptValue } from "./persist.ts";
 import type { OptimizerHandle, OptimizerStatus, OptimizerTool } from "./status.ts";
 
@@ -104,7 +105,7 @@ export function createMode<L extends string>(
 		try {
 			await saveOptValue(name, level);
 		} catch (error) {
-			const detail = error instanceof Error ? error.message : String(error);
+			const detail = getErrorMessage(error);
 			showTransientError(ctx.ui, `optimizer: failed to save ${name}: ${detail}`);
 		}
 		syncStatus(ctx);

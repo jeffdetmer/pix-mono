@@ -21,6 +21,7 @@ import {
 	dotJoin,
 	formatCollapsedToolRow,
 	frameToolResult,
+	getErrorMessage,
 	hideCollapsedToolCall,
 	humanSize,
 } from "@xynogen/pix-pretty/utils";
@@ -580,9 +581,7 @@ function registerSkillLoader(pi: ExtensionAPI): void {
 						results,
 					});
 				} catch (error) {
-					return fail(
-						`skills.sh search failed: ${error instanceof Error ? error.message : String(error)}`,
-					);
+					return fail(`skills.sh search failed: ${getErrorMessage(error)}`);
 				}
 			}
 
@@ -613,9 +612,7 @@ function registerSkillLoader(pi: ExtensionAPI): void {
 					remoteSource = remote.source;
 					remoteCached = remote.cached;
 				} catch (error) {
-					return fail(
-						`Failed to fetch remote skill "${name}": ${error instanceof Error ? error.message : String(error)}`,
-					);
+					return fail(`Failed to fetch remote skill "${name}": ${getErrorMessage(error)}`);
 				}
 			}
 
@@ -679,9 +676,7 @@ function registerSkillLoader(pi: ExtensionAPI): void {
 					cached: remoteCached,
 				});
 			} catch (err) {
-				return fail(
-					`Failed to read skill "${name}": ${err instanceof Error ? err.message : String(err)}`,
-				);
+				return fail(`Failed to read skill "${name}": ${getErrorMessage(err)}`);
 			}
 		},
 

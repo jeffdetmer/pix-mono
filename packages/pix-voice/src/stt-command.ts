@@ -17,6 +17,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { listMicrophones, type Recording, startRecording } from "@xynogen/pix-runtime/audio";
 import { cleanTranscript, cleanupModel, hasSlip } from "./cleanup.js";
 import { voiceConfig } from "./config.js";
@@ -106,7 +107,7 @@ async function cancelDictation(ctx: ExtensionContext): Promise<void> {
 }
 
 function message(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
+	return getErrorMessage(error);
 }
 
 function showWidget(ctx: ExtensionContext): void {

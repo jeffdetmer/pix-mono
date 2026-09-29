@@ -10,6 +10,7 @@ import { statSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { AgentSession, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { uniqueLfid } from "@xynogen/pix-runtime/lfid";
 import {
 	resumeAgent as _resumeAgentReal,
@@ -366,7 +367,7 @@ export class AgentManager {
 				if (record.status !== "stopped") {
 					record.status = "error";
 				}
-				record.error = err instanceof Error ? err.message : String(err);
+				record.error = getErrorMessage(err);
 				this.finalize(record);
 
 				detach();
@@ -397,7 +398,7 @@ export class AgentManager {
 				// Late failure (e.g. strict worktree-isolation) — surface on the record
 				// so the user/agent can see it via /agents, then keep draining.
 				record.status = "error";
-				record.error = err instanceof Error ? err.message : String(err);
+				record.error = getErrorMessage(err);
 				this.finalize(record);
 				this.onComplete?.(record);
 			}
@@ -444,7 +445,7 @@ export class AgentManager {
 			record.result = responseText;
 		} catch (err) {
 			record.status = "error";
-			record.error = err instanceof Error ? err.message : String(err);
+			record.error = getErrorMessage(err);
 		}
 		this.finalize(record);
 

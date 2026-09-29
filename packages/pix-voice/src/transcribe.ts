@@ -6,6 +6,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { validateOutputPath } from "@xynogen/pix-runtime/safe-path";
 import { Type } from "typebox";
 import { voiceConfig, voiceModel } from "./config.js";
@@ -91,7 +92,7 @@ export async function buildTranscriptionResult(
 				details,
 			};
 		} catch (writeErr) {
-			const msg = writeErr instanceof Error ? writeErr.message : String(writeErr);
+			const msg = getErrorMessage(writeErr);
 			details.outcome = "error";
 			details.truncated = text.length > CHAT_TRUNCATE_LIMIT;
 			details.write_error = msg;
@@ -214,7 +215,7 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 					params.language,
 				);
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
+				const message = getErrorMessage(error);
 				return {
 					content: [
 						{

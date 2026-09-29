@@ -5,6 +5,7 @@ import {
 	dotJoin,
 	formatCollapsedToolRow,
 	frameToolResult,
+	getErrorMessage,
 	hideCollapsedToolCall,
 } from "@xynogen/pix-pretty/utils";
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
@@ -521,7 +522,7 @@ export default function registerHunk(pi: ExtensionAPI, runner: HunkRunner = runH
 					results.push({
 						action: op.action,
 						ok: false,
-						error: error instanceof Error ? error.message : String(error),
+						error: getErrorMessage(error),
 					});
 				}
 			}

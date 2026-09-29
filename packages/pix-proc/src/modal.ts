@@ -21,6 +21,7 @@ import {
 	selectListTheme,
 	terminalModalHeight,
 } from "@xynogen/pix-pretty/modal-frame";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { humanUptime, type ProcMeta, statusWord } from "./format.ts";
 
 export type ProcModalResult = { kind: "stop"; handle: string } | { kind: "rm"; handle: string };
@@ -86,9 +87,11 @@ export class ProcModal {
 		const open = this.proc && procs.find((p) => p.handle === this.proc?.handle);
 		if (this.view === "proc" && !open) this.go("list");
 		else if (this.view === "proc" && open) {
-			if (open.status !== this.proc?.status) this.actions = this.buildActions(open);
+			const changed = open.status !== this.proc?.status;
+			if (changed) this.actions = this.buildActions(open);
 			this.proc = open;
-			this.loadLog(open.handle);
+			// A finished log is final: read it once more on the status change, then stop.
+			if (changed || open.status === "running") this.loadLog(open.handle);
 		}
 		this.tui.requestRender();
 	}
@@ -139,7 +142,7 @@ export class ProcModal {
 			},
 			(err) => {
 				if (!current()) return;
-				this.log = [`log read failed: ${err instanceof Error ? err.message : String(err)}`];
+				this.log = [`log read failed: ${getErrorMessage(err)}`];
 				this.tui.requestRender();
 			},
 		);

@@ -29,6 +29,7 @@ import type {
 import {
 	fillToolBackground,
 	frameToolResult,
+	getErrorMessage,
 	getTextContent,
 	hideCollapsedToolCall,
 	isTextContent,
@@ -81,7 +82,7 @@ export function registerWriteTool(
 					toolCtx,
 				)) as ToolResultLike;
 			} catch (error) {
-				const text = error instanceof Error ? error.message : String(error);
+				const text = getErrorMessage(error);
 				if (sig?.aborted || /aborted/i.test(text)) throw error;
 				return {
 					content: [{ type: "text" as const, text }],

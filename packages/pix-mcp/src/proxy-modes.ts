@@ -1,7 +1,7 @@
 import type { AgentToolResult, ToolInfo } from "@earendil-works/pi-coding-agent";
 import { UrlElicitationRequiredError } from "@modelcontextprotocol/client";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
-import { padIcon } from "@xynogen/pix-pretty/utils";
+import { getErrorMessage, padIcon } from "@xynogen/pix-pretty/utils";
 import { checkSync } from "recheck";
 import { abortable, throwIfAborted } from "./abort.ts";
 import {
@@ -126,7 +126,7 @@ async function attemptAutoAuth(
 		await authenticate(serverName, definition.url, definition);
 		return { status: "success" };
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		return {
 			status: "failed",
 			message: getAuthFailedMessage(state, serverName, message),
@@ -331,7 +331,7 @@ export async function executeAuthStart(
 				updateStatusBar(state);
 			})
 			.catch((error) => {
-				const message = error instanceof Error ? error.message : String(error);
+				const message = getErrorMessage(error);
 				state.ui?.notify(`OAuth callback failed for "${serverName}": ${message}`, "error");
 			});
 
@@ -342,7 +342,7 @@ export async function executeAuthStart(
 			details: { mode: "auth-start", server: serverName, authorizationUrl },
 		};
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		return {
 			content: [
 				{ type: "text" as const, text: `Failed to start OAuth for "${serverName}": ${message}` },
@@ -396,7 +396,7 @@ export async function executeAuthComplete(
 			details: { mode: "auth-complete", server: serverName, authenticated: true },
 		};
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		return {
 			content: [
 				{ type: "text" as const, text: `Failed to complete OAuth for "${serverName}": ${message}` },
@@ -495,7 +495,7 @@ export function executeSearch(
 			try {
 				safety = checkSync(query, "i", REGEX_SAFETY_CHECK_PARAMS);
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
+				const message = getErrorMessage(error);
 				return {
 					content: [
 						{ type: "text" as const, text: "Regex query rejected because safety analysis failed." },
@@ -771,7 +771,7 @@ export async function executeConnect(
 			state.failureTracker.set(serverName, Date.now());
 		}
 		updateStatusBar(state);
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		return {
 			content: [
 				{ type: "text" as const, text: `Failed to connect to "${serverName}": ${message}` },
@@ -1137,7 +1137,7 @@ async function ensureCallConnection(
 			state.failureTracker.set(serverName, Date.now());
 		}
 		updateStatusBar(state);
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		return {
 			result: {
 				content: [
@@ -1344,7 +1344,7 @@ async function performToolCall(
 				details: { mode: "call", error: "url_elicitation_required", server: serverName, action },
 			};
 		}
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		uiSession?.sendToolCancelled(message);
 
 		const schemaText = toolMeta.inputSchema

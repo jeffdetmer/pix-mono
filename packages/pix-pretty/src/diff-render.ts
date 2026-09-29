@@ -102,7 +102,30 @@ export const DEFAULT_DIFF_COLORS: DiffColors = {
 type DiffTheme = {
 	fg?: FgTheme["fg"];
 	getFgAnsi?: (key: string) => string;
+	getBgAnsi?: (key: string) => string;
 };
+
+function themeBg(theme: DiffTheme, key: string): string | undefined {
+	try {
+		return theme.getBgAnsi?.(key) || undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+const RGB_RE = /^\x1b\[[34]8;2;(\d+);(\d+);(\d+)m$/;
+
+/**
+ * Word-diff emphasis: the row tint moved 25% toward the diff foreground.
+ * Undefined when either color is not truecolor (256-color themes keep the default).
+ */
+function strongerBg(bg: string, fg: string): string | undefined {
+	const b = RGB_RE.exec(bg);
+	const f = RGB_RE.exec(fg);
+	if (!b || !f) return undefined;
+	const mix = [1, 2, 3].map((i) => Math.round(Number(b[i]) * 0.75 + Number(f[i]) * 0.25));
+	return `\x1b[48;2;${mix.join(";")}m`;
+}
 
 function themeFg(theme: DiffTheme, key: string, fallback: string): string {
 	try {
@@ -114,17 +137,25 @@ function themeFg(theme: DiffTheme, key: string, fallback: string): string {
 
 export function resolveDiffColors(theme?: DiffTheme): DiffColors {
 	if (!theme) return DEFAULT_DIFF_COLORS;
+	const fgAdd = themeFg(theme, "toolDiffAdded", FG_ADD);
+	const fgDel = themeFg(theme, "toolDiffRemoved", FG_DEL);
+	// Row tints follow the theme's tool success/error backgrounds, so a light
+	// theme gets light bands. Themes without them keep the dark defaults.
+	const themedAdd = themeBg(theme, "toolSuccessBg");
+	const themedDel = themeBg(theme, "toolErrorBg");
+	const bgAdd = themedAdd ?? BG_ADD_FAINT;
+	const bgDel = themedDel ?? BG_DEL_FAINT;
 	return {
-		fgAdd: themeFg(theme, "toolDiffAdded", FG_ADD),
-		fgDel: themeFg(theme, "toolDiffRemoved", FG_DEL),
+		fgAdd,
+		fgDel,
 		fgCtx: themeFg(theme, "toolDiffContext", FG_DIM),
 		theme: typeof theme.fg === "function" ? (theme as FgTheme) : undefined,
-		bgAdd: BG_ADD_FAINT,
-		bgDel: BG_DEL_FAINT,
-		bgAddHighlight: BG_ADD_STRONG,
-		bgDelHighlight: BG_DEL_STRONG,
-		bgGutterAdd: BG_ADD_FAINT,
-		bgGutterDel: BG_DEL_FAINT,
+		bgAdd,
+		bgDel,
+		bgAddHighlight: (themedAdd && strongerBg(themedAdd, fgAdd)) ?? BG_ADD_STRONG,
+		bgDelHighlight: (themedDel && strongerBg(themedDel, fgDel)) ?? BG_DEL_STRONG,
+		bgGutterAdd: bgAdd,
+		bgGutterDel: bgDel,
 	};
 }
 

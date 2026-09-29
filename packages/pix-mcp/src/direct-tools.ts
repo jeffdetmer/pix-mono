@@ -4,6 +4,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { UrlElicitationRequiredError } from "@modelcontextprotocol/client";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { abortable, throwIfAborted } from "./abort.ts";
 import { getFailureAgeSeconds, lazyConnect } from "./init.ts";
 import { authenticate, supportsOAuth } from "./mcp-auth-flow.ts";
@@ -81,7 +82,7 @@ async function attemptDirectAutoAuth(
 		await authenticate(serverName, definition.url, definition);
 		return { status: "success" };
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		return {
 			status: "failed",
 			message: getDirectAuthFailedMessage(state, serverName, message),
@@ -294,7 +295,7 @@ export function createDirectToolExecutor(
 			try {
 				state = await initPromise;
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
+				const message = getErrorMessage(error);
 				return {
 					content: [{ type: "text" as const, text: `MCP initialization failed: ${message}` }],
 					details: { error: "init_failed", message },
@@ -486,7 +487,7 @@ export function createDirectToolExecutor(
 					details: { error: "url_elicitation_required", server: spec.serverName, action },
 				};
 			}
-			const message = error instanceof Error ? error.message : String(error);
+			const message = getErrorMessage(error);
 			uiSession?.sendToolCancelled(message);
 			const schemaText = spec.inputSchema
 				? `\n\nExpected parameters:\n${formatSchema(spec.inputSchema)}`

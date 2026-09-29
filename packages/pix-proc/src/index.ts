@@ -16,7 +16,12 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { modalOverlayOptions } from "@xynogen/pix-pretty/modal-frame";
-import { COLLAPSED_TOOL_GLYPH, frameToolResult, rule } from "@xynogen/pix-pretty/utils";
+import {
+	COLLAPSED_TOOL_GLYPH,
+	frameToolResult,
+	getErrorMessage,
+	rule,
+} from "@xynogen/pix-pretty/utils";
 import { collapseDelayMs } from "@xynogen/pix-runtime/collapse";
 import { Type } from "typebox";
 import { MAX_LOG_LINES, statusLine, statusWord } from "./format.ts";
@@ -228,7 +233,7 @@ export default function registerRunner(pi: ExtensionAPI): void {
 				if (p.action === "rm") return textResult(doRm(p));
 				return textResult(fail(p.action, `unknown action ${p.action}`));
 			} catch (err) {
-				return textResult(fail(p.action, err instanceof Error ? err.message : String(err)));
+				return textResult(fail(p.action, getErrorMessage(err)));
 			}
 		},
 	});

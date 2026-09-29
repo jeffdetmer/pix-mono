@@ -7,6 +7,7 @@ import {
 	modalWidth,
 	terminalModalHeight,
 } from "@xynogen/pix-pretty/modal-frame";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import type { AddServerScope, AddServerType, ConfigWritePreview } from "./config.ts";
 import { createPanelKeys, type PanelKeybindings, type PanelKeys } from "./panel-keys.ts";
 import type { ServerEntry } from "./types.ts";
@@ -28,22 +29,12 @@ interface AddTheme {
 	error: (text: string) => string;
 }
 
-const ANSI_CODES: Record<string, string> = {
-	accent: "36",
-	success: "32",
-	warning: "33",
-	error: "31",
-	muted: "2",
-	dim: "2",
-};
-
+// Only direct callers (tests) land here: ctx.ui.custom always passes the host theme.
+// Plain text, so no palette of our own drifts from the theme.
 const FALLBACK_POPUP_THEME: McpAddPopupTheme = {
-	fg: (color, text) => {
-		const code = ANSI_CODES[color];
-		return code ? `\x1b[${code}m${text}\x1b[0m` : text;
-	},
+	fg: (_color, text) => text,
 	bg: (_color, text) => text,
-	bold: (text) => `\x1b[1m${text}\x1b[22m`,
+	bold: (text) => text,
 };
 
 function createTheme(theme: McpAddPopupTheme): AddTheme {
@@ -441,7 +432,7 @@ export class McpAddPanel {
 				};
 				return { name, entry };
 			} catch (error) {
-				return { error: error instanceof Error ? error.message : String(error) };
+				return { error: getErrorMessage(error) };
 			}
 		}
 		const url = (this.fieldValues.url ?? "").trim();
@@ -460,7 +451,7 @@ export class McpAddPanel {
 				"object",
 			);
 		} catch (error) {
-			return { error: error instanceof Error ? error.message : String(error) };
+			return { error: getErrorMessage(error) };
 		}
 		entry.bearerTokenEnv = (this.fieldValues.bearerTokenEnv ?? "").trim() || undefined;
 		entry.bearerToken = (this.fieldValues.bearerToken ?? "").trim() || undefined;
@@ -557,7 +548,7 @@ export class McpAddPanel {
 						built.entry,
 					);
 				} catch (error) {
-					this.error = error instanceof Error ? error.message : String(error);
+					this.error = getErrorMessage(error);
 					this.tui.requestRender();
 					return;
 				}
@@ -685,7 +676,7 @@ export class McpAddPanel {
 				try {
 					this.preview = this.options.callbacks.previewEntry(targetPath, built.name, built.entry);
 				} catch (error) {
-					this.error = error instanceof Error ? error.message : String(error);
+					this.error = getErrorMessage(error);
 					this.tui.requestRender();
 					return;
 				}
@@ -715,7 +706,7 @@ export class McpAddPanel {
 				try {
 					this.options.callbacks.writeEntry(targetPath, built.name, built.entry);
 				} catch (error) {
-					this.error = error instanceof Error ? error.message : String(error);
+					this.error = getErrorMessage(error);
 					this.step = "preview";
 					this.busy = false;
 					this.tui.requestRender();

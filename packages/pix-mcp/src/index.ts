@@ -5,6 +5,7 @@ import type {
 	ToolInfo,
 } from "@earendil-works/pi-coding-agent";
 import { showTransientError, showTransientMessage } from "@xynogen/pix-pretty/transient-error";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { Type } from "typebox";
 import {
 	logoutServer,
@@ -217,7 +218,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 		}
 
 		await initializeOAuth().catch((error) => {
-			const detail = error instanceof Error ? error.message : String(error);
+			const detail = getErrorMessage(error);
 			if (ctx.hasUI)
 				showTransientMessage(ctx.ui, `MCP OAuth initialization failed: ${detail}`, "warning");
 		});
@@ -253,7 +254,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 				if (initPromise !== promise && initPromise !== null) {
 					return;
 				}
-				const detail = err instanceof Error ? err.message : String(err);
+				const detail = getErrorMessage(err);
 				if (ctx.hasUI) showTransientError(ctx.ui, `MCP initialization failed: ${detail}`);
 				initPromise = null;
 			});
@@ -284,7 +285,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 				try {
 					state = await initPromise;
 				} catch (error) {
-					const message = error instanceof Error ? error.message : String(error);
+					const message = getErrorMessage(error);
 					if (ctx.hasUI) ctx.ui.notify(`MCP initialization failed: ${message}`, "error");
 					return;
 				}
@@ -415,7 +416,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 					try {
 						state = await initPromise;
 					} catch (error) {
-						const message = error instanceof Error ? error.message : String(error);
+						const message = getErrorMessage(error);
 						return {
 							content: [{ type: "text" as const, text: `MCP initialization failed: ${message}` }],
 							details: { error: "init_failed", message },

@@ -5,6 +5,7 @@ import type {
 	Theme,
 } from "@earendil-works/pi-coding-agent";
 import { Text, type TUI } from "@earendil-works/pi-tui";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { getSessionContextUsage } from "@xynogen/pix-pretty/widget-format";
 import { collapseDelayMs } from "@xynogen/pix-runtime/collapse";
 import { type BtwMessageDetails, registerBtwRenderer } from "./render.ts";
@@ -152,7 +153,7 @@ export function registerBtw(pi: ExtensionAPI): void {
 			try {
 				snapshot = snapshotMainSettings(ctx, pi.getThinkingLevel(), pi.getActiveTools());
 			} catch (error) {
-				ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+				ctx.ui.notify(getErrorMessage(error), "error");
 				return;
 			}
 
@@ -219,7 +220,7 @@ export function registerBtw(pi: ExtensionAPI): void {
 				.catch((error) => {
 					job.status = "error";
 					job.completedAt = Date.now();
-					job.error = error instanceof Error ? error.message : String(error);
+					job.error = getErrorMessage(error);
 					publish(job, {
 						question,
 						answer: "",

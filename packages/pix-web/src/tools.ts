@@ -1,5 +1,6 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { Type } from "typebox";
 import { fetchConfig } from "./config.js";
 import type { FetchFormat } from "./providers.js";
@@ -28,11 +29,7 @@ function errorResult(error: unknown, target: string, signal?: AbortSignal): Tool
 		content: [
 			{
 				type: "text",
-				text: cancelled
-					? "Fetch cancelled."
-					: error instanceof Error
-						? error.message
-						: String(error),
+				text: cancelled ? "Fetch cancelled." : getErrorMessage(error),
 			},
 		],
 		details: {

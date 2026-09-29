@@ -2,6 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { projectDir } from "@xynogen/pix-runtime/paths";
 import type { GraphData } from "./analyzer.js";
 import { buildCodeGraph } from "./pipeline.js";
@@ -24,7 +25,7 @@ function loadGraph(path: string): GraphData {
 	try {
 		return JSON.parse(readFileSync(resolve(path), "utf8")) as GraphData;
 	} catch (error) {
-		const detail = error instanceof Error ? error.message : String(error);
+		const detail = getErrorMessage(error);
 		throw new Error(`Unable to read graph ${path}: ${detail}`, { cause: error });
 	}
 }
@@ -89,6 +90,6 @@ function main(argv: string[]): void {
 try {
 	main(process.argv.slice(2));
 } catch (error) {
-	console.error(error instanceof Error ? error.message : String(error));
+	console.error(getErrorMessage(error));
 	process.exitCode = 1;
 }

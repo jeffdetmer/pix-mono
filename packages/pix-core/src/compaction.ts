@@ -28,6 +28,7 @@
 import { complete } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { convertToLlm, serializeConversation } from "@earendil-works/pi-coding-agent";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { config } from "@xynogen/pix-runtime/config";
 import { compactionSection } from "@xynogen/pix-runtime/sections";
 
@@ -167,7 +168,7 @@ export default function registerCompaction(pi: ExtensionAPI): void {
 			};
 		} catch (error) {
 			if (signal.aborted) return;
-			const message = error instanceof Error ? error.message : String(error);
+			const message = getErrorMessage(error);
 			ctx.ui.notify(`Compaction failed (${message}); using built-in`, "error");
 			return;
 		}
@@ -251,7 +252,7 @@ export default function registerCompaction(pi: ExtensionAPI): void {
 					try {
 						pi.sendUserMessage(RESUME_NUDGE, { deliverAs: "followUp" });
 					} catch (err) {
-						const message = err instanceof Error ? err.message : String(err);
+						const message = getErrorMessage(err);
 						ctx.ui.notify(`Compaction: resume nudge skipped (${message})`, "warning");
 					}
 				}, 0);

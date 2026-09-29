@@ -25,6 +25,7 @@ import {
 	modalWidth,
 	terminalModalHeight,
 } from "./modal-frame.js";
+import { getErrorMessage } from "./utils.ts";
 
 export interface ProviderPickerRow {
 	id: string;
@@ -296,7 +297,7 @@ export async function showSettingsPicker(
 				try {
 					if ((await opts.onAction(action)) === "close") return close(action);
 				} catch (cause) {
-					error = cause instanceof Error ? cause.message : String(cause);
+					error = getErrorMessage(cause);
 				}
 				busy = false;
 				rows = opts.rows();

@@ -31,6 +31,7 @@ import {
 	countRipgrepMatches,
 	fillToolBackground,
 	frameToolResult,
+	getErrorMessage,
 	getTextContent,
 	hideCollapsedToolCall,
 	isTextContent,
@@ -197,7 +198,7 @@ export function registerGrepTool(
 				try {
 					return await runOne(targets[0] ?? "", tid);
 				} catch (error) {
-					const text = error instanceof Error ? error.message : String(error);
+					const text = getErrorMessage(error);
 					if (sig?.aborted || /aborted/i.test(text)) throw error;
 					return {
 						content: [{ type: "text" as const, text }],
@@ -222,7 +223,7 @@ export function registerGrepTool(
 						return { pattern, result: await runOne(pattern, `${tid}:${i}`) };
 					} catch (error) {
 						if (sig?.aborted) throw error;
-						return { pattern, error: error instanceof Error ? error.message : String(error) };
+						return { pattern, error: getErrorMessage(error) };
 					}
 				}),
 			);

@@ -29,6 +29,7 @@ import {
 	appendNotices,
 	fillToolBackground,
 	frameToolResult,
+	getErrorMessage,
 	getTextContent,
 	hideCollapsedToolCall,
 	makeTextResult,
@@ -173,7 +174,7 @@ export function registerFindTool(
 				try {
 					return await runOne(targets[0] ?? "", tid);
 				} catch (error) {
-					const text = error instanceof Error ? error.message : String(error);
+					const text = getErrorMessage(error);
 					if (sig?.aborted || /aborted/i.test(text)) throw error;
 					return {
 						content: [{ type: "text" as const, text }],
@@ -196,7 +197,7 @@ export function registerFindTool(
 						return { pattern, result: await runOne(pattern, `${tid}:${i}`) };
 					} catch (error) {
 						if (sig?.aborted) throw error;
-						return { pattern, error: error instanceof Error ? error.message : String(error) };
+						return { pattern, error: getErrorMessage(error) };
 					}
 				}),
 			);

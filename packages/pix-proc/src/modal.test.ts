@@ -109,6 +109,17 @@ describe("ProcModal", () => {
 		expect(result()).toEqual({ kind: "rm", handle: "proc-dev" });
 	});
 
+	it("refresh stops re-reading the log once the process finished", async () => {
+		const logs: Record<string, string[]> = { "proc-dev": ["done"] };
+		const { m, text } = open([{ ...dev, status: "exited", exitCode: 0 }], logs);
+		m.handleInput(ENTER);
+		await m.loading;
+		logs["proc-dev"] = ["changed on disk"];
+		m.refresh([{ ...dev, status: "exited", exitCode: 0 }]);
+		await m.loading;
+		expect(text()).toMatch(/exited\(0\)[\s\S]*done/);
+	});
+
 	it("refresh goes back to the list when the open process is gone", async () => {
 		const { m, text } = open([dev, old]);
 		m.handleInput(ENTER);

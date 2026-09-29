@@ -18,7 +18,7 @@ import { join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
-import { dotJoin, frameToolResult } from "@xynogen/pix-pretty/utils";
+import { dotJoin, frameToolResult, getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { formatDuration, SPINNER } from "@xynogen/pix-pretty/widget-format";
 import { once } from "@xynogen/pix-runtime/once";
 import { projectDir } from "@xynogen/pix-runtime/paths";
@@ -276,7 +276,7 @@ export default function registerGraph(pi: ExtensionAPI): void {
 								`${r.communities} communities → ${OUT_DIR}/`,
 						);
 					} catch (error) {
-						const msg = error instanceof Error ? error.message : String(error);
+						const msg = getErrorMessage(error);
 						return fail(msg === "Operation aborted" ? "Build aborted." : `Build failed: ${msg}`);
 					} finally {
 						clearInterval(ticker);

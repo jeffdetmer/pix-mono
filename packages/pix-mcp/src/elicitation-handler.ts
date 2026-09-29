@@ -9,6 +9,7 @@ import type {
 } from "@modelcontextprotocol/client";
 import { ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/client";
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import open from "open";
 
 export type ElicitationValue = string | number | boolean | string[] | undefined;
@@ -114,7 +115,7 @@ async function collectValidField(
 			);
 			return result;
 		} catch (error) {
-			ui.notify(error instanceof Error ? error.message : String(error), "error");
+			ui.notify(getErrorMessage(error), "error");
 			current = result.value;
 		}
 	}
@@ -386,10 +387,7 @@ export async function handleUrlElicitation(
 	try {
 		await open(params.url);
 	} catch (error) {
-		options.ui.notify(
-			`Could not open MCP elicitation URL: ${error instanceof Error ? error.message : String(error)}`,
-			"error",
-		);
+		options.ui.notify(`Could not open MCP elicitation URL: ${getErrorMessage(error)}`, "error");
 		return { action: "cancel" };
 	}
 	options.onUrlAccepted?.(params.elicitationId);

@@ -1,6 +1,7 @@
 /** Bounded, shell-free, non-throwing command execution for directive interpolation. */
 
 import { spawn } from "node:child_process";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_BYTES = 16_384;
@@ -40,7 +41,7 @@ export function runArgv(argv: string[], opts: RunOptions): Promise<string> {
 				stdio: ["ignore", "pipe", "pipe"],
 			});
 		} catch (err) {
-			finish(`[command failed: ${err instanceof Error ? err.message : String(err)}]`);
+			finish(`[command failed: ${getErrorMessage(err)}]`);
 			return;
 		}
 

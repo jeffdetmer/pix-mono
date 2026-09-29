@@ -16,7 +16,6 @@
 import type { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { globSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { isAbsolute, join, resolve as resolvePath } from "node:path";
 import {
 	DEFAULT_MAX_BYTES,
@@ -24,7 +23,7 @@ import {
 	truncateHead,
 } from "@earendil-works/pi-coding-agent";
 import { spawnTool } from "@xynogen/pix-runtime/exec";
-import { expandHome, tempDir } from "@xynogen/pix-runtime/paths";
+import { expandHome, homeDir, tempDir } from "@xynogen/pix-runtime/paths";
 
 // Pi's own tool-output limits (50KB / 2000 lines), so every tool caps the same way.
 export const MAX_OUTPUT_BYTES = DEFAULT_MAX_BYTES;
@@ -234,7 +233,7 @@ function expandConfigPath(pattern: string, baseDir: string): string {
  * (OpenSSH tolerates them). `seen` guards against Include cycles.
  */
 export function readSshConfigAliases(
-	path = join(homedir(), ".ssh", "config"),
+	path = join(homeDir(), ".ssh", "config"),
 	seen = new Set<string>(),
 ): HostAlias[] {
 	if (seen.has(path)) return [];
@@ -245,7 +244,7 @@ export function readSshConfigAliases(
 	} catch {
 		return [];
 	}
-	const baseDir = join(homedir(), ".ssh");
+	const baseDir = join(homeDir(), ".ssh");
 	const out: HostAlias[] = [];
 	for (const raw of text.split("\n")) {
 		const line = raw.replace(/#.*$/, "").trim();

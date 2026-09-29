@@ -27,6 +27,7 @@ import {
 	dotJoin,
 	formatCollapsedToolRow,
 	frameToolResult,
+	getErrorMessage,
 	hideCollapsedToolCall,
 	padIcon,
 } from "@xynogen/pix-pretty/utils";
@@ -1153,7 +1154,7 @@ export function createAgentTool(
 						...bgCallbacks,
 					});
 				} catch (err) {
-					return textResult(err instanceof Error ? err.message : String(err));
+					return textResult(getErrorMessage(err));
 				}
 
 				agentActivity.set(bgId, bgState);
@@ -1236,7 +1237,7 @@ export function createAgentTool(
 				});
 			} catch (err) {
 				if (fgUpdateInterval) clearInterval(fgUpdateInterval);
-				return textResult(err instanceof Error ? err.message : String(err));
+				return textResult(getErrorMessage(err));
 			}
 
 			agentActivity.set(fgId, fgState);
@@ -1556,10 +1557,7 @@ export function createAgentSteerTool(manager: AgentManager) {
 					await record.session.steer(message);
 					return textResult(`Steering message delivered to agent "${id}".`, details("delivered"));
 				} catch (err) {
-					return textResult(
-						`Failed to steer agent: ${err instanceof Error ? err.message : String(err)}`,
-						details("error"),
-					);
+					return textResult(`Failed to steer agent: ${getErrorMessage(err)}`, details("error"));
 				}
 			}
 

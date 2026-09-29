@@ -37,6 +37,7 @@ import {
 	dotJoin,
 	fillToolBackground,
 	frameToolResult,
+	getErrorMessage,
 	getTextContent,
 	hideCollapsedToolCall,
 	normalizeLineEndings,
@@ -362,7 +363,7 @@ export function missingSshTools(action: "command" | "file"): string | undefined 
 		try {
 			requireTool(name);
 		} catch (err) {
-			return err instanceof Error ? err.message : String(err);
+			return getErrorMessage(err);
 		}
 	}
 	return undefined;
@@ -375,7 +376,7 @@ async function infoResult(host: string | undefined, sig?: AbortSignal) {
 		try {
 			spec = parseHost(host);
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
+			const msg = getErrorMessage(err);
 			return {
 				content: [{ type: "text" as const, text: `ssh_run failed: ${msg}` }],
 				details,
@@ -531,7 +532,7 @@ export default function (pi: ExtensionAPI): void {
 			try {
 				spec = parseHost(params.host);
 			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
+				const msg = getErrorMessage(err);
 				return {
 					content: [{ type: "text", text: `ssh_run failed: ${msg}` }],
 					details: makeDetails(command, params.host, sudo, reason, {
@@ -781,7 +782,7 @@ export default function (pi: ExtensionAPI): void {
 								...(sig ? { signal: sig } : {}),
 							});
 			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
+				const msg = getErrorMessage(err);
 				return {
 					content: [{ type: "text", text: `ssh_run failed: ${msg}` }],
 					details: makeDetails(

@@ -28,6 +28,7 @@ import type {
 import {
 	fillToolBackground,
 	frameToolResult,
+	getErrorMessage,
 	getTextContent,
 	hideCollapsedToolCall,
 	renderCollapsedToolRow,
@@ -108,7 +109,7 @@ export function registerLsTool(
 				try {
 					return await runOne(targets[0] ?? params.path ?? cwd, tid);
 				} catch (error) {
-					const text = error instanceof Error ? error.message : String(error);
+					const text = getErrorMessage(error);
 					if (sig?.aborted || /aborted/i.test(text)) throw error;
 					return {
 						content: [{ type: "text" as const, text }],
@@ -125,7 +126,7 @@ export function registerLsTool(
 						return { path, result: await runOne(path, `${tid}:${i}`) };
 					} catch (error) {
 						if (sig?.aborted) throw error;
-						return { path, error: error instanceof Error ? error.message : String(error) };
+						return { path, error: getErrorMessage(error) };
 					}
 				}),
 			);

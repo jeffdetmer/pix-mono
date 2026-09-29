@@ -8,6 +8,7 @@ import {
 	terminalModalHeight,
 	wrapTextWithAnsi,
 } from "@xynogen/pix-pretty/modal-frame";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import type { ConfigWritePreview, McpDiscoverySummary } from "./config.ts";
 import type { McpOnboardingState } from "./onboarding-state.ts";
 import { createPanelKeys, type PanelKeybindings, type PanelKeys } from "./panel-keys.ts";
@@ -29,21 +30,12 @@ interface SetupTheme {
 	muted: (text: string) => string;
 }
 
-const ANSI_CODES: Record<string, string> = {
-	accent: "36",
-	success: "32",
-	warning: "33",
-	muted: "2",
-	dim: "2",
-};
-
+// Only direct callers (tests) land here: ctx.ui.custom always passes the host theme.
+// Plain text, so no palette of our own drifts from the theme.
 const FALLBACK_POPUP_THEME: McpSetupPopupTheme = {
-	fg: (color, text) => {
-		const code = ANSI_CODES[color];
-		return code ? `\x1b[${code}m${text}\x1b[0m` : text;
-	},
+	fg: (_color, text) => text,
 	bg: (_color, text) => text,
-	bold: (text) => `\x1b[1m${text}\x1b[22m`,
+	bold: (text) => text,
 };
 
 function createTheme(theme: McpSetupPopupTheme): SetupTheme {
@@ -432,7 +424,7 @@ export class McpSetupPanel {
 			await fn();
 		} catch (error) {
 			this.notice = {
-				text: error instanceof Error ? error.message : String(error),
+				text: getErrorMessage(error),
 				tone: "warning",
 			};
 		} finally {

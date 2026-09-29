@@ -7,6 +7,7 @@ import {
 	modalWidth,
 	terminalModalHeight,
 } from "@xynogen/pix-pretty/modal-frame";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import type { CachedTool, MetadataCache, ServerCacheEntry } from "./metadata-cache.ts";
 import { createPanelKeys, type PanelKeybindings, type PanelKeys } from "./panel-keys.ts";
 import { resourceNameToToolName } from "./resource-tools.ts";
@@ -60,22 +61,12 @@ interface PanelTheme {
 	cancel: (text: string) => string;
 }
 
-const ANSI_CODES: Record<string, string> = {
-	accent: "36",
-	success: "32",
-	warning: "33",
-	error: "31",
-	muted: "2",
-	dim: "2",
-};
-
+// Only direct callers (tests) land here: ctx.ui.custom always passes the host theme.
+// Plain text, so no palette of our own drifts from the theme.
 const FALLBACK_POPUP_THEME: McpPopupTheme = {
-	fg: (color, text) => {
-		const code = ANSI_CODES[color];
-		return code ? `\x1b[${code}m${text}\x1b[0m` : text;
-	},
+	fg: (_color, text) => text,
 	bg: (_color, text) => text,
-	bold: (text) => `\x1b[1m${text}\x1b[22m`,
+	bold: (text) => text,
 };
 
 function createTheme(theme: McpPopupTheme): PanelTheme {
@@ -654,9 +645,7 @@ class McpPanel {
 				})
 				.catch((error) => {
 					server.connectionStatus = "failed";
-					const message = sanitizeDisplayText(
-						error instanceof Error ? error.message : String(error),
-					);
+					const message = sanitizeDisplayText(getErrorMessage(error));
 					const serverName = sanitizeDisplayText(server.name);
 					this.authNotice = `Reconnect failed for ${serverName}: ${message}`;
 					this.tui.requestRender();
@@ -677,9 +666,7 @@ class McpPanel {
 					this.tui.requestRender();
 				})
 				.catch((error) => {
-					const message = sanitizeDisplayText(
-						error instanceof Error ? error.message : String(error),
-					);
+					const message = sanitizeDisplayText(getErrorMessage(error));
 					this.authNotice = `Disconnect failed for ${sanitizeDisplayText(server.name)}: ${message}`;
 					this.tui.requestRender();
 				});
@@ -750,7 +737,7 @@ class McpPanel {
 				this.tui.requestRender();
 			})
 			.catch((error) => {
-				const message = sanitizeDisplayText(error instanceof Error ? error.message : String(error));
+				const message = sanitizeDisplayText(getErrorMessage(error));
 				server.connectionStatus = this.callbacks.getConnectionStatus(server.name);
 				this.authNotice = `OAuth failed for ${serverName}: ${message}`;
 				this.authInFlight = null;

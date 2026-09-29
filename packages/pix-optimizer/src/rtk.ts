@@ -13,6 +13,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { reportToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { showTransientError } from "@xynogen/pix-pretty/transient-error";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { ensureTool, type ResolvedTool, resolveTool } from "@xynogen/pix-runtime/binaries";
 import { loadOptValue, saveOptValue } from "./persist.ts";
 import type { OptimizerHandle, OptimizerStatus } from "./status.ts";
@@ -276,7 +277,7 @@ export function rtk(pi: ExtensionAPI, status: OptimizerStatus): OptimizerHandle 
 			.catch((error: unknown) => {
 				if (warnedMissing) return;
 				warnedMissing = true;
-				const detail = error instanceof Error ? error.message : String(error);
+				const detail = getErrorMessage(error);
 				ctx.ui.notify(`RTK rewriting disabled: ${detail}`, "warning");
 			})
 			.then(async () => {
@@ -321,7 +322,7 @@ export function rtk(pi: ExtensionAPI, status: OptimizerStatus): OptimizerHandle 
 		try {
 			await saveOptValue("rtk", enabled ? "on" : "off");
 		} catch (error) {
-			const detail = error instanceof Error ? error.message : String(error);
+			const detail = getErrorMessage(error);
 			showTransientError(ctx.ui, `optimizer: failed to save rtk: ${detail}`);
 		}
 

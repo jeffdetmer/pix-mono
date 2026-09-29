@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import type { CallToolRequest, CallToolResult } from "@modelcontextprotocol/client";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import type { ConsentManager } from "./consent-manager.ts";
 import { ServerError, wrapError } from "./errors.ts";
 import { applyCspMeta, buildCspMetaContent, buildHostHtmlTemplate } from "./host-html-template.ts";
@@ -501,7 +502,7 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
 		options.initialResultPromise.then(
 			(result) => pushEvent("tool-result", result),
 			(error) => {
-				const reason = error instanceof Error ? error.message : String(error);
+				const reason = getErrorMessage(error);
 				pushEvent("tool-cancelled", { reason });
 			},
 		);

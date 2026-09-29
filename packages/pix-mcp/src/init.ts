@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { showTransientError, showTransientMessage } from "@xynogen/pix-pretty/transient-error";
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 import { throwIfAborted } from "./abort.ts";
 import { loadMcpConfig } from "./config.ts";
@@ -163,7 +164,7 @@ export async function initializeMcp(
 			}
 			return { name, definition, connection, error: null };
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+			const message = getErrorMessage(error);
 			return { name, definition, connection: null, error: message };
 		}
 	});
@@ -229,7 +230,7 @@ export async function initializeMcp(
 						updateMetadataCache(state, name);
 						return { name, ok: true };
 					} catch (error) {
-						const message = error instanceof Error ? error.message : String(error);
+						const message = getErrorMessage(error);
 						logger.debug(`MCP: direct-tools bootstrap failed for ${name}: ${message}`);
 						return { name, ok: false };
 					}
@@ -373,7 +374,7 @@ export async function lazyConnect(
 			throwIfAborted(signal);
 		}
 		state.failureTracker.set(serverName, Date.now());
-		const message = error instanceof Error ? error.message : String(error);
+		const message = getErrorMessage(error);
 		logger.debug(`MCP: lazy connect failed for ${serverName}: ${message}`);
 		updateStatusBar(state);
 		return false;

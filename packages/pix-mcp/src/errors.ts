@@ -3,6 +3,8 @@
  * Provides structured errors with context and recovery hints.
  */
 
+import { getErrorMessage } from "@xynogen/pix-pretty/utils";
+
 export interface McpUiErrorContext {
 	server?: string;
 	tool?: string;
@@ -182,7 +184,7 @@ export function wrapError(error: unknown, context?: McpUiErrorContext): McpUiErr
 	}
 
 	const cause = error instanceof Error ? error : undefined;
-	const message = error instanceof Error ? error.message : String(error);
+	const message = getErrorMessage(error);
 
 	return new McpUiError(message, {
 		code: "UNKNOWN_ERROR",

@@ -38,6 +38,7 @@ import {
 	termW,
 	unframeToolResult,
 } from "./utils.js";
+import { getErrorMessage } from "./utils.ts";
 import { formatDuration } from "./widget-format.js";
 
 export interface ShellToolOptions {
@@ -130,7 +131,7 @@ export function registerShellTool(
 				setResultDetails(result, details(getTextContent(result)));
 				return result;
 			} catch (error) {
-				const text = error instanceof Error ? error.message : String(error);
+				const text = getErrorMessage(error);
 				if (!EXIT_CODE_RE.test(text)) throw error;
 				return {
 					content: [{ type: "text" as const, text }],

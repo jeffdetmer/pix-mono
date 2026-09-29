@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { truncateHead } from "@earendil-works/pi-coding-agent";
-import { humanSize } from "@xynogen/pix-pretty/utils";
+import { getErrorMessage, humanSize } from "@xynogen/pix-pretty/utils";
 import { tempDir } from "@xynogen/pix-runtime/paths";
 import type { ContentBlock, McpSettings } from "./types.ts";
 
@@ -389,7 +389,7 @@ async function saveArtifact(
 		await writeFile(path, text, { encoding: "utf8", mode: 0o600 });
 		return { path };
 	} catch (error) {
-		return { error: error instanceof Error ? error.message : String(error) };
+		return { error: getErrorMessage(error) };
 	}
 }
 

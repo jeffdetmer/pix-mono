@@ -6,7 +6,7 @@ import { basename, dirname, extname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { formatToolStatus } from "@xynogen/pix-pretty/tool-status";
-import { humanSize } from "@xynogen/pix-pretty/utils";
+import { getErrorMessage, humanSize } from "@xynogen/pix-pretty/utils";
 import { playAudio } from "@xynogen/pix-runtime/audio";
 import { tempDir } from "@xynogen/pix-runtime/paths";
 import { validateOutputPath } from "@xynogen/pix-runtime/safe-path";
@@ -130,7 +130,7 @@ export default function registerSpeak(pi: ExtensionAPI): void {
 					},
 				};
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
+				const message = getErrorMessage(error);
 				return {
 					content: [
 						{ type: "text", text: `TTS failed (${details.provider}/${details.model}): ${message}` },
