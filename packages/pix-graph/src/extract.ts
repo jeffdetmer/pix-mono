@@ -2,6 +2,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, extname, join, relative, sep } from "node:path";
 import ts from "typescript";
 import type { GraphLink, GraphNode } from "./analyzer.js";
+import { createGraphParseCache, type GraphParseCache } from "./parse-cache.js";
+
+export { createGraphParseCache, type GraphParseCache };
 
 /** Extraction output — node/link lists ready for {@link buildGraph}. */
 export interface Extraction {
@@ -91,21 +94,11 @@ function callName(expr: ts.LeftHandSideExpression): string | undefined {
 	return undefined;
 }
 
-interface ParsedFile {
+export interface ParsedFile {
 	file: string;
 	rel: string;
 	source: ts.SourceFile;
 	fileId: string;
-}
-
-export interface GraphParseCache {
-	entries: Map<string, { text: string; parsed: ParsedFile }>;
-	parsedFiles: number;
-	reusedFiles: number;
-}
-
-export function createGraphParseCache(): GraphParseCache {
-	return { entries: new Map(), parsedFiles: 0, reusedFiles: 0 };
 }
 
 /** Read + parse one file into the shape the extractor consumes. */

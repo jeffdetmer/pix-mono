@@ -31,7 +31,8 @@ import { once } from "@xynogen/pix-runtime/once";
 import { projectDir } from "@xynogen/pix-runtime/paths";
 import { Type } from "typebox";
 import type { GraphData } from "./analyzer.js";
-import { type BuildProgress, buildCodeGraphProgress, createGraphParseCache } from "./pipeline.js";
+import { createGraphParseCache } from "./parse-cache.js";
+import type { BuildProgress } from "./pipeline.js";
 import { query as queryGraph } from "./query.js";
 
 const OUT_DIR = `${projectDir()}/graph`; // "/" so prompt text reads the same on Windows
@@ -269,6 +270,8 @@ export default function registerGraph(pi: ExtensionAPI): void {
 				});
 
 				if (action === "build") {
+					// ponytail: pipeline pulls in typescript (9.1 MB, about 224 ms). Load it only when a build runs.
+					const { buildCodeGraphProgress } = await import("./pipeline.js");
 					const input = (params.path as string | undefined)?.trim() || ".";
 					const startedAt = Date.now();
 					let frame = 0;
