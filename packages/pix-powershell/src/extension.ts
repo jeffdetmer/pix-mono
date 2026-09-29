@@ -5,8 +5,9 @@ import {
 	type ExtensionAPI,
 	getPowerShellConfig,
 } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { CursorStore, fffState } from "@xynogen/pix-pretty/fff";
-import type { PiPrettyApi, TextComponentCtor, ToolFactory } from "@xynogen/pix-pretty/types";
+import type { PiPrettyApi, ToolFactory } from "@xynogen/pix-pretty/types";
 import { shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 import { once } from "@xynogen/pix-runtime/once";
 import { homeDir } from "@xynogen/pix-runtime/paths";
@@ -59,20 +60,13 @@ export function createPixPowerShellExtension(options: PixPowerShellOptions = {})
 			const maybeRegister = (): void => {
 				if (registered || !pi.getActiveTools().includes("powershell")) return;
 
-				let TextComponent: TextComponentCtor;
-				try {
-					TextComponent = require("@earendil-works/pi-tui").Text;
-				} catch {
-					return;
-				}
-
 				registered = true;
 				const cwd = process.cwd();
 				const home = homeDir();
 				registerPowerShellTool(pi as unknown as PiPrettyApi, createTool, {
 					cwd,
 					sp: (p: string) => shortPath(cwd, home, p),
-					TextComponent: viewportTextConstructor(TextComponent),
+					TextComponent: viewportTextConstructor(Text),
 					fffState,
 					cursorStore: new CursorStore(),
 				});

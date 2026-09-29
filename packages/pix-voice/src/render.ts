@@ -15,7 +15,7 @@ import type {
 	Theme,
 	ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import type { Component } from "@earendil-works/pi-tui";
+import { type Component, Text } from "@earendil-works/pi-tui";
 import {
 	type CollapsedToolStatus,
 	formatCollapsedToolRow,
@@ -46,28 +46,15 @@ interface CompactRendererConfig<TDetails> {
 	status?: (details: TDetails) => CollapsedToolStatus;
 }
 
-type TextCtor = new (text?: string, padX?: number, padY?: number) => TextLike;
-
 // Preview cap is intentionally generous — dimming already de-emphasises the
 // body, so we only truncate to keep pathological multi-thousand-line dumps
 // from flooding the viewport. Expanding shows everything.
 const MAX_PREVIEW_LINES = 32;
 
-let TextComponent: TextCtor | undefined;
-try {
-	TextComponent = (require("@earendil-works/pi-tui") as { Text: TextCtor }).Text;
-} catch {
-	TextComponent = undefined;
-}
-
 function getText(lastComponent: Component | undefined): TextLike {
 	if (lastComponent && "setText" in lastComponent)
 		return unframeToolResult(lastComponent as TextLike);
-	// TextComponent is always present in the interactive TUI (pi-tui peer); the
-	// require() guard only matters for headless/test contexts where renderers
-	// are never invoked.
-	if (TextComponent) return new TextComponent("", 0, 0);
-	throw new Error("pi-tui Text component unavailable");
+	return new Text("", 0, 0) as unknown as TextLike;
 }
 
 function allText(result: AgentToolResult<unknown>): string {

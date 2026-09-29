@@ -6,6 +6,7 @@ import {
 	type ExtensionContext,
 	type GrepToolInput,
 } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import {
 	CursorStore,
 	fffDestroy,
@@ -14,12 +15,7 @@ import {
 	getPiPrettyFffDir,
 } from "@xynogen/pix-pretty/fff";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
-import type {
-	OptionalFffModule,
-	PiPrettyApi,
-	TextComponentCtor,
-	ToolFactory,
-} from "@xynogen/pix-pretty/types";
+import type { OptionalFffModule, PiPrettyApi, ToolFactory } from "@xynogen/pix-pretty/types";
 import { getErrorMessage, shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 import { once } from "@xynogen/pix-runtime/once";
 import { homeDir } from "@xynogen/pix-runtime/paths";
@@ -31,13 +27,6 @@ export default function pixGrepExtension(pi: ExtensionAPI): void {
 		const createGrepTool = (createGrepToolDefinition ??
 			createGrepToolFallback) as unknown as ToolFactory<GrepToolInput>;
 		if (!createGrepTool) return;
-
-		let TextComponent: TextComponentCtor;
-		try {
-			TextComponent = require("@earendil-works/pi-tui").Text;
-		} catch {
-			return;
-		}
 
 		const cwd = process.cwd();
 		const home = homeDir();
@@ -98,7 +87,7 @@ export default function pixGrepExtension(pi: ExtensionAPI): void {
 		registerGrepTool(prettyPi, createGrepTool, {
 			cwd,
 			sp: (p: string) => shortPath(cwd, home, p),
-			TextComponent: viewportTextConstructor(TextComponent),
+			TextComponent: viewportTextConstructor(Text),
 			fffState,
 			cursorStore,
 		});

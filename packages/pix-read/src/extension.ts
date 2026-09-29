@@ -4,8 +4,9 @@ import {
 	type ExtensionAPI,
 	type ReadToolInput,
 } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { CursorStore, fffState } from "@xynogen/pix-pretty/fff";
-import type { PiPrettyApi, TextComponentCtor, ToolFactory } from "@xynogen/pix-pretty/types";
+import type { PiPrettyApi, ToolFactory } from "@xynogen/pix-pretty/types";
 import { shortPath, viewportTextConstructor } from "@xynogen/pix-pretty/utils";
 
 import { once } from "@xynogen/pix-runtime/once";
@@ -19,20 +20,13 @@ export default function pixReadExtension(pi: ExtensionAPI): void {
 			createReadToolFallback) as unknown as ToolFactory<ReadToolInput>;
 		if (!createReadTool) return;
 
-		let TextComponent: TextComponentCtor;
-		try {
-			TextComponent = require("@earendil-works/pi-tui").Text;
-		} catch {
-			return;
-		}
-
 		const cwd = process.cwd();
 		const home = homeDir();
 
 		registerReadTool(prettyPi, createReadTool, {
 			cwd,
 			sp: (p: string) => shortPath(cwd, home, p),
-			TextComponent: viewportTextConstructor(TextComponent),
+			TextComponent: viewportTextConstructor(Text),
 			fffState,
 			cursorStore: new CursorStore(),
 		});

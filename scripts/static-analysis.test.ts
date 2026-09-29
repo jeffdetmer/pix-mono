@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	formatStaticAnalysisFailure,
@@ -85,4 +85,27 @@ describe("pre-publish static analysis", () => {
 		expect(workflow).toContain("run: bun run static-analysis");
 		expect(workflow).toContain("run: bun run test");
 	});
+});
+
+test("no runtime require() of the Pi host packages", () => {
+	// Under jiti each require("@earendil-works/pi-tui") costs about 37 ms, even when pi-tui
+	// is already loaded. A static import resolves once through the host alias.
+	const root = join(repoRoot, "packages");
+	const offenders: string[] = [];
+	for (const pkg of readdirSync(root)) {
+		const src = join(root, pkg, "src");
+		let files: string[];
+		try {
+			files = readdirSync(src, { recursive: true }) as string[];
+		} catch {
+			continue;
+		}
+		for (const file of files) {
+			if (!/\.ts$/.test(file) || /\.test\.ts$/.test(file)) continue;
+			const text = readFileSync(join(src, file), "utf8");
+			if (/require\("@earendil-works\/pi-(tui|coding-agent)"\)/.test(text))
+				offenders.push(`${pkg}/src/${file.replaceAll("\\", "/")}`);
+		}
+	}
+	expect(offenders).toEqual([]);
 });
