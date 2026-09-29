@@ -22,7 +22,9 @@
 		"publish:dry": "bun scripts/publish-all.ts --dry-run",
 		"static-analysis": "bun scripts/static-analysis.ts",
 		"graph:build": "bun packages/pix-graph/src/cli.ts build",
-		"graph:analyze": "bun packages/pix-graph/src/analyze-graph.ts"
+		"graph:analyze": "bun packages/pix-graph/src/analyze-graph.ts",
+		"profile:startup": "node --experimental-strip-types --no-warnings scripts/profile-startup.ts",
+		"profile:render": "node --experimental-strip-types --no-warnings scripts/profile-render.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.16",
