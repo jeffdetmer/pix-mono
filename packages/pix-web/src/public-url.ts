@@ -1,5 +1,6 @@
 import { promises as dns } from "node:dns";
 import { isIP } from "node:net";
+import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
 
 function blockedIpv4(address: string): boolean {
 	const parts = address.split(".").map(Number);
@@ -82,9 +83,11 @@ export async function fetchPublic(
 	maxRedirects = 5,
 ): Promise<Response> {
 	let current = url;
+	// One deadline for the whole redirect chain, from the io.timeoutSec setting.
+	const signal = ioTimeoutSignal(init.signal ?? undefined);
 	for (let hop = 0; ; hop++) {
 		await assertPublicUrl(current);
-		const response = await fetch(current, { ...init, redirect: "manual" });
+		const response = await fetch(current, { ...init, signal, redirect: "manual" });
 		const location =
 			response.status >= 300 && response.status < 400 ? response.headers.get("location") : null;
 		if (!location) return response;

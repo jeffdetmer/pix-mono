@@ -9,11 +9,10 @@ import {
 	readFileSync,
 	readSync,
 	realpathSync,
-	renameSync,
 	statSync,
-	writeFileSync,
 } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
+import { writeFileAtomicSync } from "@xynogen/pix-runtime/atomic-write";
 import { runToolSync, spawnTool } from "@xynogen/pix-runtime/exec";
 import { ioTimeoutMs } from "@xynogen/pix-runtime/io";
 import { getAgentPath } from "./agent-dir.ts";
@@ -421,9 +420,7 @@ function saveCacheEntry(key: string, entry: NpxCacheEntry): void {
 	}
 
 	merged.entries[key] = entry;
-	const tmpPath = `${cachePath}.${process.pid}.tmp`;
-	writeFileSync(tmpPath, JSON.stringify(merged, null, 2), "utf-8");
-	renameSync(tmpPath, cachePath);
+	writeFileAtomicSync(cachePath, JSON.stringify(merged, null, 2));
 }
 
 function safeRealpath(path: string): string {

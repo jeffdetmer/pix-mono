@@ -1,8 +1,9 @@
 // metadata-cache.ts - Persistent MCP metadata cache
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { writeFileAtomicSync } from "@xynogen/pix-runtime/atomic-write";
 import { getAgentPath } from "./agent-dir.ts";
 import { resourceNameToToolName } from "./resource-tools.ts";
 import type { McpResource, McpTool, ServerEntry, ToolMetadata } from "./types.ts";
@@ -82,9 +83,7 @@ export function saveMetadataCache(cache: MetadataCache): void {
 	merged.version = CACHE_VERSION;
 	merged.servers = { ...merged.servers, ...cache.servers };
 
-	const tmpPath = `${cachePath}.${process.pid}.tmp`;
-	writeFileSync(tmpPath, JSON.stringify(merged, null, 2), "utf-8");
-	renameSync(tmpPath, cachePath);
+	writeFileAtomicSync(cachePath, JSON.stringify(merged, null, 2));
 }
 
 export function computeServerHash(definition: ServerEntry): string {

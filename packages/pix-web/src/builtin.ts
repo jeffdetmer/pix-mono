@@ -1,3 +1,4 @@
+import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
 import { fetchConfig } from "./config.js";
 import type { FetchProvider, FetchRequest, FetchResponse } from "./providers.js";
 import { registerFetchProvider } from "./providers.js";
@@ -18,7 +19,7 @@ async function jsonRequest(
 			...(auth === "bearer" ? { Authorization: `Bearer ${apiKey}` } : { "x-api-key": apiKey }),
 		},
 		body: JSON.stringify(body),
-		signal,
+		signal: ioTimeoutSignal(signal),
 	});
 	if (!response.ok) throw new Error(`${response.status}: ${(await response.text()).slice(0, 500)}`);
 	return response.json();
@@ -109,7 +110,7 @@ const jinaReader: FetchProvider = {
 				...(key ? { Authorization: `Bearer ${key}` } : {}),
 			},
 			body: JSON.stringify({ url: request.url }),
-			signal: request.signal,
+			signal: ioTimeoutSignal(request.signal),
 		});
 		if (!response.ok)
 			throw new Error(`${response.status}: ${(await response.text()).slice(0, 500)}`);
@@ -182,7 +183,7 @@ function nineRouter(): FetchProvider {
 					format: request.format,
 					max_characters: request.maxCharacters,
 				}),
-				signal: request.signal,
+				signal: ioTimeoutSignal(request.signal),
 			});
 			if (!response.ok)
 				throw new Error(`${response.status}: ${(await response.text()).slice(0, 500)}`);

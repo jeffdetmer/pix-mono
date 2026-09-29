@@ -1,9 +1,13 @@
+import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
 import { searchConfig } from "./search-config.js";
 import type { SearchProvider, SearchRequest, SearchResultItem } from "./search-providers.js";
 import { registerSearchProvider } from "./search-providers.js";
 
 async function jsonResponse(url: string, init?: RequestInit): Promise<Record<string, unknown>> {
-	const response = await fetch(url, init);
+	const response = await fetch(url, {
+		...init,
+		signal: ioTimeoutSignal(init?.signal ?? undefined),
+	});
 	if (!response.ok) throw new Error(`${response.status}: ${(await response.text()).slice(0, 500)}`);
 	return (await response.json()) as Record<string, unknown>;
 }
