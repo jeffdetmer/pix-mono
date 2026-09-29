@@ -6,8 +6,6 @@
 		"baseUrl": ".",
 		"paths": {
 			"@xynogen/pix-data": ["packages/pix-data/src/index.ts"],
-			"@xynogen/pix-data/collapse": ["packages/pix-data/src/collapse.ts"],
-			"@xynogen/pix-data/pix-config": ["packages/pix-data/src/pix-config.ts"],
 			"@xynogen/pix-runtime": ["packages/pix-runtime/src/index.ts"],
 			"@xynogen/pix-runtime/config": ["packages/pix-runtime/src/runtime.ts"],
 			"@xynogen/pix-runtime/sections": ["packages/pix-runtime/src/sections/index.ts"],
