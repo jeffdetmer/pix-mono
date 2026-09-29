@@ -8,9 +8,9 @@
 
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import registerDiagnostics from "./diagnostics.ts";
 import { createManagerWith, type ManagerDeps, type ResolveResult } from "./lsp/manager.ts";
 import type { LspServerSpec, ResolvedLspServer } from "./lsp/server-registry.ts";
@@ -88,7 +88,7 @@ function harness(cwd: string) {
 
 describe("pix-diagnostics end-to-end", () => {
 	test("stays lazy, checks, caches, navigates, and shuts down", async () => {
-		const cwd = mkdtempSync(join(tmpdir(), "pix-int-"));
+		const cwd = mkdtempSync(join(tempDir(), "pix-int-"));
 		const file = join(cwd, "a.ts");
 		writeFileSync(file, "const x: number = 'bad';\n");
 		writeFileSync(join(cwd, "package.json"), "{}\n");

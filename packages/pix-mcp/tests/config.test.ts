@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } fro
 import * as nodeOs from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-const { tmpdir } = nodeOs;
+import { tempDir } from "@xynogen/pix-runtime/paths";
+
 const systemHomedir = nodeOs.homedir();
 mock.module("node:os", () => ({
 	...nodeOs,
@@ -47,8 +48,8 @@ describe("config discovery", () => {
 	});
 
 	it("loads standard MCP files first, then Pi overrides", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-config-home-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-config-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-config-home-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-config-project-"));
 		process.env.HOME = home;
 		process.env.USERPROFILE = home;
 		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
@@ -104,8 +105,8 @@ describe("config discovery", () => {
 	});
 
 	it("prefers modern Claude Code config detection over legacy paths", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-import-home-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-import-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-import-home-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-import-project-"));
 		process.env.HOME = home;
 		process.env.USERPROFILE = home;
 		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
@@ -130,8 +131,8 @@ describe("config discovery", () => {
 	});
 
 	it("merges partial Pi overrides into shared and imported server definitions", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-merge-home-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-merge-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-merge-home-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-merge-project-"));
 		process.env.HOME = home;
 		process.env.USERPROFILE = home;
 		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
@@ -191,8 +192,8 @@ describe("config discovery", () => {
 	});
 
 	it("tracks provenance so project servers write locally and shared/imported servers write to Pi config", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-provenance-home-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-provenance-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-provenance-home-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-provenance-project-"));
 		process.env.HOME = home;
 		process.env.USERPROFILE = home;
 		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
@@ -262,8 +263,8 @@ describe("config discovery", () => {
 	});
 
 	it("summarizes discovery and detects RepoPrompt suggestions", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-summary-home-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-summary-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-summary-home-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-summary-project-"));
 		process.env.HOME = home;
 		process.env.USERPROFILE = home;
 		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
@@ -301,8 +302,8 @@ describe("config discovery", () => {
 	});
 
 	it("writes imported/global changes to Pi config and project changes to the project file", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-write-home-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-write-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-write-home-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-write-project-"));
 		process.env.HOME = home;
 		process.env.USERPROFILE = home;
 		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
@@ -352,8 +353,8 @@ describe("config discovery", () => {
 	});
 
 	it("builds real diff previews for compatibility imports and shared server writes", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-preview-home-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-preview-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-preview-home-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-preview-project-"));
 		process.env.HOME = home;
 		process.env.USERPROFILE = home;
 		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
@@ -386,7 +387,7 @@ describe("config discovery", () => {
 	});
 
 	it("previews and removes a server entry, leaving siblings intact", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-remove-home-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-remove-home-"));
 		process.env.HOME = home;
 		process.env.USERPROFILE = home;
 		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
@@ -407,8 +408,8 @@ describe("config discovery", () => {
 	});
 
 	it("writes selected compatibility imports and a starter project config", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-setup-home-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-setup-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-setup-home-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-setup-project-"));
 		process.env.HOME = home;
 		process.env.USERPROFILE = home;
 		process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");

@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import * as nodeOs from "node:os";
 import { dirname, join } from "node:path";
 
-const { tmpdir } = nodeOs;
+import { tempDir } from "@xynogen/pix-runtime/paths";
+
 // Bun caches os.homedir() at startup on Linux, so a HOME set by the test
 // preload would not reach src/config.ts. Resolve home from the env instead.
 const systemHomedir = nodeOs.homedir();
@@ -102,7 +103,7 @@ describe("commands onboarding", () => {
 	});
 
 	it("shows a one-time shared-config notice in the MCP panel", async () => {
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-commands-project-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-commands-project-"));
 		process.chdir(project);
 
 		rmSync(sharedConfigPath, { force: true });
@@ -140,7 +141,7 @@ describe("commands onboarding", () => {
 	});
 
 	it("clears OAuth credentials, cancels pending auth, and closes the server on logout", async () => {
-		process.env.MCP_OAUTH_DIR = mkdtempSync(join(tmpdir(), "pi-mcp-commands-logout-"));
+		process.env.MCP_OAUTH_DIR = mkdtempSync(join(tempDir(), "pi-mcp-commands-logout-"));
 		const ui = createUi();
 		const close = mock(() => {});
 		const { getAuthEntry, updateOAuthState, updateTokens } = await import("../src/mcp-auth.ts");
@@ -184,7 +185,7 @@ describe("commands onboarding", () => {
 	});
 
 	it("marks explicit OAuth servers as needs-auth when only stale URL tokens exist", async () => {
-		process.env.MCP_OAUTH_DIR = mkdtempSync(join(tmpdir(), "pi-mcp-commands-oauth-"));
+		process.env.MCP_OAUTH_DIR = mkdtempSync(join(tempDir(), "pi-mcp-commands-oauth-"));
 		const ui = createUi();
 		const { updateTokens } = await import("../src/mcp-auth.ts");
 		const { openMcpPanel } = await import("../src/commands.ts");

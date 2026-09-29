@@ -5,14 +5,14 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 
 let tmpAgentDir: string;
 let persist: typeof import("./persist.ts");
 
 beforeAll(async () => {
-	tmpAgentDir = mkdtempSync(join(tmpdir(), "optimizer-persist-test-"));
+	tmpAgentDir = mkdtempSync(join(tempDir(), "optimizer-persist-test-"));
 	// The runtime singleton binds its agent dir on first use; set it first.
 	process.env.PI_CODING_AGENT_DIR = tmpAgentDir;
 	persist = await import("./persist.ts");

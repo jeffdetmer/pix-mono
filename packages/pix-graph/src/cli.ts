@@ -2,6 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { projectDir } from "@xynogen/pix-runtime/paths";
 import type { GraphData } from "./analyzer.js";
 import { buildCodeGraph } from "./pipeline.js";
 import { query, shortestPath } from "./query.js";
@@ -38,7 +39,7 @@ function main(argv: string[]): void {
 	if (command === "build") {
 		const input = args.find((a) => !a.startsWith("--")) ?? ".";
 		const root = resolve(flag(args, "--root") ?? process.cwd());
-		const out = resolve(flag(args, "--out") ?? ".pi/pix-graph");
+		const out = resolve(flag(args, "--out") ?? `${projectDir()}/pix-graph`);
 		const result = buildCodeGraph(input, root, out);
 		process.stdout.write(
 			`Graph: ${result.nodes} nodes, ${result.links} links, ${result.communities} communities → ${result.outputDir}\n`,
@@ -46,7 +47,7 @@ function main(argv: string[]): void {
 		return;
 	}
 
-	const graphPath = flag(args, "--graph") ?? ".pi/pix-graph/graph.cleaned.json";
+	const graphPath = flag(args, "--graph") ?? `${projectDir()}/pix-graph/graph.cleaned.json`;
 
 	if (command === "query") {
 		const question = args.find((a) => !a.startsWith("--"));

@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { reloadConfig } from "@xynogen/pix-runtime/config";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { getIconMode, setIconMode } from "./icon-catalog.ts";
 import { initIconMode, loadIconMode, saveIconMode } from "./icon-persist.ts";
 
@@ -10,7 +10,7 @@ let tmpAgentDir: string;
 let origHome: string | undefined;
 
 beforeAll(async () => {
-	tmpAgentDir = mkdtempSync(join(tmpdir(), "pretty-persist-test-"));
+	tmpAgentDir = mkdtempSync(join(tempDir(), "pretty-persist-test-"));
 	origHome = process.env.HOME;
 	// Point HOME at the temp dir so the runtime reads from there, not the real ~/.pi/agent/pix.json
 	process.env.HOME = tmpAgentDir;

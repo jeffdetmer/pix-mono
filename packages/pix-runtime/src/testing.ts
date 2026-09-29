@@ -4,8 +4,8 @@
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "./paths.ts";
 import { FileStorage } from "./persistence.ts";
 import { createRuntime, type PixRuntime } from "./runtime.ts";
 
@@ -18,7 +18,7 @@ export interface IsolatedRuntime {
 
 /** Create a runtime backed by a fresh temp directory. */
 export function createIsolatedRuntime(): IsolatedRuntime {
-	const agentDir = mkdtempSync(join(tmpdir(), "pix-runtime-"));
+	const agentDir = mkdtempSync(join(tempDir(), "pix-runtime-"));
 	const runtime = createRuntime({ agentDir, storage: new FileStorage(agentDir) });
 	return {
 		runtime,

@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { LspTransport } from "./transport.ts";
 
-const root = mkdtempSync(join(tmpdir(), "pix-lsp-"));
+const root = mkdtempSync(join(tempDir(), "pix-lsp-"));
 const fakeServerPath = join(import.meta.dir, "fake-server.fixture.ts");
 const filePath = join(root, "a.ts");
 writeFileSync(filePath, "const x: number = 'bad';\n");

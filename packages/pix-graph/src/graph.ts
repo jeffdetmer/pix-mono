@@ -21,12 +21,13 @@ import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { dotJoin, frameToolResult } from "@xynogen/pix-pretty/utils";
 import { formatDuration, SPINNER } from "@xynogen/pix-pretty/widget-format";
 import { once } from "@xynogen/pix-runtime/once";
+import { projectDir } from "@xynogen/pix-runtime/paths";
 import { Type } from "typebox";
 import type { GraphData } from "./analyzer.js";
 import { type BuildProgress, buildCodeGraphProgress } from "./pipeline.js";
 import { query as queryGraph } from "./query.js";
 
-const OUT_DIR = ".pi/pix-graph";
+const OUT_DIR = `${projectDir()}/pix-graph`; // "/" so prompt text reads the same on Windows
 // Also read graphs left by the CLI's old default / external graphify.
 const LEGACY_DIRS = ["graphify-out"];
 const BAR_WIDTH = 20;

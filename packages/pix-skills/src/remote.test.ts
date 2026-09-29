@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import {
 	fetchRemoteSkill,
 	parseGitHubSource,
@@ -72,9 +72,10 @@ describe("Skills.sh search", () => {
 describe("remote skill fetching", () => {
 	it("uses Pi's flat XDG cache directory", () => {
 		const previous = process.env.XDG_CACHE_HOME;
-		process.env.XDG_CACHE_HOME = "/tmp/pix-xdg-cache";
+		const xdg = join(tempDir(), "pix-xdg-cache");
+		process.env.XDG_CACHE_HOME = xdg;
 		try {
-			expect(remoteSkillsCacheRoot()).toBe("/tmp/pix-xdg-cache/pi/skills.sh");
+			expect(remoteSkillsCacheRoot()).toBe(join(xdg, "pi", "skills.sh"));
 		} finally {
 			if (previous === undefined) delete process.env.XDG_CACHE_HOME;
 			else process.env.XDG_CACHE_HOME = previous;
@@ -91,7 +92,7 @@ describe("remote skill fetching", () => {
 	});
 
 	it("fetches a conventional bundle and reuses its cache", async () => {
-		const root = await mkdtemp(join(tmpdir(), "pix-remote-skill-"));
+		const root = await mkdtemp(join(tempDir(), "pix-remote-skill-"));
 		roots.push(root);
 		const calls: string[] = [];
 		const skill = `---\nname: hallmark\ndescription: Anti-slop design.\n---\n# Hallmark\n`;
@@ -130,7 +131,7 @@ describe("remote skill fetching", () => {
 	});
 
 	it("times out a stalled remote fetch", async () => {
-		const root = await mkdtemp(join(tmpdir(), "pix-remote-skill-"));
+		const root = await mkdtemp(join(tempDir(), "pix-remote-skill-"));
 		roots.push(root);
 		let aborted = false;
 		const fetcher = ((_input: string | URL | Request, init?: RequestInit) =>
@@ -156,7 +157,7 @@ describe("remote skill fetching", () => {
 	});
 
 	it("requires the selected skill name to match frontmatter", async () => {
-		const root = await mkdtemp(join(tmpdir(), "pix-remote-skill-"));
+		const root = await mkdtemp(join(tempDir(), "pix-remote-skill-"));
 		roots.push(root);
 		const fetcher = async (input: string | URL | Request) => {
 			const url = String(input);

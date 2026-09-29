@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { rm, writeFile } from "node:fs/promises";
 import { pixRuntime } from "@xynogen/pix-runtime/config";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { ioSection } from "@xynogen/pix-runtime/sections";
 import {
 	benchlm,
@@ -52,7 +53,7 @@ function mg(
 
 describe("DataSource", () => {
 	it("uses stale cache silently when refresh fails", async () => {
-		const cachePath = `/tmp/pix-data-stale-${process.pid}-${Date.now()}.json`;
+		const cachePath = `${tempDir()}/pix-data-stale-${process.pid}-${Date.now()}.json`;
 		const warn = spyOn(console, "warn").mockImplementation(() => undefined);
 		try {
 			await writeFile(cachePath, JSON.stringify({ ts: 0, data: ["cached"] }));
@@ -78,7 +79,7 @@ describe("DataSource", () => {
 	});
 
 	it("uses the shared timeout when a data source has no explicit override", async () => {
-		const cachePath = `/tmp/pix-data-timeout-${process.pid}-${Date.now()}.json`;
+		const cachePath = `${tempDir()}/pix-data-timeout-${process.pid}-${Date.now()}.json`;
 		await pixRuntime().update(ioSection, { timeoutSec: 120 });
 		try {
 			let seenTimeout = 0;

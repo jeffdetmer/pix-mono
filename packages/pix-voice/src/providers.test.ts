@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { registerBuiltinProviders } from "./builtin.ts";
 import { splitModel } from "./http.ts";
 import { listProviders, registerProvider, resolveProvider } from "./providers.ts";
@@ -30,7 +30,7 @@ function captureFetch(reply: () => Response): Captured[] {
 }
 
 function audioFile(): string {
-	const path = join(mkdtempSync(join(tmpdir(), "pix-voice-audio-")), "clip.wav");
+	const path = join(mkdtempSync(join(tempDir(), "pix-voice-audio-")), "clip.wav");
 	writeFileSync(path, new Uint8Array([1, 2, 3, 4]));
 	return path;
 }

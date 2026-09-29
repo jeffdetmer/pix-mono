@@ -58,7 +58,7 @@
 	},
 	"dependencies": {
 		"@xynogen/pix-pretty": "^1.25.0",
-		"@xynogen/pix-runtime": "^0.12.0",
+		"@xynogen/pix-runtime": "^0.12.2",
 		"typebox": "^1.1.38",
 		"typescript": "^5.7.0"
 	}

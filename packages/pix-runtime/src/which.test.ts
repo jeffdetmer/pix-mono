@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { tempDir } from "./paths.ts";
 import { findExecutable, findExecutableSync } from "./which.ts";
 
 const isWindows = process.platform === "win32";
 
 // A directory holding one runnable binary and one non-executable file.
 function fixture(): { dir: string; binName: string } {
-	const dir = mkdtempSync(join(tmpdir(), "which-"));
+	const dir = mkdtempSync(join(tempDir(), "which-"));
 	const binName = isWindows ? "tool.cmd" : "tool";
 	const bin = join(dir, binName);
 	writeFileSync(bin, isWindows ? "@echo off\n" : "#!/bin/sh\n");
@@ -27,7 +27,7 @@ describe("findExecutableSync", () => {
 	});
 
 	test("returns undefined for a missing name", () => {
-		const env = { PATH: mkdtempSync(join(tmpdir(), "which-empty-")) };
+		const env = { PATH: mkdtempSync(join(tempDir(), "which-empty-")) };
 		expect(findExecutableSync("definitely-not-here-xyz", { env })).toBeUndefined();
 	});
 

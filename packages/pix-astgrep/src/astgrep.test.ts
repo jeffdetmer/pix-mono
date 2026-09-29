@@ -7,8 +7,8 @@
 
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import registerAstGrep from "./astgrep.ts";
 
 interface Tool {
@@ -35,7 +35,7 @@ function capture(cwd: string): Map<string, Tool> {
 }
 
 function fixture(): string {
-	const dir = mkdtempSync(join(tmpdir(), "pix-astgrep-"));
+	const dir = mkdtempSync(join(tempDir(), "pix-astgrep-"));
 	writeFileSync(
 		join(dir, "a.ts"),
 		[

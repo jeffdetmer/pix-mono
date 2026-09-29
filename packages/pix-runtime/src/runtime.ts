@@ -6,7 +6,6 @@
  * after a lazy load; writes are serialized and atomic.
  */
 
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { DiagnosticSink } from "./diagnostics.ts";
 import {
 	type ConfigChange,
@@ -18,6 +17,7 @@ import {
 	type SubscribeOptions,
 } from "./events.ts";
 import { importOptimizerSidecar, migrate } from "./migrations.ts";
+import { agentDir } from "./paths.ts";
 import {
 	ConfigParseError,
 	FileStorage,
@@ -99,7 +99,7 @@ class RuntimeImpl implements PixRuntime {
 	private readOnly = false;
 
 	constructor(adapters: RuntimeAdapters = {}) {
-		this.agentDir = adapters.agentDir ?? getAgentDir();
+		this.agentDir = adapters.agentDir ?? agentDir();
 		this.storage = adapters.storage ?? new FileStorage(this.agentDir);
 		this.registry = adapters.registry ?? new SectionRegistry();
 	}

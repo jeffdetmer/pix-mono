@@ -18,7 +18,7 @@
  * rare case that needs them.
  */
 
-import { defineTool, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { lookupBenchmark } from "@xynogen/pix-data";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
@@ -40,6 +40,7 @@ import {
 	SPINNER,
 } from "@xynogen/pix-pretty/widget-format";
 import { type CollapseState, tickCollapse } from "@xynogen/pix-runtime/collapse";
+import { agentDir } from "@xynogen/pix-runtime/paths";
 import { Type } from "typebox";
 import { type AgentManager, DEFAULT_MAX_RETAINED } from "./agent-manager.ts";
 import {
@@ -609,7 +610,7 @@ export function buildAgentToolDescription(): string {
 }
 
 export function agentTypeGuidance(): string {
-	return `Pass one type name to agent.type. Custom agents: .pi/agents/*.md or ${getAgentDir()}/agents/*.md (project overrides global).`;
+	return `Pass one type name to agent.type. Custom agents: .pi/agents/*.md or ${agentDir()}/agents/*.md (project overrides global).`;
 }
 
 function normalizeQuery(query: unknown): string {

@@ -16,9 +16,10 @@
 import type { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { globSync, readFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { isAbsolute, join, resolve as resolvePath } from "node:path";
 import { spawnTool } from "@xynogen/pix-runtime/exec";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 
 export const MAX_OUTPUT_BYTES = 50 * 1024;
 export const MAX_OUTPUT_LINES = 2000;
@@ -301,7 +302,7 @@ export function hostTarget(spec: HostSpec): string {
 export function controlPathFor(spec: HostSpec): string {
 	const key = `${spec.user ?? ""}@${spec.host}:${spec.port ?? 22}`;
 	const hash = createHash("sha256").update(key).digest("hex").slice(0, 16);
-	return join(tmpdir(), `pix-ssh-${hash}.sock`);
+	return join(tempDir(), `pix-ssh-${hash}.sock`);
 }
 
 // ── ssh argv construction ────────────────────────────────────────────────────

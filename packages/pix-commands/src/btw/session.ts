@@ -6,11 +6,11 @@ import {
 	DefaultResourceLoader,
 	type ExtensionAPI,
 	type ExtensionContext,
-	getAgentDir,
 	type LoadExtensionsResult,
 	SessionManager,
 	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
+import { agentDir as agentDirPath } from "@xynogen/pix-runtime/paths";
 
 type ThinkingLevel = ReturnType<ExtensionAPI["getThinkingLevel"]>;
 
@@ -163,7 +163,7 @@ export function lastAssistantText(messages: readonly unknown[]): string {
  */
 export async function runBtw(options: BtwRunOptions): Promise<BtwRunResult> {
 	const { question, snapshot, ctx } = options;
-	const agentDir = getAgentDir();
+	const agentDir = agentDirPath();
 	const settingsManager = SettingsManager.create(snapshot.cwd, agentDir);
 	const loader = new DefaultResourceLoader({
 		cwd: snapshot.cwd,

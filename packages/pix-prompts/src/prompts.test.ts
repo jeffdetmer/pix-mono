@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import registerPrompts from "./prompts.ts";
 
 type Handler = (event: { systemPrompt?: string }) => Promise<{ systemPrompt?: string } | undefined>;
@@ -30,7 +30,7 @@ describe("pix-prompts host-aware injection", () => {
 
 	beforeEach(() => {
 		prevCwd = process.cwd();
-		dir = mkdtempSync(join(tmpdir(), "pix-prompts-"));
+		dir = mkdtempSync(join(tempDir(), "pix-prompts-"));
 		process.chdir(dir);
 	});
 

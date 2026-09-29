@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { managedInstallRoot, stripBuiltinModelCommand } from "./patch-builtin.ts";
 
 describe("managed install discovery", () => {
 	it("resolves the current release package root", () => {
-		const install = mkdtempSync(join(tmpdir(), "pix-install-"));
+		const install = mkdtempSync(join(tempDir(), "pix-install-"));
 		writeFileSync(join(install, "current-version"), "0.87.1\n", "utf8");
 		expect(managedInstallRoot(install)).toBe(
 			join(install, "releases", "0.87.1", "node_modules", "@earendil-works", "pi-coding-agent"),
@@ -14,7 +14,7 @@ describe("managed install discovery", () => {
 	});
 
 	it("is undefined without a valid current-version", () => {
-		const install = mkdtempSync(join(tmpdir(), "pix-install-"));
+		const install = mkdtempSync(join(tempDir(), "pix-install-"));
 		expect(managedInstallRoot(install)).toBeUndefined();
 		mkdirSync(join(install, "releases"));
 		writeFileSync(join(install, "current-version"), "..", "utf8");
@@ -110,7 +110,7 @@ export const BUILTIN_SLASH_COMMANDS = [
 	});
 
 	it("round-trips through disk", () => {
-		const dir = mkdtempSync(join(tmpdir(), "pix-patch-"));
+		const dir = mkdtempSync(join(tempDir(), "pix-patch-"));
 		const file = join(dir, "slash-commands.js");
 		writeFileSync(file, CURRENT_PI, "utf8");
 		writeFileSync(file, stripBuiltinModelCommand(readFileSync(file, "utf8")), "utf8");

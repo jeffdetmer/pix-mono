@@ -8,9 +8,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveTool } from "@xynogen/pix-runtime/binaries";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { aria2 } from "maria2";
 import { type DaemonHandle, startDaemon } from "./daemon.ts";
 
@@ -22,7 +22,7 @@ let fileUrl: string;
 let dir: string;
 
 beforeAll(async () => {
-	dir = mkdtempSync(join(tmpdir(), "dl-e2e-"));
+	dir = mkdtempSync(join(tempDir(), "dl-e2e-"));
 	fileServer = createServer((_req, res) => {
 		res.writeHead(200, {
 			"content-type": "application/octet-stream",

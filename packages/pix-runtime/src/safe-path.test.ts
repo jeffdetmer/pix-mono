@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { chmod } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "./paths.ts";
 import type { HostPlatform } from "./platform.ts";
 import { sensitivePrefixes, validateOutputPath } from "./safe-path.ts";
 
@@ -74,7 +74,7 @@ describe("sensitive prefixes per OS", () => {
 });
 
 describe("validateOutputPath on this host", () => {
-	const root = mkdtempSync(join(tmpdir(), "pix-safe-path-"));
+	const root = mkdtempSync(join(tempDir(), "pix-safe-path-"));
 
 	it("accepts fresh, deep, and existing-file paths", async () => {
 		writeFileSync(join(root, "exists.txt"), "old");

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setIconMode } from "@xynogen/pix-pretty/icon-catalog";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { voiceConfig } from "./config.js";
 import { registerProvider, type SpeechRequest } from "./providers.js";
 import registerSpeak, { player, saveSpeech } from "./speak.js";
@@ -61,7 +61,7 @@ function fakeProvider(id: string, format: string, size = 21_168) {
 
 describe("speak tool", () => {
 	test("saves audio bytes without text conversion", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "pix-tts-"));
+		const dir = mkdtempSync(join(tempDir(), "pix-tts-"));
 		const path = join(dir, "speech.mp3");
 		await saveSpeech(path, new Uint8Array([0, 255, 17, 128]));
 		expect([...new Uint8Array(await readFile(path))]).toEqual([0, 255, 17, 128]);
@@ -70,7 +70,7 @@ describe("speak tool", () => {
 
 	test("uses the provider default model and plays the result", async () => {
 		const calls = fakeProvider("test-tts-play", "mp3");
-		const dir = mkdtempSync(join(tmpdir(), "pix-tts-result-"));
+		const dir = mkdtempSync(join(tempDir(), "pix-tts-result-"));
 		const path = join(dir, "speech.mp3");
 		// Playback is a pix-runtime job. Record the call instead of playing audio.
 		const played: string[] = [];
@@ -102,7 +102,7 @@ describe("speak tool", () => {
 
 	test("names the file by the real format and reports a format mismatch", async () => {
 		fakeProvider("test-tts-wav", "wav");
-		const dir = mkdtempSync(join(tmpdir(), "pix-tts-saved-"));
+		const dir = mkdtempSync(join(tempDir(), "pix-tts-saved-"));
 		const path = join(dir, "speech.mp3");
 		voiceConfig.ttsPlay = false;
 		setIconMode("unicode");
@@ -133,7 +133,7 @@ describe("speak tool", () => {
 		voiceConfig.ttsProvider = "test-tts-fail";
 		const result = await captureExecute()(
 			"test",
-			{ input: "Hello", output_file: join(tmpdir(), "unused.mp3") },
+			{ input: "Hello", output_file: join(tempDir(), "unused.mp3") },
 			undefined,
 			undefined,
 		);

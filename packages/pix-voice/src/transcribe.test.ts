@@ -1,8 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 
 import { mimeType, parseTranscriptionResponse } from "./http.js";
 import registerTranscribe, {
@@ -142,7 +143,7 @@ describe("parseTranscriptionResponse", () => {
 
 describe("resolveOutputPath", () => {
 	it("keeps absolute paths as-is", () => {
-		const abs = join(tmpdir(), "foo", "bar.txt");
+		const abs = join(tempDir(), "foo", "bar.txt");
 		expect(resolveOutputPath(abs)).toBe(abs);
 	});
 
@@ -157,7 +158,7 @@ describe("resolveOutputPath", () => {
 // ── writeTranscriptionFile ───────────────────────────────────────────────────
 
 describe("writeTranscriptionFile", () => {
-	const tmpRoot = mkdtempSync(join(tmpdir(), "pix-transcribe-test-"));
+	const tmpRoot = mkdtempSync(join(tempDir(), "pix-transcribe-test-"));
 
 	it("writes text to the given file path", async () => {
 		const file = join(tmpRoot, "simple.txt");
@@ -198,7 +199,7 @@ describe("writeTranscriptionFile", () => {
 // ── buildTranscriptionResult ─────────────────────────────────────────────────
 
 describe("buildTranscriptionResult", () => {
-	const tmpRoot = mkdtempSync(join(tmpdir(), "pix-transcribe-result-"));
+	const tmpRoot = mkdtempSync(join(tempDir(), "pix-transcribe-result-"));
 
 	it("returns inline text (truncated at 50_000) when no output_file is set", async () => {
 		const text = "a".repeat(60_000);
@@ -274,7 +275,7 @@ describe("writeTranscriptionFile — rejection propagation", () => {
 	});
 
 	it("throws on null byte", async () => {
-		await expect(writeTranscriptionFile(join(tmpdir(), "pix-test-\0x.txt"), "x")).rejects.toThrow(
+		await expect(writeTranscriptionFile(join(tempDir(), "pix-test-\0x.txt"), "x")).rejects.toThrow(
 			/null byte/,
 		);
 	});

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { agentDir } from "@xynogen/pix-runtime/paths";
+import { agentDir, projectDir } from "@xynogen/pix-runtime/paths";
 
 const HOME = os.homedir();
 
@@ -12,7 +12,7 @@ const AGENT_DIR = agentDir();
 const PI_CONFIG_PATH = path.join(AGENT_DIR, "mcp.json");
 const GENERIC_GLOBAL_CONFIG_PATH = path.join(HOME, ".config", "mcp", "mcp.json");
 const PROJECT_CONFIG_PATH = path.resolve(process.cwd(), ".mcp.json");
-const PROJECT_PI_CONFIG_PATH = path.resolve(process.cwd(), ".pi", "mcp.json");
+const PROJECT_PI_CONFIG_PATH = path.join(projectDir(process.cwd()), "mcp.json");
 
 const IMPORT_PATHS: Record<string, string[]> = {
 	cursor: [path.join(HOME, ".cursor", "mcp.json")],

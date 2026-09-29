@@ -10,8 +10,8 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "../paths.ts";
 import type { HostPlatform } from "../platform.ts";
 import { BINARY_NAMES, type BinarySpec, CATALOG, downloadAsset } from "./catalog.ts";
 import { ensureTool, installFromRelease, type ToolStatus } from "./ensure.ts";
@@ -25,7 +25,7 @@ const host: HostPlatform = isWin
 
 /** Isolated agent dir + PATH; `put` drops a runnable fake executable. */
 function sandbox() {
-	const root = mkdtempSync(join(tmpdir(), "pix-bin-"));
+	const root = mkdtempSync(join(tempDir(), "pix-bin-"));
 	const agent = join(root, "agent");
 	const pathDir = join(root, "path");
 	mkdirSync(join(agent, "bin"), { recursive: true });

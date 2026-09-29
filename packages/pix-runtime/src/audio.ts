@@ -9,12 +9,12 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type EnsureOptions, ensureTool, type ToolStatus } from "./binaries/ensure.ts";
 import { BinaryMissingError, lookupTool, resolveTool } from "./binaries/resolve.ts";
 import { runTool, runToolSync, spawnTool } from "./exec.ts";
 import type { OsOptions } from "./os.ts";
+import { tempDir } from "./paths.ts";
 import { currentPlatform, type HostPlatform } from "./platform.ts";
 
 export interface Microphone {
@@ -199,7 +199,7 @@ const STDERR_TAIL = 4096;
 /** Record `device` to a temp wav, or only meter it with `meterOnly`. Call `stop()` to end. */
 export function startRecording(device: string, opts: RecordOptions = {}): Recording {
 	requireFfmpeg(opts.meterOnly ? "The microphone test" : "Microphone recording", opts);
-	const path = opts.meterOnly ? "" : join(tmpdir(), `pix-stt-${randomUUID()}.wav`);
+	const path = opts.meterOnly ? "" : join(tempDir(), `pix-stt-${randomUUID()}.wav`);
 	const child = spawnTool("ffmpeg", recordArgs(microphoneInput(device, opts), path || undefined), {
 		env: opts.env,
 		host: opts.host,

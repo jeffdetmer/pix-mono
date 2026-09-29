@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { godNodes, surprisingConnections } from "./analyze.js";
 import { buildGraph } from "./build.js";
 import { cluster, cohesionScore } from "./cluster.js";
@@ -16,7 +16,7 @@ afterEach(() => {
 
 /** Two packages, a cross-file call, and an isolated helper. */
 function fixture(): string {
-	const root = mkdtempSync(join(tmpdir(), "pix-graph-"));
+	const root = mkdtempSync(join(tempDir(), "pix-graph-"));
 	dirs.push(root);
 	mkdirSync(join(root, "packages/a/src"), { recursive: true });
 	mkdirSync(join(root, "packages/b/src"), { recursive: true });

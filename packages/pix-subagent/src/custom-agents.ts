@@ -4,7 +4,8 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
+import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
+import { agentDir, projectDir } from "@xynogen/pix-runtime/paths";
 import { BUILTIN_TOOL_NAMES } from "./agent-types.ts";
 import type { AgentConfig } from "./types.ts";
 
@@ -37,12 +38,12 @@ function thinkingLevel(val: unknown): (typeof THINKING_LEVELS)[number] | undefin
  * Any name is allowed — names matching defaults (e.g. "Explore") override them.
  */
 export function loadCustomAgents(cwd: string): Map<string, AgentConfig> {
-	const globalDir = join(getAgentDir(), "agents");
-	const projectDir = join(cwd, ".pi", "agents");
+	const globalDir = join(agentDir(), "agents");
+	const projectAgents = join(projectDir(cwd), "agents");
 
 	const agents = new Map<string, AgentConfig>();
 	loadFromDir(globalDir, agents, "global"); // lower priority
-	loadFromDir(projectDir, agents, "project"); // higher priority (overwrites)
+	loadFromDir(projectAgents, agents, "project"); // higher priority (overwrites)
 	return agents;
 }
 

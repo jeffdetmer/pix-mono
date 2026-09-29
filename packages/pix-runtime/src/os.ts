@@ -8,10 +8,10 @@
 
 import { randomUUID } from "node:crypto";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveTool } from "./binaries/resolve.ts";
 import { quoteForCmd, runTool, runToolSync } from "./exec.ts";
+import { tempDir } from "./paths.ts";
 import { currentPlatform, type HostPlatform } from "./platform.ts";
 
 export interface OsOptions {
@@ -174,7 +174,7 @@ function viaXclip(opts: OsOptions): ClipboardImage | null {
 
 /** Windows clipboard via PowerShell — native Windows, or from WSL via powershell.exe. */
 function viaPowerShell(host: HostPlatform, opts: OsOptions): ClipboardImage | null {
-	const tmpFile = join(tmpdir(), `pix-clip-${randomUUID()}.png`);
+	const tmpFile = join(tempDir(), `pix-clip-${randomUUID()}.png`);
 	try {
 		const winPath =
 			host.os === "win32"
@@ -227,7 +227,7 @@ export function readClipboardImageToFile(opts: OsOptions = {}): string | null {
 	const image = readClipboardImage(opts);
 	if (!image) return null;
 	const ext = extForMime(image.mimeType);
-	const filePath = join(tmpdir(), `pix-clipboard-${randomUUID()}.${ext}`);
+	const filePath = join(tempDir(), `pix-clipboard-${randomUUID()}.${ext}`);
 	try {
 		writeFileSync(filePath, image.bytes);
 		return filePath;

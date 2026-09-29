@@ -19,12 +19,13 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
 import { modalOverlayOptions } from "@xynogen/pix-pretty/modal-frame";
+import { projectDir } from "@xynogen/pix-runtime/paths";
 import { PlanModal, type PlanModalResult } from "./plan-modal.ts";
 
 // ponytail: bash is not sandboxed here; PLAN_GUIDE asks for read-only use and pix-gate
 // still guards destructive commands. Add an allowlist guard if the model abuses it.
 const PLAN_TOOLS = ["read", "write", "bash"];
-const PLAN_DIR = join(".pi", "plans");
+const PLAN_DIR = `${projectDir()}/plans`; // "/" so prompts and hints read the same on Windows
 const STATE_ENTRY = "pix-plan-mode";
 
 // Visible guide: /plan → "+ New plan" pastes this into the prompt bar as a chip for the user

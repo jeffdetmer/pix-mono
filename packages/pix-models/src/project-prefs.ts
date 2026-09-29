@@ -15,7 +15,7 @@ import { dirname, join, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { showTransientMessage } from "@xynogen/pix-pretty/transient-error";
 import { writeFileAtomicSync } from "@xynogen/pix-runtime/atomic-write";
-import { agentDir } from "@xynogen/pix-runtime/paths";
+import { agentDir, projectDir } from "@xynogen/pix-runtime/paths";
 
 export type ModelPrefs = {
 	defaultProvider?: string;
@@ -28,13 +28,13 @@ export type PrefsTarget = { path: string; scope: "project" | "user" };
 /** Pick the settings file that should own this cwd's prefs. */
 export function prefsTarget(cwd: string, trusted: boolean, agent = agentDir()): PrefsTarget {
 	const userFile = join(agent, "settings.json");
-	const projectDir = join(resolve(cwd), ".pi");
+	const project = projectDir(resolve(cwd));
 	// cwd/.pi is the parent of the agent dir → "project" file would be ~/.pi/settings.json,
 	// which is confusing and not a real project. Use the user file instead.
-	if (!trusted || resolve(projectDir) === resolve(dirname(agent))) {
+	if (!trusted || resolve(project) === resolve(dirname(agent))) {
 		return { path: userFile, scope: "user" };
 	}
-	return { path: join(projectDir, "settings.json"), scope: "project" };
+	return { path: join(project, "settings.json"), scope: "project" };
 }
 
 /** Merge `prefs` into the JSON settings file at `path`. Returns true if it changed. */

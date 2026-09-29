@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import registerGraph from "./graph.js";
 
 type ExecuteFn = (
@@ -42,7 +42,7 @@ afterEach(() => {
 });
 
 function fixture(): string {
-	const root = mkdtempSync(join(tmpdir(), "pix-graph-tool-"));
+	const root = mkdtempSync(join(tempDir(), "pix-graph-tool-"));
 	dirs.push(root);
 	mkdirSync(join(root, "src"), { recursive: true });
 	writeFileSync(join(root, "src/util.ts"), "export function greet() {\n\treturn 1;\n}\n");

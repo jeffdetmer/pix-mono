@@ -4,12 +4,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { writeFileAtomicSync } from "@xynogen/pix-runtime/atomic-write";
+import { projectDir } from "@xynogen/pix-runtime/paths";
 import { getAgentPath } from "./agent-dir.ts";
 import type { ImportKind, McpConfig, McpSettings, ServerEntry, ServerProvenance } from "./types.ts";
 
 const GENERIC_GLOBAL_CONFIG_PATH = join(homedir(), ".config", "mcp", "mcp.json");
 const PROJECT_CONFIG_NAME = ".mcp.json";
-const PROJECT_PI_CONFIG_NAME = ".pi/mcp.json";
+const PROJECT_PI_CONFIG_NAME = `${projectDir()}/mcp.json`;
 const REPOPROMPT_BINARY_CANDIDATES = [
 	join(homedir(), "RepoPrompt", "repoprompt_cli"),
 	"/Applications/Repo Prompt.app/Contents/MacOS/repoprompt-mcp",
@@ -518,7 +519,7 @@ function findProjectRoot(cwd = process.cwd()): string | null {
 			existsSync(join(current, ".git")) ||
 			existsSync(join(current, "package.json")) ||
 			existsSync(join(current, PROJECT_CONFIG_NAME)) ||
-			existsSync(join(current, ".pi"))
+			existsSync(projectDir(current))
 		) {
 			return current;
 		}

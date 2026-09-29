@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { access } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
+import { projectDir } from "@xynogen/pix-runtime/paths";
 import { findExecutable } from "@xynogen/pix-runtime/which";
 
 export interface LspServerSpec {
@@ -57,7 +58,7 @@ function isServerConfig(value: unknown): value is ProjectServerConfig {
 export function loadProjectServers(cwd: string): LspServerSpec[] {
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(readFileSync(join(cwd, ".pi", "lsp.json"), "utf8"));
+		parsed = JSON.parse(readFileSync(join(projectDir(cwd), "lsp.json"), "utf8"));
 	} catch {
 		return [];
 	}

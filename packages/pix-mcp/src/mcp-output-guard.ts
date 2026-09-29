@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { humanSize } from "@xynogen/pix-pretty/utils";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import type { ContentBlock, McpSettings } from "./types.ts";
 
 export const DEFAULT_MCP_OUTPUT_MAX_BYTES = 50 * 1024;
@@ -408,7 +408,7 @@ async function saveArtifact(
 	text: string,
 ): Promise<{ path?: string; error?: string }> {
 	try {
-		const dir = await mkdtemp(join(tmpdir(), "pi-mcp-output-"));
+		const dir = await mkdtemp(join(tempDir(), "pi-mcp-output-"));
 		const path = join(dir, `${kind}-${randomBytes(4).toString("hex")}.txt`);
 		await writeFile(path, text, { encoding: "utf8", mode: 0o600 });
 		return { path };

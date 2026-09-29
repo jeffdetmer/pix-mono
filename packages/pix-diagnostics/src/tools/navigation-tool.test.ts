@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import type { LspManager, NavigationRequest, NavigationResult } from "../lsp/manager.ts";
 import { methodFor } from "../lsp/manager.ts";
 import { registerNavigationTool } from "./navigation-tool.ts";
@@ -76,7 +76,7 @@ describe("lsp_navigation tool", () => {
 	});
 
 	test("a file operation needs a position or symbol", async () => {
-		const root = mkdtempSync(join(tmpdir(), "pix-nav-"));
+		const root = mkdtempSync(join(tempDir(), "pix-nav-"));
 		const file = join(root, "a.ts");
 		writeFileSync(file, "const value = 1;\n");
 		const tool = capture(fakeManager([]), root);
@@ -93,7 +93,7 @@ describe("lsp_navigation tool", () => {
 	});
 
 	test("resolves a symbol to a position on the named line", async () => {
-		const root = mkdtempSync(join(tmpdir(), "pix-nav-"));
+		const root = mkdtempSync(join(tempDir(), "pix-nav-"));
 		const file = join(root, "a.ts");
 		writeFileSync(file, "const target = 1;\n");
 		const manager = fakeManager([{ kind: "location", filePath: file, line: 1, character: 7 }]);
@@ -119,7 +119,7 @@ describe("lsp_navigation tool", () => {
 	test("caps hover text and marks it truncated", async () => {
 		const bigHover = "x".repeat(5000);
 		const manager = fakeManager([{ kind: "hover", text: bigHover }]);
-		const root = mkdtempSync(join(tmpdir(), "pix-nav-"));
+		const root = mkdtempSync(join(tempDir(), "pix-nav-"));
 		const file = join(root, "a.ts");
 		writeFileSync(file, "const value = 1;\n");
 		const tool = capture(manager, root);

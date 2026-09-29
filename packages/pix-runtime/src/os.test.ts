@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extForMime, pickPreferredMime, readClipboardImage } from "./os.ts";
+import { tempDir } from "./paths.ts";
 import type { HostPlatform } from "./platform.ts";
 
 const isWin = process.platform === "win32";
@@ -30,13 +30,13 @@ describe("clipboard helpers", () => {
 	});
 
 	test("no clipboard tool installed → null, no throw", () => {
-		const empty = mkdtempSync(join(tmpdir(), "pix-os-"));
+		const empty = mkdtempSync(join(tempDir(), "pix-os-"));
 		const env = { PATH: empty, PI_CODING_AGENT_DIR: join(empty, "agent") };
 		expect(readClipboardImage({ env, host: linux })).toBeNull();
 	});
 
 	test.skipIf(isWin)("Wayland reads through wl-paste found via the resolver", () => {
-		const root = mkdtempSync(join(tmpdir(), "pix-os-"));
+		const root = mkdtempSync(join(tempDir(), "pix-os-"));
 		const bin = join(root, "agent", "bin");
 		mkdirSync(bin, { recursive: true });
 		const tool = join(bin, "wl-paste");

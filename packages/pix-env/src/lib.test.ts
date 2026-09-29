@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createEventBus } from "@earendil-works/pi-coding-agent";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import registerEnv from "./extension.ts";
 import {
 	allRefsIn,
@@ -63,7 +63,7 @@ describe("read_env tool", () => {
 	let oldFiles: string | undefined;
 
 	beforeEach(() => {
-		cwd = mkdtempSync(join(tmpdir(), "pix-env-"));
+		cwd = mkdtempSync(join(tempDir(), "pix-env-"));
 		writeFileSync(join(cwd, ".env"), "PORT=3000\nHOST=api.example.com\nTOKEN=secret-value\n");
 		oldFiles = process.env.PIX_ENV_FILES;
 		delete process.env.PIX_ENV_FILES;

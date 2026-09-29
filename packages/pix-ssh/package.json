@@ -39,7 +39,7 @@
 	"dependencies": {
 		"typebox": "^1.1.38",
 		"@xynogen/pix-pretty": "^1.25.0",
-		"@xynogen/pix-runtime": "^0.12.0"
+		"@xynogen/pix-runtime": "^0.12.2"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": "*",

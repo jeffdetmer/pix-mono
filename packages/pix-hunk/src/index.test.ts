@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import registerHunk, { type HunkRunner, runHunk } from "./index.ts";
 
 type RenderTheme = {
@@ -416,7 +416,7 @@ test("reports a missing Hunk executable with the install hint", async () => {
 });
 
 test("runHunk runs hunk through pix-runtime and returns its exit code and output", async () => {
-	const root = mkdtempSync(join(tmpdir(), "pix-hunk-"));
+	const root = mkdtempSync(join(tempDir(), "pix-hunk-"));
 	const isWin = process.platform === "win32";
 	const bin = join(root, isWin ? "hunk.cmd" : "hunk");
 	writeFileSync(

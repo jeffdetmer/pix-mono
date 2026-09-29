@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BinaryMissingError } from "./binaries/resolve.ts";
 import { setBinaryChoice } from "./binaries/store.ts";
 import { commandLine, quoteForCmd, runTool, runToolSync, spawnTool } from "./exec.ts";
 import { openCommand } from "./os.ts";
+import { tempDir } from "./paths.ts";
 import type { HostPlatform } from "./platform.ts";
 
 const isWin = process.platform === "win32";
@@ -21,7 +21,7 @@ const linux: HostPlatform = {
 
 /** Isolated agent dir + a PATH dir holding one script that echoes its args. */
 function sandbox() {
-	const root = mkdtempSync(join(tmpdir(), "pix-exec-"));
+	const root = mkdtempSync(join(tempDir(), "pix-exec-"));
 	const agent = join(root, "agent");
 	const pathDir = join(root, "path dir");
 	mkdirSync(join(agent, "bin"), { recursive: true });

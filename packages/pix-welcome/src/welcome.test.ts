@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import {
 	type CheckResult,
 	countSkillsInDirs,
@@ -178,7 +178,7 @@ describe("countSkillsInDirs", () => {
 	});
 
 	it("counts flat .md files", () => {
-		const dir = mkdtempSync(join(tmpdir(), "pix-skills-"));
+		const dir = mkdtempSync(join(tempDir(), "pix-skills-"));
 		try {
 			writeFileSync(join(dir, "commit.md"), "---\nname: commit\ndescription: test\n---\n");
 			writeFileSync(join(dir, "debug.md"), "---\nname: debug\ndescription: test\n---\n");
@@ -189,7 +189,7 @@ describe("countSkillsInDirs", () => {
 	});
 
 	it("counts subdir SKILL.md layout", () => {
-		const dir = mkdtempSync(join(tmpdir(), "pix-skills-"));
+		const dir = mkdtempSync(join(tempDir(), "pix-skills-"));
 		try {
 			mkdirSync(join(dir, "my-skill"));
 			writeFileSync(
@@ -203,7 +203,7 @@ describe("countSkillsInDirs", () => {
 	});
 
 	it("deduplicates across dirs", () => {
-		const dir = mkdtempSync(join(tmpdir(), "pix-skills-"));
+		const dir = mkdtempSync(join(tempDir(), "pix-skills-"));
 		try {
 			writeFileSync(join(dir, "foo.md"), "---\nname: foo\ndescription: test\n---\n");
 			// same dir twice — should still count 1

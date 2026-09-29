@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import * as nodeOs from "node:os";
 import { join } from "node:path";
 
-const { tmpdir } = nodeOs;
+import { tempDir } from "@xynogen/pix-runtime/paths";
+
 const systemHomedir = nodeOs.homedir();
 mock.module("node:os", () => ({
 	...nodeOs,
@@ -26,7 +27,7 @@ describe("onboarding state", () => {
 	});
 
 	it("returns the default state when no file exists", async () => {
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-mcp-onboarding-home-"));
+		process.env.HOME = mkdtempSync(join(tempDir(), "pi-mcp-onboarding-home-"));
 		const { loadOnboardingState, getOnboardingStatePath } = await importOnboardingState();
 
 		expect(loadOnboardingState()).toEqual({
@@ -38,7 +39,7 @@ describe("onboarding state", () => {
 	});
 
 	it("persists hint and setup completion state", async () => {
-		process.env.HOME = mkdtempSync(join(tmpdir(), "pi-mcp-onboarding-home-"));
+		process.env.HOME = mkdtempSync(join(tempDir(), "pi-mcp-onboarding-home-"));
 		const {
 			markSharedConfigHintShown,
 			markSetupCompleted,

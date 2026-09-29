@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync } from "node:fs";
 import * as nodeOs from "node:os";
 import { join } from "node:path";
 
-const { tmpdir } = nodeOs;
+import { tempDir } from "@xynogen/pix-runtime/paths";
+
 const systemHomedir = nodeOs.homedir();
 mock.module("node:os", () => ({
 	...nodeOs,
@@ -33,8 +34,8 @@ describe("Pi agent dir paths", () => {
 	});
 
 	it("uses PI_CODING_AGENT_DIR for Pi-owned config and state files", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-agent-dir-home-"));
-		const agentDir = mkdtempSync(join(tmpdir(), "pi-mcp-agent-dir-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-agent-dir-home-"));
+		const agentDir = mkdtempSync(join(tempDir(), "pi-mcp-agent-dir-"));
 		process.env.HOME = home;
 		process.env.PI_CODING_AGENT_DIR = agentDir;
 		delete process.env.MCP_OAUTH_DIR;
@@ -59,7 +60,7 @@ describe("Pi agent dir paths", () => {
 	});
 
 	it("expands tilde in PI_CODING_AGENT_DIR", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-agent-dir-home-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-agent-dir-home-"));
 		process.env.HOME = home;
 		process.env.PI_CODING_AGENT_DIR = "~/custom-pi-agent";
 
@@ -69,9 +70,9 @@ describe("Pi agent dir paths", () => {
 	});
 
 	it("keeps MCP_OAUTH_DIR as the explicit OAuth storage override", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-agent-dir-home-"));
-		const agentDir = mkdtempSync(join(tmpdir(), "pi-mcp-agent-dir-"));
-		const oauthDir = mkdtempSync(join(tmpdir(), "pi-mcp-oauth-dir-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-agent-dir-home-"));
+		const agentDir = mkdtempSync(join(tempDir(), "pi-mcp-agent-dir-"));
+		const oauthDir = mkdtempSync(join(tempDir(), "pi-mcp-oauth-dir-"));
 		process.env.HOME = home;
 		process.env.PI_CODING_AGENT_DIR = agentDir;
 		process.env.MCP_OAUTH_DIR = oauthDir;

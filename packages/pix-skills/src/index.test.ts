@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pixRuntime } from "@xynogen/pix-runtime/config";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { ioSection } from "@xynogen/pix-runtime/sections";
 
 import registerSkills, {
@@ -55,7 +55,7 @@ describe("bundled TOON skill", () => {
 describe("scanSiblingPackageSkills", () => {
 	let scope: string;
 	beforeEach(async () => {
-		scope = await mkdtemp(join(tmpdir(), "pix-scope-"));
+		scope = await mkdtemp(join(tempDir(), "pix-scope-"));
 	});
 	afterEach(async () => {
 		await rm(scope, { recursive: true, force: true });
@@ -481,7 +481,7 @@ describe("formatSkillSummary", () => {
 describe("readSkillResource", () => {
 	const roots: string[] = [];
 	const makeBundle = async () => {
-		const root = await mkdtemp(join(tmpdir(), "pix-skill-resource-"));
+		const root = await mkdtemp(join(tempDir(), "pix-skill-resource-"));
 		roots.push(root);
 		await mkdir(join(root, "references"));
 		await mkdir(join(root, "scripts"));
@@ -531,7 +531,7 @@ describe("readSkillResource", () => {
 
 	it("rejects symlinks that escape the skill bundle", async () => {
 		const root = await makeBundle();
-		const outside = await mkdtemp(join(tmpdir(), "pix-skill-outside-"));
+		const outside = await mkdtemp(join(tempDir(), "pix-skill-outside-"));
 		roots.push(outside);
 		await writeFile(join(outside, "secret.txt"), "secret");
 		await symlink(join(outside, "secret.txt"), join(root, "assets", "escape.txt"));
@@ -545,8 +545,8 @@ describe("readSkillResource", () => {
 describe("copySkillResource", () => {
 	const roots: string[] = [];
 	const makeDirectories = async () => {
-		const bundle = await mkdtemp(join(tmpdir(), "pix-skill-copy-source-"));
-		const project = await mkdtemp(join(tmpdir(), "pix-skill-copy-output-"));
+		const bundle = await mkdtemp(join(tempDir(), "pix-skill-copy-source-"));
+		const project = await mkdtemp(join(tempDir(), "pix-skill-copy-output-"));
 		roots.push(bundle, project);
 		await mkdir(join(bundle, "scripts"));
 		await mkdir(join(bundle, "references"));
@@ -617,7 +617,7 @@ describe("copySkillResource", () => {
 
 	it("rejects output parents that symlink outside the project", async () => {
 		const { bundle, project } = await makeDirectories();
-		const outside = await mkdtemp(join(tmpdir(), "pix-skill-copy-outside-"));
+		const outside = await mkdtemp(join(tempDir(), "pix-skill-copy-outside-"));
 		roots.push(outside);
 		await writeFile(join(bundle, "scripts", "render.ts"), "content");
 		await symlink(outside, join(project, "escape"));
@@ -629,7 +629,7 @@ describe("copySkillResource", () => {
 
 	it("replaces an output symlink without writing through it", async () => {
 		const { bundle, project } = await makeDirectories();
-		const outside = await mkdtemp(join(tmpdir(), "pix-skill-copy-target-"));
+		const outside = await mkdtemp(join(tempDir(), "pix-skill-copy-target-"));
 		roots.push(outside);
 		await writeFile(join(bundle, "scripts", "render.ts"), "safe content");
 		await writeFile(join(outside, "target.ts"), "outside content");

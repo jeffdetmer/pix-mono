@@ -28,6 +28,7 @@ import type {
 	ExtensionAPI,
 	ToolInfo,
 } from "@earendil-works/pi-coding-agent";
+import { projectDir } from "@xynogen/pix-runtime/paths";
 
 type LoadedSkill = NonNullable<BuildSystemPromptOptions["skills"]>[number];
 
@@ -46,7 +47,9 @@ export const CAPABILITY_REMINDER =
  * `.pi/pix-graph/`, external graphify / older CLI wrote `graphify-out/`), else undefined.
  */
 export function graphifyHint(cwd: string): string | undefined {
-	const dir = [".pi/pix-graph", "graphify-out"].find((d) => existsSync(join(cwd, d, "graph.json")));
+	const dir = [`${projectDir()}/pix-graph`, "graphify-out"].find((d) =>
+		existsSync(join(cwd, d, "graph.json")),
+	);
 	if (dir) {
 		return (
 			`${dir}/graph.json exists — for codebase questions (how does X work, ` +

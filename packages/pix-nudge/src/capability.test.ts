@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { projectDir } from "@xynogen/pix-runtime/paths";
 import registerCapabilityNudge, {
 	buildOrientation,
 	CAPABILITY_REMINDER,
@@ -224,7 +225,7 @@ describe("graphifyHint", () => {
 
 	test("returns hint for the pix-graph output dir (.pi/pix-graph)", () => {
 		try {
-			mkdirSync(join(tmpDir, ".pi/pix-graph"), { recursive: true });
+			mkdirSync(join(projectDir(tmpDir), "pix-graph"), { recursive: true });
 			writeFileSync(join(tmpDir, ".pi/pix-graph", "graph.json"), "{}");
 			const hint = graphifyHint(tmpDir);
 			expect(hint).toBeTypeOf("string");

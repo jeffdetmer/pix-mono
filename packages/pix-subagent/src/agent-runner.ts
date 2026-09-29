@@ -12,10 +12,10 @@ import {
 	createAgentSession,
 	DefaultResourceLoader,
 	type ExtensionAPI,
-	getAgentDir,
 	SessionManager,
 	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
+import { agentDir as agentDirPath } from "@xynogen/pix-runtime/paths";
 import {
 	BUILTIN_TOOL_NAMES,
 	getAgentConfig,
@@ -455,7 +455,7 @@ export async function runAgent(
 	// Still pass noSkills: true since we don't need the skill loader to load them again.
 	const noSkills = skills === false || Array.isArray(skills);
 
-	const agentDir = getAgentDir();
+	const agentDir = agentDirPath();
 
 	// Extension loading:
 	// - true  → all default-discovered extensions

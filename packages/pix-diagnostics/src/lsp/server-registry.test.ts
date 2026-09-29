@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { projectDir, tempDir } from "@xynogen/pix-runtime/paths";
 import { createResolver, loadProjectServers, rootForFile } from "./server-registry.ts";
 
 const access = async (path: string) => path === "/repo/package.json";
 
 function project(config?: unknown): string {
-	const cwd = mkdtempSync(join(tmpdir(), "pix-lsp-"));
+	const cwd = mkdtempSync(join(tempDir(), "pix-lsp-"));
 	if (config !== undefined) {
-		mkdirSync(join(cwd, ".pi"));
-		writeFileSync(join(cwd, ".pi", "lsp.json"), JSON.stringify(config));
+		mkdirSync(projectDir(cwd));
+		writeFileSync(join(projectDir(cwd), "lsp.json"), JSON.stringify(config));
 	}
 	return cwd;
 }

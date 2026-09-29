@@ -1,19 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { loadFetchConfig, saveFetchConfig } from "./config.ts";
 
 describe("fetch config", () => {
 	test("uses standalone defaults when no file exists", () => {
-		expect(loadFetchConfig(join(tmpdir(), "missing-pix-web.json"))).toEqual({
+		expect(loadFetchConfig(join(tempDir(), "missing-pix-web.json"))).toEqual({
 			provider: "auto",
 			nineRouterModel: "exa",
 		});
 	});
 
 	test("persists provider and 9Router model", () => {
-		const directory = mkdtempSync(join(tmpdir(), "pix-web-"));
+		const directory = mkdtempSync(join(tempDir(), "pix-web-"));
 		const path = join(directory, "fetch.json");
 		try {
 			saveFetchConfig({ provider: "9router", nineRouterModel: "custom-fetch" }, path);

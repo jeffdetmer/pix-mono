@@ -12,7 +12,8 @@ import * as nodeOs from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const { tmpdir } = nodeOs;
+import { tempDir } from "@xynogen/pix-runtime/paths";
+
 const systemHomedir = nodeOs.homedir();
 mock.module("node:os", () => ({
 	...nodeOs,
@@ -59,8 +60,8 @@ describe("cli init helper", () => {
 	});
 
 	it("adds detected host imports to the Pi config", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-cli-home-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-cli-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-cli-home-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-cli-project-"));
 		process.env.HOME = home;
 		delete process.env.PI_CODING_AGENT_DIR;
 		process.chdir(project);
@@ -91,9 +92,9 @@ describe("cli init helper", () => {
 	});
 
 	it("writes detected host imports to PI_CODING_AGENT_DIR when set", async () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-cli-home-"));
-		const agentDir = mkdtempSync(join(tmpdir(), "pi-mcp-cli-agent-"));
-		const project = mkdtempSync(join(tmpdir(), "pi-mcp-cli-project-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-cli-home-"));
+		const agentDir = mkdtempSync(join(tempDir(), "pi-mcp-cli-agent-"));
+		const project = mkdtempSync(join(tempDir(), "pi-mcp-cli-project-"));
 		process.env.HOME = home;
 		process.env.PI_CODING_AGENT_DIR = agentDir;
 		process.chdir(project);
@@ -125,13 +126,13 @@ describe("cli init helper", () => {
 	});
 
 	it("runs when invoked through a symlinked bin path", () => {
-		const home = mkdtempSync(join(tmpdir(), "pi-mcp-cli-home-"));
-		const binDir = mkdtempSync(join(tmpdir(), "pi-mcp-cli-bin-"));
+		const home = mkdtempSync(join(tempDir(), "pi-mcp-cli-home-"));
+		const binDir = mkdtempSync(join(tempDir(), "pi-mcp-cli-bin-"));
 		const symlinkPath = join(binDir, "pix-mcp");
 		symlinkSync(fileURLToPath(new URL("../cli.ts", import.meta.url)), symlinkPath);
 
 		const result = spawnSync("bun", [symlinkPath, "init", "--dry-run"], {
-			cwd: mkdtempSync(join(tmpdir(), "pi-mcp-cli-project-")),
+			cwd: mkdtempSync(join(tempDir(), "pi-mcp-cli-project-")),
 			env: {
 				...process.env,
 				HOME: home,

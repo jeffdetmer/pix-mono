@@ -1,24 +1,24 @@
 import { describe, expect, it } from "bun:test";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { projectDir, tempDir } from "@xynogen/pix-runtime/paths";
 import { prefsTarget, writePrefs } from "./project-prefs.ts";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "pix-prefs-"));
+const tmp = () => mkdtempSync(join(tempDir(), "pix-prefs-"));
 
 describe("prefsTarget", () => {
 	it("routes a trusted project to <cwd>/.pi/settings.json", () => {
 		const home = tmp();
-		const agent = join(home, ".pi", "agent");
+		const agent = join(projectDir(home), "agent");
 		const cwd = join(home, "proj");
 		expect(prefsTarget(cwd, true, agent)).toEqual({
-			path: join(cwd, ".pi", "settings.json"),
+			path: join(projectDir(cwd), "settings.json"),
 			scope: "project",
 		});
 	});
 
 	it("routes an untrusted project to the user settings file", () => {
-		const agent = join(tmp(), ".pi", "agent");
+		const agent = join(projectDir(tmp()), "agent");
 		expect(prefsTarget(tmp(), false, agent)).toEqual({
 			path: join(agent, "settings.json"),
 			scope: "user",
@@ -27,14 +27,14 @@ describe("prefsTarget", () => {
 
 	it("routes cwd === home (its .pi holds the agent dir) to the user file", () => {
 		const home = tmp();
-		const agent = join(home, ".pi", "agent");
+		const agent = join(projectDir(home), "agent");
 		expect(prefsTarget(home, true, agent).scope).toBe("user");
 	});
 });
 
 describe("writePrefs", () => {
 	it("creates .pi/settings.json with model, provider and thinking together", () => {
-		const path = join(tmp(), ".pi", "settings.json");
+		const path = join(projectDir(tmp()), "settings.json");
 		expect(
 			writePrefs(path, {
 				defaultProvider: "p",

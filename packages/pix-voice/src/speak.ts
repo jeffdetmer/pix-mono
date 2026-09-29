@@ -2,13 +2,13 @@
 
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { formatToolStatus } from "@xynogen/pix-pretty/tool-status";
 import { humanSize } from "@xynogen/pix-pretty/utils";
 import { playAudio } from "@xynogen/pix-runtime/audio";
+import { tempDir } from "@xynogen/pix-runtime/paths";
 import { validateOutputPath } from "@xynogen/pix-runtime/safe-path";
 import { Type } from "typebox";
 import { voiceConfig, voiceModel } from "./config.js";
@@ -92,7 +92,7 @@ export default function registerSpeak(pi: ExtensionAPI): void {
 				details.format = speech.format;
 				// A provider may return another format than requested. Name the file by the real one.
 				const outputFile =
-					params.output_file?.trim() || join(tmpdir(), `pix-tts-${randomUUID()}.${speech.format}`);
+					params.output_file?.trim() || join(tempDir(), `pix-tts-${randomUUID()}.${speech.format}`);
 				details.output_path = resolveOutputPath(outputFile);
 				const saved = await saveSpeech(outputFile, speech.audio);
 				const size = humanSize(speech.audio.byteLength);
