@@ -28,6 +28,7 @@ export {
 	CACHE_DIR,
 	DataSource,
 	fetchModelsDevIndex,
+	formatCost,
 	fromRegisteredModel,
 	lookupBenchmark,
 	lookupInIndex,

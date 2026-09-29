@@ -420,3 +420,10 @@ describe("ssh result renderer", () => {
 		expect(collapsed).not.toContain(`[success]${"- ".repeat(12)}[/]`);
 	});
 });
+
+describe("truncate one oversized line", () => {
+	it("keeps the head of a single line over the byte cap", () => {
+		const out = truncate("x".repeat(100), 2000, 10);
+		expect(out).toEqual({ text: "x".repeat(10), truncated: true });
+	});
+});

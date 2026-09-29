@@ -1,12 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-	type DlStatus,
-	downloadName,
-	etaSeconds,
-	fraction,
-	humanBytes,
-	progressLine,
-} from "./format.ts";
+import { type DlStatus, downloadName, etaSeconds, fraction, progressLine } from "./format.ts";
 
 function status(over: Partial<DlStatus> = {}): DlStatus {
 	return {
@@ -18,20 +11,6 @@ function status(over: Partial<DlStatus> = {}): DlStatus {
 		...over,
 	};
 }
-
-describe("humanBytes", () => {
-	test("scales units", () => {
-		expect(humanBytes(0)).toBe("0 B");
-		expect(humanBytes(512)).toBe("512 B");
-		expect(humanBytes(1024)).toBe("1 KiB");
-		expect(humanBytes(1536)).toBe("1.5 KiB");
-		expect(humanBytes(5 * 1024 ** 3)).toBe("5 GiB");
-	});
-	test("guards bad input", () => {
-		expect(humanBytes(-5)).toBe("0 B");
-		expect(humanBytes(Number.NaN)).toBe("0 B");
-	});
-});
 
 describe("fraction", () => {
 	test("computes completion ratio", () => {

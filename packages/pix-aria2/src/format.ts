@@ -3,6 +3,7 @@
  * daemon so they are unit-testable without spawning aria2 or a TUI.
  */
 
+import { humanSize } from "@xynogen/pix-pretty/utils";
 import type { Aria2DownloadStatus } from "maria2";
 
 /** aria2 status shape we actually read (fields are strings — bytes can exceed 2^53). */
@@ -13,20 +14,6 @@ export type DlStatus = Pick<
 	files?: { path?: string; uris?: { uri: string }[] }[];
 	errorMessage?: string;
 };
-
-/** Human byte size (IEC). Mirrors pix-pretty humanSize but works on bigint-safe strings. */
-export function humanBytes(n: number): string {
-	if (!Number.isFinite(n) || n <= 0) return "0 B";
-	const units = ["B", "KiB", "MiB", "GiB", "TiB"];
-	let i = 0;
-	let v = n;
-	while (v >= 1024 && i < units.length - 1) {
-		v /= 1024;
-		i++;
-	}
-	const rounded = v >= 100 || i === 0 || Number.isInteger(v) ? Math.round(v) : Number(v.toFixed(1));
-	return `${rounded} ${units[i]}`;
-}
 
 /** Completion fraction 0..1; 0 when total is unknown/zero. */
 export function fraction(s: DlStatus): number {
@@ -68,9 +55,9 @@ export function downloadName(s: DlStatus): string {
 export function progressLine(handle: string, s: DlStatus): string {
 	const name = downloadName(s);
 	const pct = Math.round(fraction(s) * 100);
-	const done = humanBytes(Number(s.completedLength));
-	const total = Number(s.totalLength) > 0 ? humanBytes(Number(s.totalLength)) : "?";
-	const speed = Number(s.downloadSpeed) > 0 ? `${humanBytes(Number(s.downloadSpeed))}/s` : "";
+	const done = humanSize(Number(s.completedLength) || 0);
+	const total = Number(s.totalLength) > 0 ? humanSize(Number(s.totalLength)) : "?";
+	const speed = Number(s.downloadSpeed) > 0 ? `${humanSize(Number(s.downloadSpeed))}/s` : "";
 	const eta = humanEta(etaSeconds(s));
 	const parts = [`${pct}%`, `${done}/${total}`, speed, eta && `eta ${eta}`].filter(Boolean);
 	return `${handle} ${name} · ${parts.join(" · ")}`;

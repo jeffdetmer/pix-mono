@@ -7,6 +7,7 @@ import {
 	benchlm,
 	buildModelsDevIndex,
 	DataSource,
+	formatCost,
 	fromRegisteredModel,
 	lookupBenchmark,
 	lookupInIndex,
@@ -452,5 +453,17 @@ describe("resolveModelsDev fallback", () => {
 		});
 		expect(d?.cost?.input).toBe(1);
 		expect(d?.limit?.context).toBe(128000);
+	});
+});
+
+describe("formatCost", () => {
+	it("prints $input/$output per 1M tokens, decimals only when needed", () => {
+		expect(formatCost(3, 15)).toBe("$3/$15");
+		expect(formatCost(0.25, 1.25)).toBe("$0.25/$1.25");
+		expect(formatCost(0.1, 2)).toBe("$0.1/$2");
+	});
+	it("gives free when both are 0 and undefined when both are unknown", () => {
+		expect(formatCost(0, 0)).toBe("free");
+		expect(formatCost(undefined, undefined)).toBeUndefined();
 	});
 });

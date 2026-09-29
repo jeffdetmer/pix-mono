@@ -2,7 +2,6 @@
  * agent-runner.ts — Core execution engine: creates sessions, runs agents, collects results.
  */
 
-import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import type { Api, AssistantMessage, Model, ToolCall } from "@earendil-works/pi-ai";
 import type { ExtensionContext, LoadExtensionsResult } from "@earendil-works/pi-coding-agent";
@@ -15,7 +14,7 @@ import {
 	SessionManager,
 	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { agentDir as agentDirPath } from "@xynogen/pix-runtime/paths";
+import { agentDir as agentDirPath, expandHome } from "@xynogen/pix-runtime/paths";
 import {
 	BUILTIN_TOOL_NAMES,
 	getAgentConfig,
@@ -88,10 +87,7 @@ export function parseExtensionsSpec(
 			names.add(entry.toLowerCase());
 			continue;
 		}
-		let p = entry;
-		if (p === "~" || p.startsWith("~/") || p.startsWith("~\\")) {
-			p = homedir() + p.slice(1);
-		}
+		const p = expandHome(entry);
 		const abs = isAbsolute(p) ? p : resolve(cwd, p);
 		paths.push(abs);
 		names.add(extensionCanonicalName(abs));

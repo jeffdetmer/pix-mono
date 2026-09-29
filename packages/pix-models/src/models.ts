@@ -18,7 +18,7 @@ import {
 	SelectList,
 	visibleWidth,
 } from "@earendil-works/pi-tui";
-import { benchScoreColor, lookupBenchmark, lookupModelsDev } from "@xynogen/pix-data";
+import { benchScoreColor, formatCost, lookupBenchmark, lookupModelsDev } from "@xynogen/pix-data";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import {
 	frameModal,
@@ -58,12 +58,10 @@ export function fmtCtx(n: number): string {
 	return `${Math.round(n / 1_000)}k`;
 }
 
+/** Table cell: pix-data formatCost, or an em dash when the price is unknown. */
 export function fmtCost(entry: { cost?: { input?: number; output?: number } } | undefined): string {
 	if (!entry?.cost) return "\u2014";
-	const i = entry.cost.input ?? 0;
-	const o = entry.cost.output ?? 0;
-	if (i === 0 && o === 0) return "free";
-	return `${i.toFixed(2)}/${o.toFixed(2)}`;
+	return formatCost(entry.cost.input ?? 0, entry.cost.output ?? 0) ?? "\u2014";
 }
 
 export function benchStars(score: number | null | undefined): {

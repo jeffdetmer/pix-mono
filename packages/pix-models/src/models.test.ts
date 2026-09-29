@@ -98,7 +98,8 @@ describe("fmtCost", () => {
 		expect(fmtCost({ cost: { input: 0, output: 0 } })).toBe("free");
 	});
 	it("formats input/output costs", () => {
-		expect(fmtCost({ cost: { input: 3, output: 15 } })).toBe("3.00/15.00");
+		expect(fmtCost({ cost: { input: 3, output: 15 } })).toBe("$3/$15");
+		expect(fmtCost({ cost: { input: 0.25, output: 1.25 } })).toBe("$0.25/$1.25");
 	});
 	it("handles missing input/output as 0", () => {
 		expect(fmtCost({ cost: {} })).toBe("free");

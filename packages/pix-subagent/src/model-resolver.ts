@@ -3,7 +3,7 @@
  */
 
 import type { Api, Model } from "@earendil-works/pi-ai";
-import { lookupBenchmark, lookupModelsDev } from "@xynogen/pix-data";
+import { formatCost, lookupBenchmark, lookupModelsDev } from "@xynogen/pix-data";
 import { dotJoin } from "@xynogen/pix-pretty/utils";
 
 export interface ModelEntry {
@@ -116,15 +116,6 @@ function fmtCtx(n: number | undefined): string {
 	return `${Math.round(n / 1_000)}k ctx`;
 }
 
-/** Cost → "$3/$15" (input/output per Mtok), "free", or "" when unknown. */
-function fmtCost(input?: number, output?: number): string {
-	if (input == null && output == null) return "";
-	const i = input ?? 0;
-	const o = output ?? 0;
-	if (i === 0 && o === 0) return "free";
-	return `$${i}/$${o}`;
-}
-
 /** Coarse decision tier from score + output price. */
 function tier(score: number | null | undefined, output?: number): string {
 	if (typeof score !== "number") return "";
@@ -143,7 +134,7 @@ function annotate(m: ModelEntry): { line: string; score: number } {
 	const segs = dotJoin([
 		typeof score === "number" && `⚡${score}`,
 		fmtCtx(dev?.limit?.context),
-		fmtCost(bench?.inputPrice ?? dev?.cost?.input, out),
+		formatCost(bench?.inputPrice ?? dev?.cost?.input, out),
 		tier(score, out),
 	]);
 	const id = `${m.provider}/${m.id}`;

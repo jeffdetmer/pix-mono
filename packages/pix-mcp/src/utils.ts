@@ -1,7 +1,6 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { openTarget } from "@xynogen/pix-runtime/os";
+import { expandHome } from "@xynogen/pix-runtime/paths";
 import type { McpConfig, ServerEntry } from "./types.ts";
 
 /**
@@ -68,12 +67,7 @@ export function interpolateEnvRecord(
 export function resolveConfigPath(value: string | undefined): string | undefined {
 	if (value === undefined) return undefined;
 
-	const resolved = interpolateEnvVars(value);
-	if (resolved === "~") return homedir();
-	if (resolved.startsWith("~/") || resolved.startsWith("~\\")) {
-		return join(homedir(), resolved.slice(2));
-	}
-	return resolved;
+	return expandHome(interpolateEnvVars(value));
 }
 
 export function resolveBearerToken(

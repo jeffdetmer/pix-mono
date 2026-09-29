@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { truncateHead } from "@earendil-works/pi-coding-agent";
 import { humanSize } from "@xynogen/pix-pretty/utils";
 import { tempDir } from "@xynogen/pix-runtime/paths";
 import type { ContentBlock, McpSettings } from "./types.ts";
@@ -132,8 +133,12 @@ export async function guardMcpOutput(
 		);
 		const notice = formatTruncationNotice(stats, fullOutputPath, writeError);
 		const previewBudget = reserveBudget(maxBytes, maxLines, notice);
-		const preview = truncateHead(composedOutput, previewBudget.maxBytes, previewBudget.maxLines);
-		const finalText = `${preview.content}\n\n${notice}`;
+		const preview = truncateHead(composedOutput, previewBudget);
+		// One line over the byte cap: truncateHead keeps nothing, so keep its head.
+		const head = preview.firstLineExceedsLimit
+			? truncateStringToBytes(composedOutput.split("\n")[0] ?? "", previewBudget.maxBytes)
+			: preview.content;
+		const finalText = `${head}\n\n${notice}`;
 		const finalStats = textStats(finalText);
 
 		guardedContent = [{ type: "text" as const, text: finalText }, ...imageBlocks];
@@ -224,35 +229,6 @@ function reserveBudget(
 		maxBytes: Math.max(0, maxBytes - noticeStats.bytes),
 		maxLines: Math.max(0, maxLines - noticeStats.lines),
 	};
-}
-
-function truncateHead(
-	text: string,
-	maxBytes: number,
-	maxLines: number,
-): { content: string; bytes: number; lines: number } {
-	const lines = text.split("\n");
-	const output: string[] = [];
-	let bytes = 0;
-
-	for (const line of lines) {
-		if (output.length >= maxLines) break;
-		const separatorBytes = output.length > 0 ? 1 : 0;
-		const lineBytes = byteLength(line);
-		if (bytes + separatorBytes + lineBytes > maxBytes) {
-			const remaining = maxBytes - bytes - separatorBytes;
-			if (remaining > 0) {
-				output.push(truncateStringToBytes(line, remaining));
-			}
-			break;
-		}
-		output.push(line);
-		bytes += separatorBytes + lineBytes;
-	}
-
-	const content = output.join("\n");
-	const stats = textStats(content);
-	return { content, bytes: stats.bytes, lines: stats.lines };
 }
 
 function truncateStringToBytes(value: string, maxBytes: number): string {

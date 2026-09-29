@@ -3,10 +3,16 @@
  * unit-tested without spawning real sudo or loading the Pi extension host.
  */
 
+import {
+	DEFAULT_MAX_BYTES,
+	DEFAULT_MAX_LINES,
+	truncateHead,
+} from "@earendil-works/pi-coding-agent";
 import { spawnTool } from "@xynogen/pix-runtime/exec";
 
-export const MAX_OUTPUT_BYTES = 50 * 1024;
-export const MAX_OUTPUT_LINES = 2000;
+// Pi's own tool-output limits (50KB / 2000 lines), so every tool caps the same way.
+export const MAX_OUTPUT_BYTES = DEFAULT_MAX_BYTES;
+export const MAX_OUTPUT_LINES = DEFAULT_MAX_LINES;
 
 // ── Output truncation ────────────────────────────────────────────────────────
 
@@ -15,19 +21,12 @@ export function truncate(
 	maxLines = MAX_OUTPUT_LINES,
 	maxBytes = MAX_OUTPUT_BYTES,
 ): { text: string; truncated: boolean } {
-	const lines = text.split("\n");
-	const byteLen = Buffer.byteLength(text, "utf8");
-
-	if (lines.length <= maxLines && byteLen <= maxBytes) {
-		return { text, truncated: false };
-	}
-
-	const kept = lines.slice(0, maxLines);
-	let result = kept.join("\n");
-	if (Buffer.byteLength(result, "utf8") > maxBytes) {
-		result = Buffer.from(result, "utf8").slice(0, maxBytes).toString("utf8");
-	}
-	return { text: result, truncated: true };
+	const r = truncateHead(text, { maxLines, maxBytes });
+	if (!r.firstLineExceedsLimit) return { text: r.content, truncated: r.truncated };
+	// One line over the byte cap (minified JSON, a base64 blob): truncateHead keeps
+	// nothing. Keep its first maxBytes instead, cut on a UTF-8 boundary.
+	const head = Buffer.from(text, "utf8").subarray(0, maxBytes).toString("utf8");
+	return { text: head.replace(/\uFFFD$/, ""), truncated: true };
 }
 
 // ── sudo stderr filter ───────────────────────────────────────────────────────

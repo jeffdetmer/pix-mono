@@ -18,11 +18,17 @@ import { createHash } from "node:crypto";
 import { globSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve as resolvePath } from "node:path";
+import {
+	DEFAULT_MAX_BYTES,
+	DEFAULT_MAX_LINES,
+	truncateHead,
+} from "@earendil-works/pi-coding-agent";
 import { spawnTool } from "@xynogen/pix-runtime/exec";
-import { tempDir } from "@xynogen/pix-runtime/paths";
+import { expandHome, tempDir } from "@xynogen/pix-runtime/paths";
 
-export const MAX_OUTPUT_BYTES = 50 * 1024;
-export const MAX_OUTPUT_LINES = 2000;
+// Pi's own tool-output limits (50KB / 2000 lines), so every tool caps the same way.
+export const MAX_OUTPUT_BYTES = DEFAULT_MAX_BYTES;
+export const MAX_OUTPUT_LINES = DEFAULT_MAX_LINES;
 
 /** Per-host approval TTL (ms) — mirrors sudo's PAM ticket window (~15 min). */
 export const APPROVAL_TTL_MS = 15 * 60_000;
@@ -218,9 +224,7 @@ export function parseHostAliases(text: string): HostAlias[] {
 /** Expand a Path with a leading `~` and resolve relative Includes against
  * the containing config's directory (OpenSSH semantics). */
 function expandConfigPath(pattern: string, baseDir: string): string {
-	let p = pattern;
-	if (p.startsWith("~/")) p = join(homedir(), p.slice(2));
-	else if (p === "~") p = homedir();
+	const p = expandHome(pattern);
 	return isAbsolute(p) ? p : resolvePath(baseDir, p);
 }
 
@@ -407,17 +411,12 @@ export function truncate(
 	maxLines = MAX_OUTPUT_LINES,
 	maxBytes = MAX_OUTPUT_BYTES,
 ): { text: string; truncated: boolean } {
-	const lines = text.split("\n");
-	const byteLen = Buffer.byteLength(text, "utf8");
-	if (lines.length <= maxLines && byteLen <= maxBytes) {
-		return { text, truncated: false };
-	}
-	const kept = lines.slice(0, maxLines);
-	let result = kept.join("\n");
-	if (Buffer.byteLength(result, "utf8") > maxBytes) {
-		result = Buffer.from(result, "utf8").subarray(0, maxBytes).toString("utf8");
-	}
-	return { text: result, truncated: true };
+	const r = truncateHead(text, { maxLines, maxBytes });
+	if (!r.firstLineExceedsLimit) return { text: r.content, truncated: r.truncated };
+	// One line over the byte cap (minified JSON, a base64 blob): truncateHead keeps
+	// nothing. Keep its first maxBytes instead, cut on a UTF-8 boundary.
+	const head = Buffer.from(text, "utf8").subarray(0, maxBytes).toString("utf8");
+	return { text: head.replace(/\uFFFD$/, ""), truncated: true };
 }
 
 // ── Runners ──────────────────────────────────────────────────────────────────

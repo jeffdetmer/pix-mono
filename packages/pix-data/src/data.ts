@@ -626,6 +626,20 @@ function lookupBenchlmScore(
 	return best.overallScore ?? null;
 }
 
+/**
+ * Price per 1M tokens as `$3/$15` (input/output), `free` when both are 0, or
+ * undefined when both are unknown so each caller picks its own marker.
+ * Decimals show only when needed: `$0.25/$1.25`.
+ */
+export function formatCost(input?: number, output?: number): string | undefined {
+	if (input == null && output == null) return undefined;
+	const i = input ?? 0;
+	const o = output ?? 0;
+	if (i === 0 && o === 0) return "free";
+	const usd = (n: number) => `$${Number.isInteger(n) ? n : n.toFixed(2).replace(/0+$/, "")}`;
+	return `${usd(i)}/${usd(o)}`;
+}
+
 /** Map a benchmark score (0–100) to a semantic color token. */
 export function benchScoreColor(
 	score: number | null | undefined,

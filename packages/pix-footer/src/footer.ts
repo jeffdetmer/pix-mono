@@ -16,7 +16,7 @@ import type { AssistantMessage, AssistantMessageEvent } from "@earendil-works/pi
 import type { ExtensionAPI, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { ModelsDevModel } from "@xynogen/pix-data";
-import { benchScoreColor, lookupBenchmark, resolveModelsDev } from "@xynogen/pix-data";
+import { benchScoreColor, formatCost, lookupBenchmark, resolveModelsDev } from "@xynogen/pix-data";
 import { icon } from "@xynogen/pix-pretty/icon-catalog";
 import { warnBinaryMissing } from "@xynogen/pix-pretty/tool-status";
 import { fmtTokenCount } from "@xynogen/pix-pretty/widget-format";
@@ -43,13 +43,9 @@ const GIT_POLL_MS = 2_000;
 // basename splits on \ too on Windows. A root ("/", "C:\\") has no basename, so show it whole.
 const shortCwd = (cwd: string): string => basename(cwd) || cwd;
 
-function fmtCost(entry: ModelsDevModel | undefined): string {
-	const costIn = entry?.cost?.input ?? 0;
-	const costOut = entry?.cost?.output ?? 0;
-	if (costIn === 0 && costOut === 0) return "free";
-	const fmt = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(2).replace(/\.?0+$/, ""));
-	return `$ ${fmt(costIn)}/${fmt(costOut)}`;
-}
+// Unknown price shows "free" here, as before (registered-only models carry no cost).
+const fmtCost = (entry: ModelsDevModel | undefined): string =>
+	formatCost(entry?.cost?.input, entry?.cost?.output) ?? "free";
 
 // ────────────────────────────────────────────────────────────────────
 
