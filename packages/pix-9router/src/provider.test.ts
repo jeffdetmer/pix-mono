@@ -1,11 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import type { ModelsDevModel, RouterModel } from "./data.ts";
 import {
+	classifySystemOne,
 	getContextWindow,
 	getInputTypes,
 	getMaxTokens,
 	getModelName,
 	getReasoning,
+	isClassifierModel,
+	toModelConfig,
 } from "./provider.ts";
 
 // ── getInputTypes ────────────────────────────────────────────────────────────
@@ -209,5 +212,124 @@ describe("getReasoning", () => {
 
 	it("returns false for plain model with no devModel", () => {
 		expect(getReasoning({ id: "llama-3-8b-instruct" })).toBe(false);
+	});
+});
+
+// ── isClassifierModel & toModelConfig ────────────────────────────────────────
+
+describe("isClassifierModel", () => {
+	it("detects jev models as classifiers", () => {
+		expect(isClassifierModel({ id: "oc/jev-1.13-free" })).toBe(true);
+		expect(isClassifierModel({ id: "jev-latest" })).toBe(true);
+		expect(isClassifierModel({ id: "typesafe/jev" })).toBe(true);
+	});
+
+	it("detects span and solar-decide models as classifiers", () => {
+		expect(isClassifierModel({ id: "respan/span-01" })).toBe(true);
+		expect(isClassifierModel({ id: "upstage/solar-decide" })).toBe(true);
+	});
+
+	it("does not classify chat models", () => {
+		expect(isClassifierModel({ id: "ag/gemini-3.8-flash" })).toBe(false);
+		expect(isClassifierModel({ id: "cx/gpt-6-sol" })).toBe(false);
+		expect(isClassifierModel({ id: "cc/claude-opus-5-5" })).toBe(false);
+	});
+
+	it("respects NINEROUTER_CLASSIFIER_MODELS env var", () => {
+		const prev = process.env.NINEROUTER_CLASSIFIER_MODELS;
+		try {
+			process.env.NINEROUTER_CLASSIFIER_MODELS = "custom-judge,my-verifier";
+			expect(isClassifierModel({ id: "custom-judge-v1" })).toBe(true);
+			expect(isClassifierModel({ id: "my-verifier" })).toBe(true);
+			expect(isClassifierModel({ id: "other-model" })).toBe(false);
+		} finally {
+			if (prev === undefined) delete process.env.NINEROUTER_CLASSIFIER_MODELS;
+			else process.env.NINEROUTER_CLASSIFIER_MODELS = prev;
+		}
+	});
+});
+
+describe("toModelConfig", () => {
+	it("configures classifier models with type classifier and system-one api", () => {
+		const mapper = toModelConfig(new Map());
+		const config = mapper({ id: "oc/jev-1.13-free", contextWindow: 200_000 });
+		expect(config.type).toBe("classifier");
+		expect((config as any).api).toBe("typesafe-system-one");
+		expect(config.contextWindow).toBe(200_000);
+		expect((config as any).compat).toBeUndefined();
+	});
+
+	it("configures chat models without classifier type and with compat", () => {
+		const mapper = toModelConfig(new Map());
+		const config = mapper({ id: "ag/gemini-3.8-flash", contextWindow: 1_000_000 });
+		expect(config.type).toBeUndefined();
+		expect((config as any).compat).toBeDefined();
+		expect(config.contextWindow).toBe(1_000_000);
+	});
+});
+
+// ── classifySystemOne ────────────────────────────────────────────────────────
+
+describe("classifySystemOne", () => {
+	it("translates bool to noul and parses response", async () => {
+		const origFetch = globalThis.fetch;
+		let sentBody: any;
+		globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+			sentBody = JSON.parse(init?.body as string);
+			return new Response(
+				JSON.stringify({
+					model: "jev-1.13-free",
+					answers: {
+						check: { type: "noul", noul: 0.92 },
+					},
+					usage: { input_tokens: 100, output_tokens: 10 },
+				}),
+				{ status: 200 },
+			);
+		}) as any;
+
+		try {
+			const res = await classifySystemOne(
+				{ id: "oc/jev-1.13-free", baseUrl: "https://router.dev/v1" },
+				{
+					state: { prompt: "test" },
+					questions: {
+						check: {
+							type: "bool",
+							instructions: "is bool",
+							criteria: { true: "y", false: "n" },
+						},
+					},
+				},
+				"test-key",
+			);
+
+			expect(sentBody.questions.check.type).toBe("noul");
+			expect(res.stopReason).toBe("stop");
+			expect(res.answers.check).toEqual({ type: "bool", probability: 0.92 });
+			expect(res.usage?.input).toBe(100);
+			expect(res.usage?.output).toBe(10);
+		} finally {
+			globalThis.fetch = origFetch;
+		}
+	});
+
+	it("handles http errors gracefully", async () => {
+		const origFetch = globalThis.fetch;
+		globalThis.fetch = (async () => {
+			return new Response("Bad request", { status: 400 });
+		}) as any;
+
+		try {
+			const res = await classifySystemOne(
+				{ id: "oc/jev-1.13-free" },
+				{ state: {}, questions: {} },
+				"test-key",
+			);
+			expect(res.stopReason).toBe("error");
+			expect(res.errorMessage).toContain("400");
+		} finally {
+			globalThis.fetch = origFetch;
+		}
 	});
 });

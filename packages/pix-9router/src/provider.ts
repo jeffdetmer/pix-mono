@@ -9,7 +9,7 @@
  *   ROUTER_API_KEY   — bearer token (required for live model list)
  */
 
-import type { RefreshModelsContext } from "@earendil-works/pi-ai";
+import type { ClassifierResult, RefreshModelsContext } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { ioTimeoutSignal } from "@xynogen/pix-runtime/io";
 import type { ModelsDevModel, RouterModel } from "./data.ts";
@@ -28,6 +28,28 @@ const ZERO_COST = {
 // Fallback pattern-based detection if models.dev lookup fails
 const IMAGE_CAPABLE_PATTERNS = [/claude/i, /gpt-5/i, /gpt-4/i, /kimi-k2/i, /hy3/i];
 
+/** Known patterns for classifier models (System One protocol) */
+export const CLASSIFIER_PATTERNS = [
+	/\bjev\b/i,
+	/\bspan\b/i,
+	/\bsolar-decide\b/i,
+	/\bclassifier\b/i,
+];
+
+export function isClassifierModel(model: RouterModel): boolean {
+	const id = model.id ?? "";
+	const name = model.name ?? "";
+	const custom = (process.env.NINEROUTER_CLASSIFIER_MODELS || "")
+		.split(",")
+		.map((s) => s.trim().toLowerCase())
+		.filter(Boolean);
+
+	if (custom.some((c) => id.toLowerCase().includes(c) || name.toLowerCase().includes(c))) {
+		return true;
+	}
+	return CLASSIFIER_PATTERNS.some((p) => p.test(id) || p.test(name));
+}
+
 interface RouterModelsResponse {
 	data?: RouterModel[];
 }
@@ -38,10 +60,24 @@ const COMPAT = {
 	maxTokensField: "max_tokens",
 } as const;
 
-function toModelConfig(devIndex: Map<string, ModelsDevModel>) {
+export function toModelConfig(devIndex: Map<string, ModelsDevModel>) {
 	return (model: RouterModel) => {
 		const id = model.id ?? "";
 		const devModel = lookupInIndex(id, devIndex);
+
+		if (isClassifierModel(model)) {
+			return {
+				type: "classifier" as const,
+				id,
+				name: getModelName(model, devModel),
+				api: "typesafe-system-one",
+				baseUrl: routerBaseUrl(),
+				input: ["text" as const],
+				cost: ZERO_COST,
+				contextWindow: getContextWindow(model, devModel),
+			};
+		}
+
 		return {
 			id,
 			name: getModelName(model, devModel),
@@ -129,6 +165,109 @@ export default async function registerProvider(pi: ExtensionAPI): Promise<void> 
 		.catch(() => {});
 }
 
+export async function classifySystemOne(
+	model: { id: string; baseUrl?: string; api?: string; provider?: string },
+	context: { state: Record<string, unknown>; questions: Record<string, any> },
+	apiKey: string,
+	options?: { signal?: AbortSignal; headers?: Record<string, string> },
+): Promise<ClassifierResult> {
+	const output = {
+		api: model.api ?? "typesafe-system-one",
+		provider: model.provider ?? "9router",
+		model: model.id,
+		answers: {} as Record<string, any>,
+		stopReason: "stop" as const,
+		timestamp: Date.now(),
+	};
+
+	try {
+		const wireQuestions = Object.fromEntries(
+			Object.entries(context.questions ?? {}).map(([key, q]) => [
+				key,
+				q.type === "bool" ? { ...q, type: "noul" } : q,
+			]),
+		);
+
+		const base = (model.baseUrl || routerBaseUrl()).replace(/\/+$/, "");
+		const url = `${base}/systemone`;
+		const res = await fetch(url, {
+			method: "POST",
+			signal: ioTimeoutSignal(options?.signal),
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				"Content-Type": "application/json",
+				"User-Agent": "pi-coding-agent",
+				...(options?.headers ?? {}),
+			},
+			body: JSON.stringify({
+				model: model.id,
+				state: context.state,
+				questions: wireQuestions,
+			}),
+		});
+
+		if (!res.ok) {
+			const errText = await res.text().catch(() => "");
+			return {
+				...output,
+				stopReason: "error" as const,
+				errorMessage: `9router /systemone returned ${res.status}: ${errText}`,
+			};
+		}
+
+		const data = (await res.json()) as any;
+		const answers: Record<string, any> = {};
+
+		for (const [key, q] of Object.entries(context.questions ?? {})) {
+			const ans = data?.answers?.[key];
+			if (!ans) continue;
+			if (q.type === "bool") {
+				answers[key] = {
+					type: "bool",
+					probability: typeof ans.noul === "number" ? ans.noul : (ans.probability ?? 0),
+				};
+			} else if (q.type === "choice") {
+				answers[key] = {
+					type: "choice",
+					choice: ans.choice,
+					probabilities: ans.probabilities ?? {},
+					confidence: ans.confidence ?? 0,
+				};
+			} else if (q.type === "score") {
+				answers[key] = {
+					type: "score",
+					score: ans.score ?? 0,
+					confidence: ans.confidence ?? 0,
+				};
+			} else {
+				answers[key] = ans;
+			}
+		}
+
+		const inputTokens = data?.usage?.input_tokens ?? 0;
+		const outputTokens = data?.usage?.output_tokens ?? 0;
+
+		return {
+			...output,
+			answers,
+			usage: {
+				input: inputTokens,
+				output: outputTokens,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: inputTokens + outputTokens,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+		};
+	} catch (error) {
+		return {
+			...output,
+			stopReason: "error" as const,
+			errorMessage: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
 function providerConfig(
 	apiKey: string,
 	models: RouterModel[],
@@ -141,6 +280,15 @@ function providerConfig(
 		api: "openai-completions",
 		headers: { "User-Agent": "pi-coding-agent" },
 		models: models.map(toModelConfig(devIndex)),
+		classifiers: {
+			"typesafe-system-one": {
+				classify: (
+					model: Parameters<typeof classifySystemOne>[0],
+					context: Parameters<typeof classifySystemOne>[1],
+					options?: Parameters<typeof classifySystemOne>[3],
+				) => classifySystemOne(model, context, apiKey, options),
+			},
+		},
 		// Live fetch on /model refresh — bypasses the disk cache.
 		// Pi calls refreshModels once per provider at every startup with
 		// allowNetwork:false (awaited, no timeout) — never touch the network

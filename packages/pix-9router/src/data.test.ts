@@ -17,24 +17,30 @@ function mg(
 // ── routerBaseUrl ────────────────────────────────────────────────────────────
 
 describe("routerBaseUrl", () => {
-	const ORIGINAL = process.env.ROUTER_API_BASE;
+	const ORIGINAL_ROUTER_API_BASE = process.env.ROUTER_API_BASE;
+	const ORIGINAL_NINEROUTER_URL = process.env.NINEROUTER_URL;
 
 	afterEach(() => {
-		if (ORIGINAL === undefined) delete process.env.ROUTER_API_BASE;
-		else process.env.ROUTER_API_BASE = ORIGINAL;
+		if (ORIGINAL_ROUTER_API_BASE === undefined) delete process.env.ROUTER_API_BASE;
+		else process.env.ROUTER_API_BASE = ORIGINAL_ROUTER_API_BASE;
+		if (ORIGINAL_NINEROUTER_URL === undefined) delete process.env.NINEROUTER_URL;
+		else process.env.NINEROUTER_URL = ORIGINAL_NINEROUTER_URL;
 	});
 
 	it("returns default when env unset", () => {
 		delete process.env.ROUTER_API_BASE;
+		delete process.env.NINEROUTER_URL;
 		expect(routerBaseUrl()).toBe("https://9router.example.com/v1");
 	});
 
 	it("uses ROUTER_API_BASE when set", () => {
+		delete process.env.NINEROUTER_URL;
 		process.env.ROUTER_API_BASE = "https://my.router.dev/v1";
 		expect(routerBaseUrl()).toBe("https://my.router.dev/v1");
 	});
 
 	it("strips trailing slash", () => {
+		delete process.env.NINEROUTER_URL;
 		process.env.ROUTER_API_BASE = "https://my.router.dev/v1/";
 		expect(routerBaseUrl()).toBe("https://my.router.dev/v1");
 	});
