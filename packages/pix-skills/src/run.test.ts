@@ -1,22 +1,36 @@
 import { describe, expect, it } from "bun:test";
 import { runArgv } from "./run.ts";
 
+// Use the running JS runtime as the child: `echo`, `head` and `ls` are not programs
+// in a PowerShell session on Windows. process.execPath exists on every OS.
+const js = (code: string) => [process.execPath, "-e", code];
+
 describe("runArgv", () => {
 	it("captures stdout", async () => {
-		expect((await runArgv(["echo", "hello"], { cwd: process.cwd() })).trim()).toBe("hello");
+		expect((await runArgv(js("console.log('hello')"), { cwd: process.cwd() })).trim()).toBe(
+			"hello",
+		);
 	});
 
 	it("caps output at maxBytes", async () => {
-		const out = await runArgv(["head", "-c", "100000", "/dev/zero"], {
+		const out = await runArgv(js("process.stdout.write('x'.repeat(100000))"), {
 			cwd: process.cwd(),
 			maxBytes: 1000,
 		});
+		expect(out.length).toBeGreaterThanOrEqual(1000);
 		expect(out.length).toBeLessThanOrEqual(1100);
 	});
 
 	it("returns text on failure without throwing", async () => {
-		const out = await runArgv(["ls", "/no/such/xyz"], { cwd: process.cwd() });
-		expect(out.length).toBeGreaterThan(0);
+		const out = await runArgv(js("console.error('boom'); process.exit(3)"), {
+			cwd: process.cwd(),
+		});
+		expect(out).toContain("boom");
+	});
+
+	it("returns text when the program does not exist", async () => {
+		const out = await runArgv(["pix-no-such-program-xyz"], { cwd: process.cwd() });
+		expect(out).toMatch(/command failed|not found|ENOENT/i);
 	});
 
 	it("handles empty argv", async () => {

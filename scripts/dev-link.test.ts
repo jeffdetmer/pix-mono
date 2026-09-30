@@ -57,8 +57,12 @@ beforeEach(() => {
 
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
+// dev-link.sh is a bash script. In PowerShell on Windows, `bash` can be the WSL stub
+// with no Linux installed, so skip unless a real bash runs.
+const hasBash = spawnSync("bash", ["-c", "echo ok"], { encoding: "utf8" }).stdout?.trim() === "ok";
+
 describe("dev-link", () => {
-	test("installs workspace dependencies and links selected package dependency closure", () => {
+	test.skipIf(!hasBash)("installs workspace dependencies and links selected package dependency closure", () => {
 		const result = spawnSync("bash", [join(root, "scripts", "dev-link.sh"), "pix-app"], {
 			cwd: root,
 			env: {
