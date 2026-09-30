@@ -39,12 +39,15 @@ import registerUpdate from "@xynogen/pix-update/extension";
 import registerWelcome from "@xynogen/pix-welcome/extension";
 import registerWrite from "@xynogen/pix-write/extension";
 import registerCompaction from "./compaction.ts";
+import deferNonCoreTools from "./defer-tools.ts";
 import registerPlanMode from "./plan-mode.ts";
 
 type PixExtension = (pi: ExtensionAPI) => void;
 
 // Compile-time boundary: every member must accept the Pi host contract.
 const MEMBERS = [
+	// Must run first: it wraps registerTool so non-core member tools register deferred.
+	deferNonCoreTools,
 	// pix-runtime owns pix.json (init/reload/flush) and the /pix settings command.
 	// It must run first so every config consumer below reads a live runtime.
 	registerRuntime,
