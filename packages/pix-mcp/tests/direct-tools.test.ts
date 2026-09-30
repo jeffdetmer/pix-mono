@@ -1,7 +1,11 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { buildProxyDescription, resolveDirectTools } from "../src/direct-tools.ts";
+import {
+	buildProxyDescription,
+	resolveCodemodeTools,
+	resolveDirectTools,
+} from "../src/direct-tools.ts";
 import {
 	computeServerHash,
 	isServerCacheValid,
@@ -97,6 +101,61 @@ describe("buildProxyDescription", () => {
 
 		expect(description).toContain("Servers: figma (1 tools)");
 		expect(description).not.toContain("figma (3 tools)");
+	});
+});
+
+describe("codemode tool discovery", () => {
+	it("exposes cached server tools without adding direct declarations", () => {
+		const config: McpConfig = {
+			mcpServers: { demo: { command: "node" } },
+		};
+		const cache: MetadataCache = {
+			version: 1,
+			servers: {
+				demo: {
+					configHash: computeServerHash(config.mcpServers.demo),
+					cachedAt: Date.now(),
+					tools: [{ name: "lookup", description: "Find records", inputSchema: { type: "object" } }],
+					resources: [],
+				},
+			},
+		};
+		expect(resolveCodemodeTools(config, cache)).toMatchObject([
+			{ serverName: "demo", originalName: "lookup", prefixedName: "mcp__demo__lookup" },
+		]);
+	});
+});
+
+describe("resource name collisions", () => {
+	it("keeps the first resource and warns once across metadata refreshes", () => {
+		const config: McpConfig = {
+			mcpServers: { demo: { command: "node" } },
+		};
+		const cache: MetadataCache = {
+			version: 1,
+			servers: {
+				demo: {
+					configHash: computeServerHash(config.mcpServers.demo),
+					cachedAt: Date.now(),
+					tools: [],
+					resources: [
+						{ name: "unique_table", uri: "demo://unique" },
+						{ name: "unique_table_", uri: "demo://duplicate" },
+					],
+				},
+			},
+		};
+		const warn = spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const first = resolveCodemodeTools(config, cache);
+			expect(first).toMatchObject([
+				{ prefixedName: "mcp__demo__get_unique_table", resourceUri: "demo://unique" },
+			]);
+			expect(resolveCodemodeTools(config, cache)).toEqual(first);
+			expect(warn).toHaveBeenCalledTimes(1);
+		} finally {
+			warn.mockRestore();
+		}
 	});
 });
 

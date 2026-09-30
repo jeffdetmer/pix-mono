@@ -25,6 +25,7 @@ import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.ts";
 import { formatAuthRequiredMessage } from "./utils.ts";
 
 const BUILTIN_NAMES = new Set(["read", "bash", "edit", "write", "grep", "find", "ls", "mcp"]);
+const warnedResourceCollisions = new Set<string>();
 
 type DirectAutoAuthResult =
 	| { status: "skipped" }
@@ -181,9 +182,14 @@ export function resolveDirectTools(
 					continue;
 				}
 				if (seenNames.has(prefixedName)) {
-					console.warn(
-						`MCP: skipping duplicate direct resource tool "${prefixedName}" from "${serverName}"`,
-					);
+					// ponytail: Warn once per collision in this process. A restart resets the warning list.
+					const collision = `${serverName}\0${prefixedName}\0${resource.uri}`;
+					if (!warnedResourceCollisions.has(collision)) {
+						warnedResourceCollisions.add(collision);
+						console.warn(
+							`MCP: skipping duplicate direct resource tool "${prefixedName}" from "${serverName}"`,
+						);
+					}
 					continue;
 				}
 				seenNames.add(prefixedName);
@@ -199,6 +205,27 @@ export function resolveDirectTools(
 	}
 
 	return specs;
+}
+
+export function resolveCodemodeTools(
+	config: McpConfig,
+	cache: MetadataCache | null,
+): DirectToolSpec[] {
+	// ponytail: Reuse direct-tool metadata and execution. Raw CallToolResult needs an outputSchema later.
+	const allTools: McpConfig = {
+		...config,
+		settings: { ...config.settings, directTools: true },
+		mcpServers: Object.fromEntries(
+			Object.entries(config.mcpServers).map(([name, definition]) => [
+				name,
+				{ ...definition, directTools: true },
+			]),
+		),
+	};
+	return resolveDirectTools(allTools, cache, "server").map((spec) => ({
+		...spec,
+		prefixedName: `mcp__${spec.serverName}__${spec.originalName}`,
+	}));
 }
 
 export function getMissingConfiguredDirectToolServers(

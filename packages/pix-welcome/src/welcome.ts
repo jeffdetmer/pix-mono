@@ -390,7 +390,9 @@ export default function (pi: ExtensionAPI) {
 		ctx.ui?.setWidget?.("welcome", undefined);
 	};
 
-	pi.on("session_start", (_event, ctx) => {
+	pi.on("session_start", (event, ctx) => {
+		// ponytail: /reload refreshes extensions, not the session; skip the second splash and checks.
+		if (event.reason === "reload") return;
 		dismissed = false;
 
 		// cwd is static; model can change via /model so keep it mutable

@@ -1,6 +1,6 @@
 {
 	"name": "@xynogen/pix-proc",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "Pi tool — run and manage long-lived processes (npm run dev, vite, python) that outlive a turn",
 	"type": "module",
 	"main": "src/index.ts",
@@ -46,10 +46,10 @@
 	},
 	"dependencies": {
 		"@xynogen/pix-pretty": "^1.26.0",
-		"@xynogen/pix-runtime": "^0.12.0",
-		"typebox": "^1.1.38"
+		"@xynogen/pix-runtime": "^0.12.0"
 	},
 	"peerDependencies": {
+		"typebox": "*",
 		"@earendil-works/pi-coding-agent": "*",
 		"@earendil-works/pi-tui": "*"
 	}

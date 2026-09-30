@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { tempDir } from "@xynogen/pix-runtime/paths";
-import {
+import registerWelcome, {
 	type CheckResult,
 	countSkillsInDirs,
 	LABEL_WIDTH,
@@ -22,6 +22,36 @@ const theme: Theme = {
 	fg: (_color, text) => text,
 	bold: (text) => text,
 };
+
+describe("welcome lifecycle", () => {
+	it("does not run the welcome checks again on extension reload", () => {
+		let onStart: ((event: { reason: "reload" | "new" }, ctx: unknown) => void) | undefined;
+		let widgetCalls = 0;
+		registerWelcome({
+			on(event: string, handler: typeof onStart) {
+				if (event === "session_start") onStart = handler;
+			},
+		} as never);
+		onStart?.(
+			{ reason: "reload" },
+			{
+				ui: { setWidget: () => widgetCalls++ },
+				cwd: tempDir(),
+				modelRegistry: { getAvailable: () => [] },
+			},
+		);
+		expect(widgetCalls).toBe(0);
+		onStart?.(
+			{ reason: "new" },
+			{
+				ui: { setWidget: () => widgetCalls++ },
+				cwd: tempDir(),
+				modelRegistry: { getAvailable: () => [] },
+			},
+		);
+		expect(widgetCalls).toBe(1);
+	});
+});
 
 describe("renderWelcome", () => {
 	const checks: CheckResult[] = [{ label: "PI", status: "ok", detail: "1.0.0" }];

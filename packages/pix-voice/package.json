@@ -1,6 +1,6 @@
 {
 	"name": "@xynogen/pix-voice",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"description": "Provider-neutral speech-to-text and text-to-speech tools for Pi",
 	"type": "module",
 	"main": "src/index.ts",
@@ -47,13 +47,13 @@
 		"access": "public"
 	},
 	"peerDependencies": {
+		"typebox": "*",
 		"@earendil-works/pi-coding-agent": "*",
 		"@earendil-works/pi-ai": "*",
 		"@earendil-works/pi-tui": "*"
 	},
 	"dependencies": {
 		"@xynogen/pix-pretty": "^1.28.0",
-		"@xynogen/pix-runtime": "^0.12.2",
-		"typebox": "^1.1.38"
+		"@xynogen/pix-runtime": "^0.12.2"
 	}
 }

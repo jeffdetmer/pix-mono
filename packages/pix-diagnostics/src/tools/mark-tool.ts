@@ -30,6 +30,7 @@ export function registerMarkTool(pi: ExtensionAPI, deps: MarkToolDeps): void {
 
 	pi.registerTool({
 		name: "lens_diagnostic_mark",
+		...({ exposure: "deferred" } as const),
 		label: "Mark diagnostic",
 		renderShell: "self",
 		description:

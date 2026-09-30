@@ -25,6 +25,7 @@ interface PkgJson {
 	dependencies?: Record<string, string>;
 	devDependencies?: Record<string, string>;
 	optionalDependencies?: Record<string, string>;
+	peerDependencies?: Record<string, string>;
 	exports?: Record<string, string>;
 }
 
@@ -214,6 +215,17 @@ describe("dependency architecture", () => {
 });
 
 describe("dependency hygiene", () => {
+	test("extension packages use the host typebox copy", () => {
+		const violations = pkgs
+			.filter(
+				({ pkg }) =>
+					pkg.dependencies?.typebox ||
+					(pkg.peerDependencies?.typebox && pkg.peerDependencies.typebox !== "*"),
+			)
+			.map(({ name }) => `${name}: typebox must be a * peer dependency`);
+		expect(violations).toEqual([]);
+	});
+
 	test("no workspace: protocol in any published package", () => {
 		const violations: string[] = [];
 		for (const { name, pkg } of pkgs) {

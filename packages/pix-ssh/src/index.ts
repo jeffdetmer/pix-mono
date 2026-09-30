@@ -397,6 +397,7 @@ async function infoResult(host: string | undefined, sig?: AbortSignal) {
 export default function (pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "ssh_run",
+		...({ exposure: "deferred" } as const),
 		label: "Run over SSH",
 		description:
 			"Run a command or transfer files/directories on a REMOTE host over SSH. " +

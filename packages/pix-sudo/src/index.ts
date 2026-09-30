@@ -154,6 +154,7 @@ function isTerminal(details: SudoResultDetails): boolean {
 export default function (pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "sudo_run",
+		...({ exposure: "deferred" } as const),
 		label: "Run as root",
 		description:
 			"Execute a shell command as root on the LOCAL machine (sudo). " +

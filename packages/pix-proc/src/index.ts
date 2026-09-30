@@ -154,6 +154,7 @@ export default function registerRunner(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "proc",
+		...({ exposure: "deferred" } as const),
 		label: "Process",
 		renderShell: "self",
 		description:

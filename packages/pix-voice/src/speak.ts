@@ -51,6 +51,7 @@ export default function registerSpeak(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "speak",
+		...({ exposure: "deferred" } as const),
 		label: "Text to speech",
 		renderShell: "self",
 		description: "Speak text aloud through the configured voice provider.",

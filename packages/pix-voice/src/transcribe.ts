@@ -158,6 +158,7 @@ export default function registerTranscribe(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "transcribe",
+		...({ exposure: "deferred" } as const),
 		label: "Transcribe",
 		renderShell: "self",
 		description: "Transcribe an audio file to text through the configured voice provider.",

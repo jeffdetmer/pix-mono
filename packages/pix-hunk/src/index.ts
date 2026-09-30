@@ -446,6 +446,7 @@ function renderExpanded(details: HunkResultDetails, theme: HunkTheme): string {
 export default function registerHunk(pi: ExtensionAPI, runner: HunkRunner = runHunk): void {
 	pi.registerTool({
 		name: "hunk",
+		...({ exposure: "deferred" } as const),
 		label: "Hunk",
 		renderShell: "self",
 		description:

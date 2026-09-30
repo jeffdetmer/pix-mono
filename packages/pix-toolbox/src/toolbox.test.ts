@@ -14,9 +14,10 @@ import registerToolbox, {
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
-const toolInfo = (name: string, source = "builtin") =>
+const toolInfo = (name: string, source = "builtin", exposure = "direct") =>
 	({
 		name,
+		exposure,
 		description: `${name} does things.`,
 		parameters: {},
 		sourceInfo: { source, path: "", scope: "user", origin: "package" },
@@ -43,6 +44,24 @@ describe("buildRows", () => {
 	test("flags MCP tools", () => {
 		const rows = buildRows([mcpToolInfo("ctx_search")]);
 		expect((rows[0] as ToolRow).mcp).toBe(true);
+	});
+
+	test("separates deferred tools from direct tools", () => {
+		const rows = buildRows([toolInfo("hunk", "extension", "deferred"), toolInfo("grep")]);
+		expect(rows.map((row) => [row.name, row.exposure])).toEqual([
+			["grep", "direct"],
+			["hunk", "deferred"],
+		]);
+	});
+
+	test("puts MCP tools after normal tools, deferred last in each group", () => {
+		const rows = buildRows([
+			mcpToolInfo("a_mcp"),
+			toolInfo("z_tool"),
+			toolInfo("b_deferred", "extension", "deferred"),
+			toolInfo("c_mcp", "mcp:x", "deferred"),
+		]);
+		expect(rows.map((r) => r.name)).toEqual(["z_tool", "b_deferred", "a_mcp", "c_mcp"]);
 	});
 
 	test("empty input returns empty", () => {
@@ -79,6 +98,7 @@ describe("renderList", () => {
 
 	test("shows status for each tool", () => {
 		const out = renderList(rows, isActive);
+		expect(out).toMatch(/^Tools:\n[\s\S]*\n\nMCP:\n.*ctx/);
 		expect(out).toContain("✓ active  read");
 		expect(out).toContain("# gated  grep");
 		expect(out).toContain("# gated  ctx");
@@ -94,6 +114,14 @@ describe("renderList", () => {
 	test("no match message", () => {
 		const out = renderList(rows, isActive, "zzz");
 		expect(out).toContain('No tools matched "zzz"');
+	});
+
+	test("labels deferred tools without calling them gated", () => {
+		const out = renderList(
+			[{ name: "hunk", description: "Review.", mcp: false, exposure: "deferred" }],
+			() => false,
+		);
+		expect(out).toContain("deferred  hunk");
 	});
 
 	test("empty rows", () => {
@@ -184,9 +212,9 @@ afterAll(() => {
 	}
 });
 
-function makeHost(toolNames: string[]) {
+function makeHost(toolNames: string[], deferred: string[] = []) {
 	const handlers: Record<string, Array<(p: unknown) => unknown>> = {};
-	let active: string[] = [...toolNames];
+	let active: string[] = toolNames.filter((name) => !deferred.includes(name));
 	const commands: Array<{
 		name: string;
 		handler: (...args: unknown[]) => unknown;
@@ -204,6 +232,7 @@ function makeHost(toolNames: string[]) {
 		getAllTools() {
 			return toolNames.map((name) => ({
 				name,
+				exposure: deferred.includes(name) ? "deferred" : "direct",
 				description: `${name} does things.`,
 				parameters: {},
 				sourceInfo: { source: "builtin" },
@@ -251,6 +280,21 @@ function makeCtx() {
 describe("/toolbox command", () => {
 	type Note = { text: string; level?: string };
 	const ALL = ["read", "write", "bash", "grep", "find"];
+
+	test("keeps deferred tools out of the prompt on start and after direct toggles", async () => {
+		const host = makeHost([...ALL, "hunk"], ["hunk"]);
+		registerToolbox(host.pi);
+		await host.emit("session_start", {}, {});
+		expect(host.getActive()).toEqual(ALL);
+		const { ctx, notes } = makeCtx();
+		await host.command("toolbox")?.handler("list", ctx);
+		expect(notes[0]?.text).toContain("deferred  hunk");
+		await host.command("toolbox")?.handler("enable hunk", ctx);
+		expect(host.getActive()).toEqual(ALL);
+		await host.command("toolbox")?.handler("disable grep", ctx);
+		expect(host.getActive()).toEqual(ALL.filter((n) => n !== "grep"));
+		await host.command("toolbox")?.handler("enable grep", ctx);
+	});
 
 	async function boot() {
 		const host = makeHost(ALL);

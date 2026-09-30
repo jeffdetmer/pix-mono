@@ -17,6 +17,7 @@ type RenderContext = {
 };
 
 type ToolDef = {
+	exposure?: "deferred";
 	renderShell?: "self";
 	renderCall: (
 		args: { ops: Array<Record<string, unknown>> },
@@ -65,6 +66,10 @@ function capture(runner: HunkRunner): ToolDef {
 	if (!tool) throw new Error("hunk tool not registered");
 	return tool;
 }
+
+test("keeps the hunk schema out of the initial model tools", () => {
+	expect(capture(async () => ({ stdout: "", stderr: "", code: 0 })).exposure).toBe("deferred");
+});
 
 test("renders a compact colored summary and hides internal ids from expanded UI", async () => {
 	let call = 0;

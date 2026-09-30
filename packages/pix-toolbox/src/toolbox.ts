@@ -2,10 +2,9 @@
  * toolbox.ts — /toolbox command for user-driven tool gating
  *
  * Registers a `/toolbox` slash command that opens a TUI picker listing every
- * registered tool (built-in and MCP). The user can toggle tools on/off —
+ * registered tool (built-in and MCP). Direct tools can be toggled on/off —
  * this controls which tools are described in the system prompt via
- * pi.setActiveTools(). All tools remain callable via function definitions
- * regardless of prompt visibility.
+ * pi.setActiveTools(). Deferred tools stay available through tool_search.
  *
  * Also supports headless usage:
  *   /toolbox enable <names>   — enable tool(s) by name
@@ -55,6 +54,7 @@ export interface ToolRow {
 	description: string;
 	mcp: boolean;
 	source?: string;
+	exposure?: string;
 }
 
 /** Callbacks for toggleTool / renderList — test seam. */
@@ -71,15 +71,24 @@ function isMcpTool(info: ToolInfo): boolean {
 }
 
 export function buildRows(tools: ToolInfo[]): ToolRow[] {
-	return tools
-		.filter((t) => !CORE_TOOLS.has(t.name))
-		.map((t) => ({
-			name: t.name,
-			description: firstSentence(t.description ?? ""),
-			mcp: isMcpTool(t),
-			source: t.sourceInfo?.source,
-		}))
-		.sort((a, b) => a.name.localeCompare(b.name));
+	return (
+		tools
+			.filter((t) => !CORE_TOOLS.has(t.name))
+			.map((t) => ({
+				name: t.name,
+				description: firstSentence(t.description ?? ""),
+				mcp: isMcpTool(t),
+				source: t.sourceInfo?.source,
+				exposure: (t as ToolInfo & { exposure?: string }).exposure ?? "direct",
+			}))
+			// Normal tools first, MCP tools last. Inside a group: direct before deferred, then by name.
+			.sort(
+				(a, b) =>
+					Number(a.mcp) - Number(b.mcp) ||
+					Number(a.exposure === "deferred") - Number(b.exposure === "deferred") ||
+					a.name.localeCompare(b.name),
+			)
+	);
 }
 
 const firstSentence = (desc: string): string => {
@@ -117,11 +126,19 @@ export function renderList(
 		return query ? `No tools matched "${query}".` : "No tools registered.";
 	}
 
-	const lines = filtered.map((r) => {
-		const status = isActive(r.name) ? "✓ active" : "# gated";
-		const kind = r.mcp ? "MCP" : "tool";
-		return `${status}  ${r.name}  [${kind}]  ${r.description}`;
-	});
+	const lines: string[] = [];
+	let group = "";
+	for (const row of filtered) {
+		const nextGroup = row.mcp ? "MCP" : "Tools";
+		if (group !== nextGroup) {
+			group = nextGroup;
+			lines.push(`${lines.length ? "\n" : ""}${group}:`);
+		}
+		const status =
+			row.exposure === "deferred" ? "deferred" : isActive(row.name) ? "✓ active" : "# gated";
+		const kind = row.mcp ? "MCP" : "tool";
+		lines.push(`${status}  ${row.name}  [${kind}]  ${row.description}`);
+	}
 	return lines.join("\n");
 }
 
@@ -133,6 +150,7 @@ export function toggleTool(
 ): string {
 	const row = rows.find((r) => r.name === name);
 	if (!row) return `Unknown tool "${name}".`;
+	if (row.exposure === "deferred") return `${name} is deferred. Use tool_search to load it.`;
 
 	if (action === "enable") {
 		const did = ops.onActivate(name);
@@ -253,14 +271,27 @@ function createState(pi: ExtensionAPI) {
 	function apply(): void {
 		if (!initialized) return;
 		try {
-			pi.setActiveTools(allNames().filter((n) => !disabledTools.has(n)));
+			const tools = pi.getAllTools();
+			const active = new Set(pi.getActiveTools());
+			pi.setActiveTools(
+				tools
+					.filter(
+						(tool) =>
+							!disabledTools.has(tool.name) &&
+							(["direct", "model-only"].includes(
+								(tool as ToolInfo & { exposure?: string }).exposure ?? "direct",
+							) ||
+								active.has(tool.name)),
+					)
+					.map((tool) => tool.name),
+			);
 		} catch (err) {
 			console.warn("toolbox: setActiveTools failed:", err);
 		}
 	}
 
 	function isActive(name: string): boolean {
-		return !disabledTools.has(name);
+		return pi.getActiveTools().includes(name);
 	}
 
 	function onActivate(name: string): boolean {
@@ -347,15 +378,22 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 
 				const labelFor = (r: ToolRow): string => {
 					const active = stateOf(r.name) === "active";
-					const marker = active ? " " : theme.fg("warning", "#");
-					const name = active ? theme.fg("success", r.name) : theme.fg("muted", r.name);
-					const kind = mute(`[${r.mcp ? "MCP" : "tool"}]`);
+					const deferred = r.exposure === "deferred";
+					const marker = deferred || active ? " " : theme.fg("warning", "#");
+					const name =
+						active && !deferred ? theme.fg("success", r.name) : theme.fg("muted", r.name);
+					const kind = mute(`[${deferred ? "deferred" : "normal"} · ${r.mcp ? "MCP" : "tool"}]`);
 					return `${marker} ${name}  ${kind}`;
 				};
 
 				const descFor = (r: ToolRow): string => {
 					const active = stateOf(r.name) === "active";
-					const tag = active ? theme.fg("success", "active") : theme.fg("warning", "gated");
+					const tag =
+						r.exposure === "deferred"
+							? mute("deferred · tool_search")
+							: active
+								? theme.fg("success", "active")
+								: theme.fg("warning", "gated");
 					return `${tag} ${mute("·")} ${r.description || "(no description)"}`;
 				};
 
@@ -428,7 +466,7 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 
 				const applyFilter = (q: string) => {
 					const query = q.trim();
-					internal.filteredItems =
+					const hits =
 						query.length === 0
 							? internal.items
 							: fuzzyFilter(
@@ -436,6 +474,9 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 									query,
 									(it: SelectItem) => `${it.value} ${it.description ?? ""}`,
 								);
+					// Keep the MCP group after normal tools, so one header can split them.
+					const isMcp = (it: SelectItem) => byValue.get(it.value)?.mcp === true;
+					internal.filteredItems = [...hits.filter((it) => !isMcp(it)), ...hits.filter(isMcp)];
 					internal.selectedIndex = 0;
 					list.invalidate();
 				};
@@ -449,6 +490,15 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 						const mw = modalWidth(w);
 						const inner = mw - 4; // CHROME = 2 border + 2 padding
 						const footer = statusText ? ["", statusText] : [""];
+						// maxVisible = all items, so list line i is filteredItems[i].
+						const body = list.render(inner);
+						const split = internal.filteredItems.findIndex((it) => byValue.get(it.value)?.mcp);
+						const mcpHeader =
+							split < 0 ? [] : [...(split > 0 ? [""] : []), theme.fg("dim", "  MCP")];
+						body.splice(Math.max(0, split), 0, ...mcpHeader);
+						const selLine =
+							internal.selectedIndex +
+							(split >= 0 && internal.selectedIndex >= split ? mcpHeader.length : 0);
 						footer.push(
 							guide("↑↓", "navigate") +
 								guideSep +
@@ -472,11 +522,8 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 								...search.render(inner),
 								"",
 							],
-							body: list.render(inner),
-							selectedBodyRange: pager.selectedRange({
-								start: internal.selectedIndex,
-								end: internal.selectedIndex + 1,
-							}),
+							body,
+							selectedBodyRange: pager.selectedRange({ start: selLine, end: selLine + 1 }),
 							footer,
 							bodyOffset: pager.bodyOffset,
 							color: (s) => theme.fg(accent, s),

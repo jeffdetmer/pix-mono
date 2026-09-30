@@ -243,6 +243,7 @@ export default function registerDownload(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "download",
+		...({ exposure: "deferred" } as const),
 		label: "Download",
 		renderShell: "self",
 		description:

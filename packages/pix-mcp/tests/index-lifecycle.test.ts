@@ -8,10 +8,12 @@ const mocks = {
 	shutdownOAuth: mock().mockResolvedValue(undefined),
 	loadMcpConfig: mock((): any => ({ mcpServers: {} })),
 	loadMetadataCache: mock((): any => null),
+	patchOutBuiltinMcp: mock(() => false),
 	buildProxyDescription: mock(() => "MCP gateway"),
 	createDirectToolExecutor: mock(() => mock()),
 	getMissingConfiguredDirectToolServers: mock((): string[] => []),
 	resolveDirectTools: mock((): any[] => []),
+	resolveCodemodeTools: mock((): any[] => []),
 	showStatus: mock(),
 	showTools: mock(),
 	reconnectServers: mock(),
@@ -59,11 +61,16 @@ mock.module("../src/metadata-cache.ts", () => ({
 	loadMetadataCache: mocks.loadMetadataCache,
 }));
 
+mock.module("../src/patch-builtin.ts", () => ({
+	patchOutBuiltinMcp: mocks.patchOutBuiltinMcp,
+}));
+
 mock.module("../src/direct-tools.ts", () => ({
 	buildProxyDescription: mocks.buildProxyDescription,
 	createDirectToolExecutor: mocks.createDirectToolExecutor,
 	getMissingConfiguredDirectToolServers: mocks.getMissingConfiguredDirectToolServers,
 	resolveDirectTools: mocks.resolveDirectTools,
+	resolveCodemodeTools: mocks.resolveCodemodeTools,
 }));
 
 mock.module("../src/commands.ts", () => ({
@@ -162,6 +169,7 @@ describe("mcpAdapter session lifecycle", () => {
 		mocks.createDirectToolExecutor.mockReturnValue(mock());
 		mocks.getMissingConfiguredDirectToolServers.mockReturnValue([]);
 		mocks.resolveDirectTools.mockReturnValue([]);
+		mocks.resolveCodemodeTools.mockReturnValue([]);
 		mocks.getConfigPathFromArgv.mockReturnValue(undefined);
 		mocks.normalizeDirectToolInputSchema.mockImplementation((schema: unknown) =>
 			schema && typeof schema === "object" && !Array.isArray(schema)
@@ -229,6 +237,28 @@ describe("mcpAdapter session lifecycle", () => {
 		state.onToolMetadataChanged();
 		expect(tools.get("search")?.description).toBe("Search updated");
 		expect(tools.get("search")?.parameters.properties).toEqual({ limit: { type: "number" } });
+	});
+
+	it("keeps MCP tools searchable without listing them in codemode", async () => {
+		const spec = {
+			serverName: "demo",
+			originalName: "lookup",
+			prefixedName: "mcp__demo__lookup",
+			description: "Find records",
+			inputSchema: { type: "object", properties: { id: { type: "string" } } },
+		};
+		mocks.resolveCodemodeTools.mockReturnValue([spec]);
+		const { default: mcpAdapter } = await import("../src/index.ts");
+		const { api, handlers, tools } = createPi();
+		mcpAdapter(api);
+		await handlers.get("session_start")?.({}, {});
+		await Promise.resolve();
+
+		expect(tools.get(spec.prefixedName)).toMatchObject({
+			exposure: "deferred",
+			namespace: { name: "demo" },
+		});
+		expect(api.getActiveTools()).not.toContain(spec.prefixedName);
 	});
 
 	it("keeps the proxy tool when direct tools are still missing from cache", async () => {

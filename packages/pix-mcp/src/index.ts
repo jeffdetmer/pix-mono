@@ -20,12 +20,14 @@ import {
 	buildProxyDescription,
 	createDirectToolExecutor,
 	getMissingConfiguredDirectToolServers,
+	resolveCodemodeTools,
 	resolveDirectTools,
 } from "./direct-tools.ts";
 import { toolErrorOverride } from "./error-signal.ts";
 import { flushMetadataCache, initializeMcp, updateStatusBar } from "./init.ts";
 import { initializeOAuth, shutdownOAuth } from "./mcp-auth-flow.ts";
 import { loadMetadataCache } from "./metadata-cache.ts";
+import { patchOutBuiltinMcp } from "./patch-builtin.ts";
 import {
 	executeAuthComplete,
 	executeAuthStart,
@@ -48,6 +50,13 @@ import type { DirectToolSpec } from "./types.ts";
 import { getConfigPathFromArgv, normalizeDirectToolInputSchema, truncateAtWord } from "./utils.ts";
 
 export default function mcpAdapter(pi: ExtensionAPI) {
+	// The current load already replaced built-in MCP through the /mcp command.
+	// Keep the same choice in settings for the next load without changing Pi's files.
+	try {
+		patchOutBuiltinMcp();
+	} catch (error) {
+		console.warn(`MCP: could not disable built-in MCP in settings: ${getErrorMessage(error)}`);
+	}
 	let state: McpExtensionState | null = null;
 	let initPromise: Promise<McpExtensionState> | null = null;
 	let lifecycleGeneration = 0;
@@ -116,7 +125,8 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 	const registeredDirectNames = new Set<string>();
 	let liveDirectSpecs = new Map<string, DirectToolSpec>();
 
-	function syncDirectTools(specs: DirectToolSpec[]) {
+	function syncDirectTools(specs: DirectToolSpec[], codemodeSpecs: DirectToolSpec[] = []) {
+		const codemodeNames = new Set(codemodeSpecs.map((spec) => spec.prefixedName));
 		const active = new Set(pi.getActiveTools());
 		const otherNames = new Set(
 			pi
@@ -126,7 +136,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 		);
 		const next = new Map<string, DirectToolSpec>();
 		const generation = lifecycleGeneration;
-		for (const spec of specs) {
+		for (const spec of [...specs, ...codemodeSpecs]) {
 			const name = spec.prefixedName;
 			if (otherNames.has(name)) {
 				console.warn(`MCP: skipping direct tool "${name}" (collides with another extension)`);
@@ -148,6 +158,8 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 				label: `MCP: ${spec.originalName}`,
 				description: spec.description || "(no description)",
 				promptSnippet: truncateAtWord(spec.description, 100) || `MCP tool from ${spec.serverName}`,
+				exposure: codemodeNames.has(name) ? "deferred" : "direct",
+				namespace: codemodeNames.has(name) ? { name: spec.serverName } : undefined,
 				parameters: Type.Unsafe(normalizeDirectToolInputSchema(spec.inputSchema) as never),
 				async execute(...args: Parameters<typeof execute>) {
 					if (generation !== lifecycleGeneration)
@@ -163,14 +175,16 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 				renderCall: createMcpDirectToolCallRenderer(name),
 				renderResult: createMcpDirectToolResultRenderer(name),
 			});
-			if (!registeredDirectNames.has(name)) active.add(name);
+			if (!registeredDirectNames.has(name) && !codemodeNames.has(name)) active.add(name);
 			registeredDirectNames.add(name);
 		}
 		liveDirectSpecs = next;
 		// ponytail: Pi has no unregisterTool; deactivate tombstones and reject stale executors.
 		// Remove registrations too when the host adds an unregister API.
 		pi.setActiveTools(
-			[...active].filter((name) => !registeredDirectNames.has(name) || next.has(name)),
+			[...active].filter(
+				(name) => !codemodeNames.has(name) && (!registeredDirectNames.has(name) || next.has(name)),
+			),
 		);
 	}
 
@@ -187,6 +201,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 							.map((s) => s.trim())
 							.filter(Boolean),
 					),
+			resolveCodemodeTools(currentState.config, loadMetadataCache()),
 		);
 	}
 
@@ -205,7 +220,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 		initPromise = null;
 		liveDirectSpecs.clear();
 		// Tool inventory APIs are unavailable during factory loading.
-		syncDirectTools(directSpecs);
+		syncDirectTools(directSpecs, resolveCodemodeTools(earlyConfig, earlyCache));
 
 		try {
 			await Promise.all([shutdownState(previousState, "session_restart"), shutdownOAuth()]);
