@@ -2,13 +2,13 @@
  * toolbox.ts — /toolbox command for user-driven tool gating
  *
  * Registers a `/toolbox` slash command that opens a TUI picker listing every
- * registered tool (built-in and MCP). Direct tools can be toggled on/off —
- * this controls which tools are described in the system prompt via
- * pi.setActiveTools(). Deferred tools stay available through tool_search.
+ * registered tool (built-in and MCP). Each tool has one of three states:
+ *   enabled  — declared in the system prompt (pi.setActiveTools)
+ *   deferred — not declared; tool_search loads it on demand (deferred exposure only)
+ *   disabled — not declared and blocked, even through tool_search or codemode
  *
  * Also supports headless usage:
- *   /toolbox enable <names>   — enable tool(s) by name
- *   /toolbox disable <names>  — disable tool(s) by name
+ *   /toolbox enable|defer|disable <names>
  *   /toolbox list [query]     — text search (no picker)
  */
 
@@ -22,7 +22,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
-	decodeKittyPrintable,
 	fuzzyFilter,
 	Input,
 	Key,
@@ -57,11 +56,23 @@ export interface ToolRow {
 	exposure?: string;
 }
 
+export type ToolState = "enabled" | "deferred" | "disabled";
+export const TOOL_STATES: readonly ToolState[] = ["enabled", "deferred", "disabled"];
+
 /** Callbacks for toggleTool / renderList — test seam. */
 export interface ToggleOps {
-	isActive: (name: string) => boolean;
-	onActivate: (name: string) => boolean;
-	onDeactivate: (name: string) => boolean;
+	stateOf: (name: string) => ToolState;
+	/** Returns false when the tool is already in that state. */
+	setState: (name: string, state: ToolState) => boolean;
+}
+
+/** Only tools registered with `deferred` exposure can be found by tool_search. */
+export const canDefer = (row: ToolRow): boolean => row.exposure === "deferred";
+
+/** Next state for the space key. Skips `deferred` when the tool cannot be deferred. */
+export function nextState(row: ToolRow, current: ToolState): ToolState {
+	const states = TOOL_STATES.filter((s) => s !== "deferred" || canDefer(row));
+	return states[(states.indexOf(current) + 1) % states.length] ?? "enabled";
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -109,9 +120,15 @@ export function parseTargets(raw: string): string[] {
 	return out;
 }
 
+const STATUS: Record<ToolState, string> = {
+	enabled: "✓ enabled",
+	deferred: "~ deferred",
+	disabled: "# disabled",
+};
+
 export function renderList(
 	rows: ToolRow[],
-	isActive: (name: string) => boolean,
+	stateOf: (name: string) => ToolState,
 	query?: string,
 ): string {
 	const filtered = query
@@ -134,42 +151,47 @@ export function renderList(
 			group = nextGroup;
 			lines.push(`${lines.length ? "\n" : ""}${group}:`);
 		}
-		const status =
-			row.exposure === "deferred" ? "deferred" : isActive(row.name) ? "✓ active" : "# gated";
 		const kind = row.mcp ? "MCP" : "tool";
-		lines.push(`${status}  ${row.name}  [${kind}]  ${row.description}`);
+		lines.push(`${STATUS[stateOf(row.name)]}  ${row.name}  [${kind}]  ${row.description}`);
 	}
 	return lines.join("\n");
 }
 
+const DONE: Record<ToolState, string> = {
+	enabled: "now in the prompt",
+	deferred: "tool_search loads it on demand",
+	disabled: "blocked",
+};
+
 export function toggleTool(
-	action: "enable" | "disable",
+	state: ToolState,
 	name: string,
 	rows: ToolRow[],
 	ops: ToggleOps,
 ): string {
 	const row = rows.find((r) => r.name === name);
 	if (!row) return `Unknown tool "${name}".`;
-	if (row.exposure === "deferred") return `${name} is deferred. Use tool_search to load it.`;
-
-	if (action === "enable") {
-		const did = ops.onActivate(name);
-		return did ? `Enabled ${name} — now prompt-visible.` : `${name} is already active.`;
-	}
-	const did = ops.onDeactivate(name);
-	return did ? `Disabled ${name} — hidden from prompt.` : `${name} is already gated.`;
+	if (CORE_TOOLS.has(name) && state !== "enabled")
+		return `${name} is a core tool. It stays enabled.`;
+	if (state === "deferred" && !canDefer(row))
+		return `${name} has direct exposure. tool_search cannot find it, so it cannot be deferred.`;
+	if (!ops.setState(name, state)) return `${name} is already ${state}.`;
+	return `${name} ${state} — ${DONE[state]}.`;
 }
 
 // ─── Persistence ───────────────────────────────────────────────────────────
 
 /**
- * Persisted gate state. Stores the tools the user turned OFF, so a newly
- * installed tool is active by default. `enabledTools` is the legacy form
- * (an allow-list that hid every tool installed later); it is read once and
- * migrated to `disabledTools` on the next write.
+ * Persisted gate state. Only changes from the default are saved, so a newly
+ * installed tool keeps its default (direct → enabled, deferred → deferred).
+ * `disabledTools` holds tools the user disabled. `loadedTools` holds deferred
+ * tools the user enabled, so they are declared on every session start.
+ * `enabledTools` is the legacy form (an allow-list that hid every tool
+ * installed later); it is read once and migrated on the next write.
  */
 interface ToolboxState {
 	disabledTools?: string[];
+	loadedTools?: string[];
 	enabledTools?: string[];
 }
 
@@ -195,11 +217,30 @@ export function disabledFromState(raw: unknown, allNames: string[]): string[] | 
 	return undefined;
 }
 
+/** Deferred tool names the user chose to load on every session start. */
+export function loadedFromState(raw: unknown): string[] {
+	const loaded = (raw as ToolboxState | undefined)?.loadedTools;
+	return isStringArray(loaded) ? loaded : [];
+}
+
+const exposureOf = (tool: ToolInfo): string =>
+	(tool as ToolInfo & { exposure?: string }).exposure ?? "direct";
+
 // ─── State ──────────────────────────────────────────────────────────────────
 
 function createState(pi: ExtensionAPI) {
 	let disabledTools = new Set<string>();
+	let loadedTools = new Set<string>();
 	let initialized = false;
+
+	function isDeferred(name: string): boolean {
+		try {
+			const tool = pi.getAllTools().find((t) => t.name === name);
+			return tool ? exposureOf(tool) === "deferred" : false;
+		} catch {
+			return false;
+		}
+	}
 
 	function allNames(): string[] {
 		try {
@@ -212,6 +253,7 @@ function createState(pi: ExtensionAPI) {
 
 	function persist(): void {
 		const data: ToolboxState = { disabledTools: [...disabledTools].sort() };
+		if (loadedTools.size) data.loadedTools = [...loadedTools].sort();
 		// Write to session so state survives branch navigation within a session
 		try {
 			pi.appendEntry<ToolboxState>("toolbox-config", data);
@@ -260,27 +302,30 @@ function createState(pi: ExtensionAPI) {
 		const names = allNames();
 		const file = loadFromFile();
 		const fromFile = file ? disabledFromState(file.raw, names) : undefined;
-		const disabled = fromFile ?? disabledFromState(loadFromSession(ctx), names) ?? [];
+		const fromSession = fromFile ? undefined : loadFromSession(ctx);
+		const disabled = fromFile ?? disabledFromState(fromSession, names) ?? [];
 		disabledTools = new Set(disabled);
+		loadedTools = new Set(loadedFromState(fromFile ? file?.raw : fromSession));
 		initialized = true;
 		apply();
 		// Migrate a legacy allow-list file to the disabled-list form.
 		if (file?.legacy && fromFile) persist();
 	}
 
-	function apply(): void {
+	/** Rebuild the active set. `drop` removes one tool that apply() would otherwise keep. */
+	function apply(drop?: string): void {
 		if (!initialized) return;
 		try {
 			const tools = pi.getAllTools();
 			const active = new Set(pi.getActiveTools());
+			if (drop) active.delete(drop);
 			pi.setActiveTools(
 				tools
 					.filter(
 						(tool) =>
 							!disabledTools.has(tool.name) &&
-							(["direct", "model-only"].includes(
-								(tool as ToolInfo & { exposure?: string }).exposure ?? "direct",
-							) ||
+							(["direct", "model-only"].includes(exposureOf(tool)) ||
+								loadedTools.has(tool.name) ||
 								active.has(tool.name)),
 					)
 					.map((tool) => tool.name),
@@ -290,32 +335,32 @@ function createState(pi: ExtensionAPI) {
 		}
 	}
 
-	function isActive(name: string): boolean {
-		return pi.getActiveTools().includes(name);
+	function stateOf(name: string): ToolState {
+		if (disabledTools.has(name)) return "disabled";
+		if (pi.getActiveTools().includes(name)) return "enabled";
+		return isDeferred(name) ? "deferred" : "disabled";
 	}
 
-	function onActivate(name: string): boolean {
-		if (!initialized) return false;
-		if (!disabledTools.delete(name)) return false;
-		apply();
-		persist();
-		return true;
-	}
-
-	function onDeactivate(name: string): boolean {
-		if (!initialized) return false;
-		if (CORE_TOOLS.has(name) || disabledTools.has(name)) return false;
-		disabledTools.add(name);
-		apply();
+	function setState(name: string, next: ToolState): boolean {
+		if (!initialized || stateOf(name) === next) return false;
+		if (CORE_TOOLS.has(name) && next !== "enabled") return false;
+		if (next === "deferred" && !isDeferred(name)) return false;
+		if (next === "disabled") disabledTools.add(name);
+		else disabledTools.delete(name);
+		if (next === "enabled" && isDeferred(name)) loadedTools.add(name);
+		else loadedTools.delete(name);
+		apply(next === "enabled" ? undefined : name);
 		persist();
 		return true;
 	}
 
 	return {
 		restoreFromBranch,
-		isActive,
-		onActivate,
-		onDeactivate,
+		stateOf,
+		setState,
+		isDisabled: (name: string) => initialized && disabledTools.has(name),
+		/** tool_search activates its matches. Re-apply so a disabled match drops out. */
+		reapply: () => apply(),
 	};
 }
 
@@ -335,6 +380,18 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 		state.restoreFromBranch(ctx);
 	});
 
+	// Disabled means unreachable: block direct and codemode calls, and undo a tool_search load.
+	pi.on("tool_call", async (event) => {
+		if (!state.isDisabled(event.toolName)) return;
+		return {
+			block: true,
+			reason: `${event.toolName} is disabled in /toolbox. Ask the user to enable it.`,
+		};
+	});
+	pi.on("tool_execution_end", async (event) => {
+		if (event.toolName === "tool_search") state.reapply();
+	});
+
 	function getRows(): ToolRow[] {
 		try {
 			return buildRows(pi.getAllTools() ?? []);
@@ -343,11 +400,7 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 		}
 	}
 
-	const ops: ToggleOps = {
-		isActive: state.isActive,
-		onActivate: state.onActivate,
-		onDeactivate: state.onDeactivate,
-	};
+	const ops: ToggleOps = { stateOf: state.stateOf, setState: state.setState };
 
 	async function showPicker(ctx: {
 		ui: {
@@ -373,27 +426,23 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 					theme.fg("text", key) + theme.fg("muted", ` ${action}`);
 				const guideSep = theme.fg("muted", " · ");
 
-				type RowState = "active" | "gated";
-				const stateOf = (name: string): RowState => (ops.isActive(name) ? "active" : "gated");
+				// Marker + color per state. The text tag keeps state readable without color.
+				const LOOK: Record<ToolState, { mark: string; color: "success" | "accent" | "warning" }> = {
+					enabled: { mark: "✓", color: "success" },
+					deferred: { mark: "~", color: "accent" },
+					disabled: { mark: "#", color: "warning" },
+				};
 
 				const labelFor = (r: ToolRow): string => {
-					const active = stateOf(r.name) === "active";
-					const deferred = r.exposure === "deferred";
-					const marker = deferred || active ? " " : theme.fg("warning", "#");
-					const name =
-						active && !deferred ? theme.fg("success", r.name) : theme.fg("muted", r.name);
-					const kind = mute(`[${deferred ? "deferred" : "normal"} · ${r.mcp ? "MCP" : "tool"}]`);
-					return `${marker} ${name}  ${kind}`;
+					const s = ops.stateOf(r.name);
+					const look = LOOK[s];
+					const name = s === "enabled" ? theme.fg("success", r.name) : theme.fg("muted", r.name);
+					return `${theme.fg(look.color, look.mark)} ${name}`;
 				};
 
 				const descFor = (r: ToolRow): string => {
-					const active = stateOf(r.name) === "active";
-					const tag =
-						r.exposure === "deferred"
-							? mute("deferred · tool_search")
-							: active
-								? theme.fg("success", "active")
-								: theme.fg("warning", "gated");
+					const s = ops.stateOf(r.name);
+					const tag = theme.fg(LOOK[s].color, s.padEnd(8));
 					return `${tag} ${mute("·")} ${r.description || "(no description)"}`;
 				};
 
@@ -434,6 +483,16 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 					selectedIndex: number;
 				};
 
+				const TABS = ["Tools", "MCP"] as const;
+				let tab: (typeof TABS)[number] = "Tools";
+				const inTab = (it: SelectItem) => (byValue.get(it.value)?.mcp === true) === (tab === "MCP");
+				const tabBar = () =>
+					TABS.map((name) => {
+						const n = rows.filter((r) => r.mcp === (name === "MCP")).length;
+						const label = `  ${name} (${n})  `;
+						return name === tab ? theme.fg(accent, theme.bold(label)) : mute(label);
+					}).join(mute("│"));
+
 				const search = new Input();
 				let statusText = "";
 				const pager = new ModalPager();
@@ -449,36 +508,36 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 					tui.requestRender?.();
 				};
 
-				const doToggle = (action: "enable" | "disable") => {
+				const setSelected = (next: ToolState | "cycle") => {
 					const sel = list.getSelectedItem();
-					if (!sel) return;
-					const msg = toggleTool(action, sel.value, rows, ops);
-					statusText = theme.fg("dim", msg);
+					const row = sel && byValue.get(sel.value);
+					if (!row) return;
+					const target = next === "cycle" ? nextState(row, ops.stateOf(row.name)) : next;
+					statusText = theme.fg("dim", toggleTool(target, row.name, rows, ops));
 					refreshLabels();
-				};
-
-				const flipSelected = () => {
-					const sel = list.getSelectedItem();
-					if (!sel) return;
-					if (stateOf(sel.value) === "active") doToggle("disable");
-					else doToggle("enable");
 				};
 
 				const applyFilter = (q: string) => {
 					const query = q.trim();
-					const hits =
+					const items = internal.items.filter(inTab);
+					internal.filteredItems =
 						query.length === 0
-							? internal.items
+							? items
 							: fuzzyFilter(
-									internal.items,
+									items,
 									query,
 									(it: SelectItem) => `${it.value} ${it.description ?? ""}`,
 								);
-					// Keep the MCP group after normal tools, so one header can split them.
-					const isMcp = (it: SelectItem) => byValue.get(it.value)?.mcp === true;
-					internal.filteredItems = [...hits.filter((it) => !isMcp(it)), ...hits.filter(isMcp)];
 					internal.selectedIndex = 0;
 					list.invalidate();
+				};
+				applyFilter("");
+
+				const switchTab = (direction: -1 | 1) => {
+					tab = TABS[(TABS.indexOf(tab) + direction + TABS.length) % TABS.length] ?? "Tools";
+					statusText = "";
+					applyFilter(search.getValue?.() ?? "");
+					pager.followSelection();
 				};
 
 				list.onSelect = () => done(null);
@@ -492,23 +551,21 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 						const footer = statusText ? ["", statusText] : [""];
 						// maxVisible = all items, so list line i is filteredItems[i].
 						const body = list.render(inner);
-						const split = internal.filteredItems.findIndex((it) => byValue.get(it.value)?.mcp);
-						const mcpHeader =
-							split < 0 ? [] : [...(split > 0 ? [""] : []), theme.fg("dim", "  MCP")];
-						body.splice(Math.max(0, split), 0, ...mcpHeader);
-						const selLine =
-							internal.selectedIndex +
-							(split >= 0 && internal.selectedIndex >= split ? mcpHeader.length : 0);
+						const selLine = internal.selectedIndex;
 						footer.push(
-							guide("↑↓", "navigate") +
+							guide("tab", "switch tab") +
+								guideSep +
+								guide("↑↓", "navigate") +
 								guideSep +
 								guide("←→/PgUp/PgDn", "inspect") +
 								guideSep +
-								guide("e", "enable") +
+								guide("^E", "enable") +
 								guideSep +
-								guide("d", "disable") +
+								guide("^F", "defer") +
 								guideSep +
-								guide("space", "toggle") +
+								guide("^D", "disable") +
+								guideSep +
+								guide("space", "cycle") +
 								guideSep +
 								guide("esc", "close"),
 						);
@@ -518,6 +575,8 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 							minHeight: MIN_MODAL_HEIGHT,
 							header: [
 								theme.fg(accent, theme.bold("🧰  Toolbox")),
+								tabBar(),
+								"",
 								theme.fg("dim", "Search:"),
 								...search.render(inner),
 								"",
@@ -548,25 +607,23 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 						} else if (matchesKey(data, Key.enter) || matchesKey(data, Key.escape)) {
 							done(null);
 							return;
-						} else if (matchesKey(data, Key.space) || matchesKey(data, Key.tab)) {
-							flipSelected();
+						} else if (matchesKey(data, Key.shift(Key.tab))) {
+							switchTab(-1);
+						} else if (matchesKey(data, Key.tab)) {
+							switchTab(1);
+						} else if (matchesKey(data, Key.space)) {
+							setSelected("cycle");
+						} else if (matchesKey(data, Key.ctrl("e"))) {
+							setSelected("enabled");
+						} else if (matchesKey(data, Key.ctrl("f"))) {
+							setSelected("deferred");
+						} else if (matchesKey(data, Key.ctrl("d"))) {
+							setSelected("disabled");
 						} else {
-							const printable = decodeKittyPrintable(data);
-							if (printable !== undefined) {
-								if (printable === "e") {
-									doToggle("enable");
-								} else if (printable === "d") {
-									doToggle("disable");
-								} else {
-									search.handleInput?.(data);
-									applyFilter(search.getValue?.() ?? "");
-									pager.followSelection();
-								}
-							} else {
-								search.handleInput?.(data);
-								applyFilter(search.getValue?.() ?? "");
-								pager.followSelection();
-							}
+							// Every other key goes to the search. Ctrl hotkeys never collide with typed text.
+							search.handleInput?.(data);
+							applyFilter(search.getValue?.() ?? "");
+							pager.followSelection();
 						}
 						list.invalidate();
 						tui.requestRender?.();
@@ -579,13 +636,20 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 
 	pi.registerCommand("toolbox", {
 		description:
-			"Toggle tools on/off. ↑↓ navigate, e/d enable/disable, space toggle. " +
-			"Headless: /toolbox enable|disable <names>, /toolbox list [query]",
+			"Set each tool to enabled, deferred or disabled. tab Tools/MCP, ↑↓ navigate, " +
+			"ctrl+e/f/d enable/defer/disable, space cycle. " +
+			"Headless: /toolbox enable|defer|disable <names>, /toolbox list [query]",
 		handler: async (args, ctx) => {
 			const raw = (args ?? "").trim();
 			const verb = raw.split(/\s+/, 1)[0]?.toLowerCase();
 
-			if (verb === "enable" || verb === "disable") {
+			const VERBS: Record<string, ToolState> = {
+				enable: "enabled",
+				defer: "deferred",
+				disable: "disabled",
+			};
+			const target = verb ? VERBS[verb] : undefined;
+			if (verb && target) {
 				const targets = parseTargets(raw.slice(verb.length).trim());
 				if (!targets.length) {
 					ctx.ui.notify(
@@ -595,14 +659,14 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 					return;
 				}
 				const rows = getRows();
-				const msg = targets.map((t) => toggleTool(verb, t, rows, ops)).join("\n");
+				const msg = targets.map((t) => toggleTool(target, t, rows, ops)).join("\n");
 				ctx.ui.notify(msg, "info");
 				return;
 			}
 
 			if (verb === "list") {
 				const query = raw.slice(verb.length).trim() || undefined;
-				ctx.ui.notify(renderList(getRows(), ops.isActive, query), "info");
+				ctx.ui.notify(renderList(getRows(), ops.stateOf, query), "info");
 				return;
 			}
 
@@ -610,7 +674,7 @@ export default function registerToolbox(pi: ExtensionAPI): void {
 				// SAFETY: The runtime command context satisfies showPicker's narrowed UI contract.
 				await showPicker(ctx as unknown as Parameters<typeof showPicker>[0]);
 			} else {
-				ctx.ui.notify(renderList(getRows(), ops.isActive), "info");
+				ctx.ui.notify(renderList(getRows(), ops.stateOf), "info");
 			}
 		},
 	});

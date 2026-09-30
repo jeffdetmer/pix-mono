@@ -4,12 +4,19 @@ Pi tool — gated tool toggle UI (`/toolbox`).
 
 ## What it does
 
-Registers a `/toolbox` slash command — a TUI fuzzy-search picker listing every registered tool (built-in, extension, MCP). Toggle tools on/off to control which are described in the system prompt via `pi.setActiveTools()`.
+Registers a `/toolbox` slash command — a TUI fuzzy-search picker listing every registered tool (built-in, extension, MCP), split into **Tools** and **MCP** tabs. Each tool has one of three states:
 
-- Toggling only affects **prompt visibility** — all tools stay callable via their function definitions.
-- Four tools (`bash`, `edit`, `read`, `write`) are protected and can't be disabled.
-- Gate state persists to `~/.pi/agent/toolbox.json` as `disabledTools` — only the tools you turn off. A newly installed tool is active by default. The file does not exist until you disable a tool. A legacy `enabledTools` file is migrated on the next session start.
-- Headless subcommands: `/toolbox enable <names>`, `/toolbox disable <names>`, `/toolbox list [query]`.
+| State | Mark | Meaning |
+|---|---|---|
+| enabled | `✓` | Declared in the system prompt. |
+| deferred | `~` | Not declared. `tool_search` loads it on demand. Only for tools with `deferred` exposure. |
+| disabled | `#` | Not declared, and every call is blocked, also through `tool_search` or `codemode`. |
+
+Keys: `tab` switch tab · `↑↓` navigate · `ctrl+e` enable · `ctrl+f` defer · `ctrl+d` disable · `space` cycle · any other key types into the search.
+
+- Four tools (`bash`, `edit`, `read`, `write`) are protected and stay enabled.
+- State persists to `~/.pi/agent/toolbox.json`. Only changes from the default are saved: `disabledTools` (tools you disabled) and `loadedTools` (deferred tools you enabled). A newly installed tool keeps its default. A legacy `enabledTools` file is migrated on the next session start.
+- Headless subcommands: `/toolbox enable|defer|disable <names>`, `/toolbox list [query]`.
 
 ## Install
 
