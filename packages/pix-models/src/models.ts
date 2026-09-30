@@ -110,6 +110,16 @@ export function sortModels<T extends SortableModel>(models: T[]): T[] {
 	});
 }
 
+/** Short protocol tag for a classifier model's api. */
+export function classifierProtocol(api: string): string {
+	if (api.endsWith("system-one")) return "System One";
+	if (api === "llama-cpp-classify") return "llama.cpp classify";
+	return api;
+}
+
+/** Picker value prefix for classifier rows. They cannot be chat models. */
+export const CLASSIFIER_VALUE_PREFIX = "classifier:";
+
 /** Lowercase and strip all non-alphanumerics: "glm-5.2" → "glm52". */
 export function normalizeModelText(s: string): string {
 	return s.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -235,9 +245,23 @@ async function showEnhancedPicker(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 	const registry = ctx.modelRegistry as unknown as {
 		refresh?: () => void;
 		getAvailable(): AvailableModels | Promise<AvailableModels>;
+		getAvailableOfType?: (type: "classifier") => Promise<
+			readonly {
+				provider: string;
+				id: string;
+				name?: string;
+				api: string;
+				contextWindow?: number;
+			}[]
+		>;
 	};
+	// Classifier models (System One etc.) answer typed questions, not chat.
+	// Show them in their own section so they are visible but never picked as the chat model.
+	const loadClassifiers = async () =>
+		(await registry.getAvailableOfType?.("classifier").catch(() => [])) ?? [];
 	registry.refresh?.();
 	let available = await registry.getAvailable();
+	let classifiers = await loadClassifiers();
 	if (available.length === 0) {
 		ctx.ui.notify("No models with configured auth.", "warning");
 		return;
@@ -299,15 +323,11 @@ async function showEnhancedPicker(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 				theme.fg("text", key) + theme.fg("muted", ` ${action}`);
 			const guideSep = theme.fg("muted", " · ");
 
-			const buildPickerData = (sourceRows: Row[]) => {
-				const maxRankWidth = Math.max(
-					...sourceRows.map((row) => (row.localRank ? String(row.localRank).length : 0)),
-					1,
-				);
-				const maxCostWidth = Math.max(
-					...sourceRows.map((row) => fmtCost(row.dev).length),
-					"free".length,
-				);
+			const buildPickerData = (sourceRows: Row[], classifierModels: typeof classifiers) => {
+				// Classifier rows continue the numbering after the last ranked chat row.
+				const firstClassifierRank = Math.max(0, ...sourceRows.map((row) => row.localRank ?? 0)) + 1;
+				const lastRank = firstClassifierRank - 1 + classifierModels.length;
+				const maxRankWidth = Math.max(String(lastRank).length, 1);
 				const rankByValue = new Map<string, number>();
 				const searchTextByValue = new Map<string, string>();
 				const normalizedByValue = new Map<string, string>();
@@ -319,13 +339,25 @@ async function showEnhancedPicker(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 					normalizedByValue.set(value, normalizeModelText(text));
 				}
 
-				const items: SelectItem[] = sourceRows.map(({ m, dev, bench, localRank }) => {
+				const classifierRows = classifierModels.map((c) => ({
+					m: c,
+					dev: lookupModelsDev(c.provider, c.id),
+					bench: lookupBenchmark(c.id),
+				}));
+				const maxCostWidth = Math.max(
+					...[...sourceRows, ...classifierRows].map((row) => fmtCost(row.dev).length),
+					"free".length,
+				);
+				const renderRow = (
+					m: { provider: string; id: string; contextWindow?: number },
+					dev: Row["dev"],
+					bench: Row["bench"],
+					rankPrefix: string,
+					value: string,
+					kindMark?: string,
+				): SelectItem => {
 					const isCurrent = current && m.provider === current.provider && m.id === current.id;
 					const marker = isCurrent ? theme.fg(accent, "▶") : " ";
-					const rankPrefix = localRank
-						? mute("#") +
-							theme.fg(benchScoreColor(bench?.overallScore), String(localRank).padEnd(maxRankWidth))
-						: mute("#") + mute("—".padEnd(maxRankWidth, " "));
 					const nameColor = bench ? benchScoreColor(bench.overallScore) : accent;
 					const label = `${marker} ${rankPrefix} ${theme.fg(nameColor, m.id)}`;
 					const ctxRaw = fmtCtx(
@@ -347,10 +379,34 @@ async function showEnhancedPicker(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 						benchSeg = `⚡${theme.fg(scoreColor, String(score))} ${stars}`;
 					}
 					return {
-						value: `${m.provider}/${m.id}`,
+						value,
 						label,
-						description: dotJoin([mute(ctxRaw.padStart(4)), costSeg, benchSeg], mute),
+						description: dotJoin(
+							[mute(ctxRaw.padStart(4)), costSeg, [benchSeg, kindMark].filter(Boolean).join(" ")],
+							mute,
+						),
 					};
+				};
+
+				const items: SelectItem[] = sourceRows.map(({ m, dev, bench, localRank }) => {
+					const rankPrefix = localRank
+						? mute("#") +
+							theme.fg(benchScoreColor(bench?.overallScore), String(localRank).padEnd(maxRankWidth))
+						: mute("#") + mute("—".padEnd(maxRankWidth, " "));
+					return renderRow(m, dev, bench, rankPrefix, `${m.provider}/${m.id}`);
+				});
+				// Classifier rows: same columns and numbering. The symbol takes the
+				// empty score slot at the end of the row.
+				const classifierMark = theme.fg("warning", icon("model.classifier"));
+				classifierRows.forEach(({ m: c, dev, bench }, i) => {
+					const rank = firstClassifierRank + i;
+					const value = `${CLASSIFIER_VALUE_PREFIX}${c.provider}/${c.id}`;
+					const text = `${c.id} ${c.name ?? ""} classifier ${classifierProtocol(c.api)}`;
+					rankByValue.set(value, rank);
+					searchTextByValue.set(value, text);
+					normalizedByValue.set(value, normalizeModelText(text));
+					const rankPrefix = mute("#") + mute(String(rank).padEnd(maxRankWidth));
+					items.push(renderRow(c, dev, bench, rankPrefix, value, classifierMark));
 				});
 				return {
 					items,
@@ -361,7 +417,7 @@ async function showEnhancedPicker(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 				};
 			};
 
-			let pickerData = buildPickerData(buildRows(available));
+			let pickerData = buildPickerData(buildRows(available), classifiers);
 			const currentIdx = current
 				? pickerData.items.findIndex((item) => item.value === `${current.provider}/${current.id}`)
 				: 0;
@@ -426,7 +482,8 @@ async function showEnhancedPicker(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 						return;
 					}
 					available = refreshed;
-					pickerData = buildPickerData(buildRows(available));
+					classifiers = await loadClassifiers();
+					pickerData = buildPickerData(buildRows(available), classifiers);
 					listInternal.items = pickerData.items;
 					listInternal.maxVisible = Math.max(1, pickerData.items.length);
 					listInternal.layout = {
@@ -563,6 +620,15 @@ async function showEnhancedPicker(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 	);
 
 	if (!result) return;
+
+	if (result.startsWith(CLASSIFIER_VALUE_PREFIX)) {
+		const ref = result.slice(CLASSIFIER_VALUE_PREFIX.length);
+		ctx.ui.notify(
+			`${ref} is a classifier model, not a chat model. Call it with models.classify() in codemode or ctx.modelRegistry.classify().`,
+			"info",
+		);
+		return;
+	}
 
 	// Apply selection
 	const [provider, ...rest] = result.split("/");

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	benchStars,
+	classifierProtocol,
 	filterModelItems,
 	fmtCost,
 	fmtCtx,
@@ -316,5 +317,16 @@ describe("filterModelItems", () => {
 	it("whitespace query is treated as empty", () => {
 		const result = filterModelItems(allItems, "   ", allLookup);
 		expect(values(result)).toEqual(allItems.map((it) => it.value));
+	});
+});
+
+describe("classifierProtocol", () => {
+	it("names System One apis", () => {
+		expect(classifierProtocol("typesafe-system-one")).toBe("System One");
+		expect(classifierProtocol("cloudflare-workers-ai-system-one")).toBe("System One");
+	});
+	it("names llama.cpp and passes unknown apis through", () => {
+		expect(classifierProtocol("llama-cpp-classify")).toBe("llama.cpp classify");
+		expect(classifierProtocol("custom-api")).toBe("custom-api");
 	});
 });
