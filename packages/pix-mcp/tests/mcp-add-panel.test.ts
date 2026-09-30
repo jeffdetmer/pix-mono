@@ -80,7 +80,7 @@ describe("MCP add target", () => {
 describe("MCP direct-tools opt-in toggle", () => {
 	const SPACE = " ";
 
-	function captureEntry(toggleValue: string) {
+	function captureEntry(toggleValue: string, exposeResources?: string) {
 		let captured: unknown;
 		const tui = { requestRender: mock(() => {}), terminal: { rows: 40 } };
 		const callbacks: AddPanelCallbacks = {
@@ -105,11 +105,17 @@ describe("MCP direct-tools opt-in toggle", () => {
 		p.setFieldValue("name", "srv");
 		p.setFieldValue("command", "npx");
 		p.setFieldValue("directTools", toggleValue); // "true" | "" as the toggle would leave it
+		if (exposeResources !== undefined) p.setFieldValue("exposeResources", exposeResources);
 		p.handleInput(ENTER); // form -> pickScope
 		p.handleInput(ENTER); // pickScope -> preview (fires previewEntry)
 		p.dispose();
-		return captured as { directTools?: unknown };
+		return captured as { directTools?: unknown; exposeResources?: unknown };
 	}
+
+	it("keeps resource tools off by default and writes true only when on", () => {
+		expect(captureEntry("").exposeResources).toBeUndefined();
+		expect(captureEntry("", "true").exposeResources).toBe(true);
+	});
 
 	it("opts in to all tools when the toggle is on", () => {
 		expect(captureEntry("true").directTools).toBe(true);
@@ -160,13 +166,15 @@ describe("MCP direct-tools opt-in toggle", () => {
 				edit: {
 					name: "srv",
 					targetPath: "/tmp/x.json",
-					entry: { command: "npx", directTools: ["a"] },
+					entry: { command: "npx", directTools: ["a"], exposeResources: true },
 				},
 			},
 			tui,
 			() => {},
 		);
 		expect(p.getFieldValue("directTools")).toBe("true");
+		expect(p.getFieldValue("exposeResources")).toBe("true");
+		expect(stripAnsi(p.render(120).join("\n"))).toContain("Resource tools: [x] on");
 		p.dispose();
 	});
 });

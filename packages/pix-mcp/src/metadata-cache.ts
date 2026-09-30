@@ -142,7 +142,7 @@ export function reconstructToolMetadata(
 		});
 	}
 
-	if (definition.exposeResources !== false) {
+	if (definition.exposeResources === true) {
 		for (const resource of entry.resources ?? []) {
 			if (!resource?.name || !resource?.uri) continue;
 			const baseName = `get_${resourceNameToToolName(resource.name)}`;

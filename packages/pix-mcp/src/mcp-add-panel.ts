@@ -151,6 +151,13 @@ function fieldsForType(type: AddServerType): FieldDef[] {
 		hint: "register this server's tools as native tools (space toggles)",
 		toggle: true,
 	};
+	const exposeResources: FieldDef = {
+		key: "exposeResources",
+		label: "Resource tools",
+		placeholder: "off",
+		hint: "turn each MCP resource into a get_<name> tool (space toggles)",
+		toggle: true,
+	};
 	if (type === "stdio") {
 		return [
 			...common,
@@ -179,6 +186,7 @@ function fieldsForType(type: AddServerType): FieldDef[] {
 				hint: "optional working directory",
 			},
 			directTools,
+			exposeResources,
 		];
 	}
 	// ponytail: one URL option; connection probes Streamable HTTP then legacy SSE.
@@ -210,6 +218,7 @@ function fieldsForType(type: AddServerType): FieldDef[] {
 			secret: true,
 		},
 		directTools,
+		exposeResources,
 	];
 }
 
@@ -255,6 +264,11 @@ function serializeDirectTools(directTools: boolean | string[] | undefined): stri
 		: "";
 }
 
+// Unset means off (the runtime default). Only an explicit on is written to config.
+function parseExposeResources(value: string): true | undefined {
+	return value === "true" ? true : undefined;
+}
+
 function inferType(entry: ServerEntry): AddServerType {
 	return entry.url ? "http" : "stdio";
 }
@@ -287,6 +301,7 @@ function fieldsFromEntry(name: string, entry: ServerEntry): Record<string, strin
 		env: entry.env && Object.keys(entry.env).length ? JSON.stringify(entry.env) : "",
 		cwd: entry.cwd ?? "",
 		directTools: serializeDirectTools(entry.directTools),
+		exposeResources: entry.exposeResources === true ? "true" : "",
 		url: entry.url ?? "",
 		headers:
 			entry.headers && Object.keys(entry.headers).length ? JSON.stringify(entry.headers) : "",
@@ -429,6 +444,7 @@ export class McpAddPanel {
 					env,
 					cwd: (this.fieldValues.cwd ?? "").trim() || undefined,
 					directTools,
+					exposeResources: parseExposeResources(this.fieldValues.exposeResources ?? ""),
 				};
 				return { name, entry };
 			} catch (error) {
@@ -456,6 +472,7 @@ export class McpAddPanel {
 		entry.bearerTokenEnv = (this.fieldValues.bearerTokenEnv ?? "").trim() || undefined;
 		entry.bearerToken = (this.fieldValues.bearerToken ?? "").trim() || undefined;
 		entry.directTools = parseDirectTools(this.fieldValues.directTools ?? "");
+		entry.exposeResources = parseExposeResources(this.fieldValues.exposeResources ?? "");
 		return { name, entry };
 	}
 

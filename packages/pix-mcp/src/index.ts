@@ -5,7 +5,7 @@ import type {
 	ToolInfo,
 } from "@earendil-works/pi-coding-agent";
 import { showTransientError, showTransientMessage } from "@xynogen/pix-pretty/transient-error";
-import { getErrorMessage } from "@xynogen/pix-pretty/utils";
+import { getErrorMessage, pluralize } from "@xynogen/pix-pretty/utils";
 import { Type } from "typebox";
 import {
 	logoutServer,
@@ -20,8 +20,10 @@ import {
 	buildProxyDescription,
 	createDirectToolExecutor,
 	getMissingConfiguredDirectToolServers,
+	noteSkippedDirectTool,
 	resolveCodemodeTools,
 	resolveDirectTools,
+	takeSkippedDirectTools,
 } from "./direct-tools.ts";
 import { toolErrorOverride } from "./error-signal.ts";
 import { flushMetadataCache, initializeMcp, updateStatusBar } from "./init.ts";
@@ -139,7 +141,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 		for (const spec of [...specs, ...codemodeSpecs]) {
 			const name = spec.prefixedName;
 			if (otherNames.has(name)) {
-				console.warn(`MCP: skipping direct tool "${name}" (collides with another extension)`);
+				noteSkippedDirectTool(name);
 				continue;
 			}
 			const previous = liveDirectSpecs.get(name);
@@ -205,6 +207,15 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 		);
 	}
 
+	// Raw console output clogs the TUI prompt. Batch skips into one transient warning.
+	function reportSkippedDirectTools(ctx: ExtensionContext): void {
+		const skipped = takeSkippedDirectTools();
+		if (skipped.length === 0) return;
+		const message = `MCP: skipped ${pluralize(skipped.length, "direct tool")} (name collision): ${skipped.join(", ")}`;
+		if (ctx.hasUI) showTransientMessage(ctx.ui, message, "warning");
+		else console.warn(message);
+	}
+
 	const getPiTools = (): ToolInfo[] => pi.getAllTools();
 
 	pi.registerFlag("mcp-config", {
@@ -221,6 +232,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 		liveDirectSpecs.clear();
 		// Tool inventory APIs are unavailable during factory loading.
 		syncDirectTools(directSpecs, resolveCodemodeTools(earlyConfig, earlyCache));
+		reportSkippedDirectTools(ctx);
 
 		try {
 			await Promise.all([shutdownState(previousState, "session_restart"), shutdownOAuth()]);
@@ -257,6 +269,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 				nextState.onToolMetadataChanged = () => {
 					if (generation !== lifecycleGeneration || state !== nextState) return;
 					refreshDirectTools(nextState);
+					reportSkippedDirectTools(ctx);
 				};
 				nextState.onToolMetadataChanged();
 				updateStatusBar(nextState);

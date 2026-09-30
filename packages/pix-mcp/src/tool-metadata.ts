@@ -40,7 +40,7 @@ export function buildToolMetadata(
 		});
 	}
 
-	if (definition.exposeResources !== false) {
+	if (definition.exposeResources === true) {
 		for (const resource of resources) {
 			const baseName = `get_${resourceNameToToolName(resource.name)}`;
 			if (isToolExcluded(baseName, serverName, prefix, definition.excludeTools)) {

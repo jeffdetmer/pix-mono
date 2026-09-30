@@ -295,7 +295,7 @@ export function updateMetadataCache(state: McpExtensionState, serverName: string
 	const configHash = computeServerHash(definition);
 	const tools = serializeTools(connection.tools);
 	const resources =
-		definition.exposeResources === false ? [] : serializeResources(connection.resources);
+		definition.exposeResources === true ? serializeResources(connection.resources) : [];
 
 	const entry: ServerCacheEntry = {
 		configHash,

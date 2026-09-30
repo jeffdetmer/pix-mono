@@ -71,6 +71,8 @@ mock.module("../src/direct-tools.ts", () => ({
 	getMissingConfiguredDirectToolServers: mocks.getMissingConfiguredDirectToolServers,
 	resolveDirectTools: mocks.resolveDirectTools,
 	resolveCodemodeTools: mocks.resolveCodemodeTools,
+	noteSkippedDirectTool: () => {},
+	takeSkippedDirectTools: () => [],
 }));
 
 mock.module("../src/commands.ts", () => ({

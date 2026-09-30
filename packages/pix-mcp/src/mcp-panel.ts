@@ -299,7 +299,7 @@ class McpPanel {
 						estimatedTokens: estimateTokens(tool),
 					});
 				}
-				if (definition.exposeResources !== false) {
+				if (definition.exposeResources === true) {
 					for (const resource of serverCache.resources ?? []) {
 						const baseName = `get_${resourceNameToToolName(resource.name)}`;
 						if (isToolExcluded(baseName, serverName, this.prefix, definition.excludeTools)) {
@@ -328,7 +328,7 @@ class McpPanel {
 				source: prov?.kind ?? "user",
 				importKind: prov?.importKind,
 				excludeTools: definition.excludeTools,
-				exposeResources: definition.exposeResources !== false,
+				exposeResources: definition.exposeResources === true,
 				connectionStatus: status,
 				tools,
 				hasCachedData: !!serverCache,

@@ -5,6 +5,7 @@ import {
 	buildProxyDescription,
 	resolveCodemodeTools,
 	resolveDirectTools,
+	takeSkippedDirectTools,
 } from "../src/direct-tools.ts";
 import {
 	computeServerHash,
@@ -129,7 +130,7 @@ describe("codemode tool discovery", () => {
 describe("resource name collisions", () => {
 	it("keeps the first resource and warns once across metadata refreshes", () => {
 		const config: McpConfig = {
-			mcpServers: { demo: { command: "node" } },
+			mcpServers: { demo: { command: "node", exposeResources: true } },
 		};
 		const cache: MetadataCache = {
 			version: 1,
@@ -147,12 +148,15 @@ describe("resource name collisions", () => {
 		};
 		const warn = spyOn(console, "warn").mockImplementation(() => {});
 		try {
+			takeSkippedDirectTools();
 			const first = resolveCodemodeTools(config, cache);
 			expect(first).toMatchObject([
 				{ prefixedName: "mcp__demo__get_unique_table", resourceUri: "demo://unique" },
 			]);
 			expect(resolveCodemodeTools(config, cache)).toEqual(first);
-			expect(warn).toHaveBeenCalledTimes(1);
+			expect(takeSkippedDirectTools()).toEqual(["demo_get_unique_table"]);
+			// Raw console output clogs the TUI prompt.
+			expect(warn).toHaveBeenCalledTimes(0);
 		} finally {
 			warn.mockRestore();
 		}
@@ -371,6 +375,27 @@ describe("excludeTools filtering", () => {
 		const specs = resolveDirectTools(config, cache, "server");
 
 		expect(specs.map((spec) => spec.prefixedName)).toEqual(["figma_get_nodes"]);
+	});
+
+	it("exposes resource tools only when exposeResources is true", () => {
+		const names = (exposeResources?: boolean) => {
+			const definition = { command: "npx", directTools: true, exposeResources } as const;
+			const cache: MetadataCache = {
+				version: 1,
+				servers: {
+					db: {
+						configHash: computeServerHash(definition),
+						cachedAt: Date.now(),
+						tools: [{ name: "query", description: "Query" }],
+						resources: [{ name: "users", uri: "db://users", description: "Users" }],
+					},
+				},
+			};
+			const config: McpConfig = { mcpServers: { db: definition } };
+			return resolveDirectTools(config, cache, "server").map((spec) => spec.prefixedName);
+		};
+		expect(names()).toEqual(["db_query"]);
+		expect(names(true)).toEqual(["db_query", "db_get_users"]);
 	});
 
 	it("matches prefixed exclusions even when toolPrefix is none", () => {

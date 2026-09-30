@@ -25,7 +25,22 @@ import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.ts";
 import { formatAuthRequiredMessage } from "./utils.ts";
 
 const BUILTIN_NAMES = new Set(["read", "bash", "edit", "write", "grep", "find", "ls", "mcp"]);
-const warnedResourceCollisions = new Set<string>();
+// ponytail: Dedup per process. A reload resets it, so one warning shows per load.
+const warnedSkips = new Set<string>();
+let pendingSkips: string[] = [];
+
+export function noteSkippedDirectTool(name: string): void {
+	if (warnedSkips.has(name)) return;
+	warnedSkips.add(name);
+	pendingSkips.push(name);
+}
+
+/** Drain skipped direct-tool names. The caller shows them on a TUI-safe surface. */
+export function takeSkippedDirectTools(): string[] {
+	const out = pendingSkips;
+	pendingSkips = [];
+	return out;
+}
 
 type DirectAutoAuthResult =
 	| { status: "skipped" }
@@ -150,11 +165,11 @@ export function resolveDirectTools(
 			if (isToolExcluded(tool.name, serverName, prefix, definition.excludeTools)) continue;
 			const prefixedName = formatToolName(tool.name, serverName, prefix);
 			if (BUILTIN_NAMES.has(prefixedName)) {
-				console.warn(`MCP: skipping direct tool "${prefixedName}" (collides with builtin)`);
+				noteSkippedDirectTool(prefixedName);
 				continue;
 			}
 			if (seenNames.has(prefixedName)) {
-				console.warn(`MCP: skipping duplicate direct tool "${prefixedName}" from "${serverName}"`);
+				noteSkippedDirectTool(prefixedName);
 				continue;
 			}
 			seenNames.add(prefixedName);
@@ -169,27 +184,18 @@ export function resolveDirectTools(
 			});
 		}
 
-		if (definition.exposeResources !== false) {
+		if (definition.exposeResources === true) {
 			for (const resource of serverCache.resources ?? []) {
 				const baseName = `get_${resourceNameToToolName(resource.name)}`;
 				if (toolFilter !== true && !toolFilter.includes(baseName)) continue;
 				if (isToolExcluded(baseName, serverName, prefix, definition.excludeTools)) continue;
 				const prefixedName = formatToolName(baseName, serverName, prefix);
 				if (BUILTIN_NAMES.has(prefixedName)) {
-					console.warn(
-						`MCP: skipping direct resource tool "${prefixedName}" (collides with builtin)`,
-					);
+					noteSkippedDirectTool(prefixedName);
 					continue;
 				}
 				if (seenNames.has(prefixedName)) {
-					// ponytail: Warn once per collision in this process. A restart resets the warning list.
-					const collision = `${serverName}\0${prefixedName}\0${resource.uri}`;
-					if (!warnedResourceCollisions.has(collision)) {
-						warnedResourceCollisions.add(collision);
-						console.warn(
-							`MCP: skipping duplicate direct resource tool "${prefixedName}" from "${serverName}"`,
-						);
-					}
+					noteSkippedDirectTool(prefixedName);
 					continue;
 				}
 				seenNames.add(prefixedName);
@@ -275,7 +281,7 @@ export function buildProxyDescription(
 			(tool) => !isToolExcluded(tool.name, serverName, prefix, definition.excludeTools),
 		).length;
 		const resourceCount =
-			definition?.exposeResources !== false
+			definition?.exposeResources === true
 				? (entry?.resources ?? []).filter((resource) => {
 						const baseName = `get_${resourceNameToToolName(resource.name)}`;
 						return !isToolExcluded(baseName, serverName, prefix, definition.excludeTools);
